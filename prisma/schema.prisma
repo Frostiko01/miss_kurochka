@@ -1,0 +1,502 @@
+// Miss Kurochka PWA - Database Schema
+// Архитектура: мягкое удаление, мультиязычность через JSONB, модификаторы блюд
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// 👤 БЛОК: ПОЛЬЗОВАТЕЛИ И АВТОРИЗАЦИЯ
+// ============================================
+
+enum UserRole {
+  admin
+  branch
+  customer
+}
+
+enum UserStatus {
+  active
+  blocked
+}
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  email         String?  @unique @db.VarChar(255)
+  username      String?  @unique @db.VarChar(100)
+  passwordHash  String?  @map("password_hash") @db.VarChar(255)
+  fullName      String     @map("full_name") @db.VarChar(100)
+  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
+  role          UserRole   @default(customer)
+  status        UserStatus @default(active)
+  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  branchUsers       BranchUser[]
+  deliveryAddresses DeliveryAddress[]
+  orders            Order[]
+  bannersCreated    Banner[]
+  stopListEntries   StopList[]        @relation("StoppedBy")
+  stopListRestored  StopList[]        @relation("RestoredBy")
+  ordersCancelled   Order[]           @relation("CancelledBy")
+  branchAssignments BranchUser[]      @relation("AssignedBy")
+
+  @@map("users")
+}
+
+// ============================================
+// 🏢 БЛОК: ФИЛИАЛЫ
+// ============================================
+
+enum BranchStatus {
+  active
+  inactive
+}
+
+model Branch {
+  id                       String        @id @default(uuid()) @db.Uuid
+  name                     String        @db.VarChar(200)
+  address                  String        @db.Text
+  phone                    String        @db.VarChar(20)
+  email                    String?       @db.VarChar(255)
+  description              String?       @db.Text
+  logoUrl                  String?       @map("logo_url") @db.VarChar(500)
+  coverUrl                 String?       @map("cover_url") @db.VarChar(500)
+  latitude                 Decimal?      @db.Decimal(10, 8)
+  longitude                Decimal?      @db.Decimal(11, 8)
+  city                     String        @default("Bishkek") @db.VarChar(100)
+  status                   BranchStatus  @default(active)
+  temporaryClosureReason   String?       @map("temporary_closure_reason") @db.Text
+  temporaryClosedUntil     DateTime?     @map("temporary_closed_until") @db.Timestamptz(6)
+  averageCookingTime       Int?          @map("average_cooking_time") @db.SmallInt
+  minOrderAmount           Decimal?      @map("min_order_amount") @db.Decimal(10, 2)
+  createdAt                DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  schedules         BranchSchedule[]
+  branchUsers       BranchUser[]
+  menuCategories    MenuCategory[]
+  stopList          StopList[]
+  orders            Order[]
+  deliveryZones     DeliveryZone[]
+  popularItemsStats PopularItemsStats[]
+  modifierGroups    ModifierGroup[]
+
+  @@map("branches")
+}
+
+model BranchSchedule {
+  id          String   @id @default(uuid()) @db.Uuid
+  branchId    String   @map("branch_id") @db.Uuid
+  dayOfWeek   Int      @map("day_of_week") @db.SmallInt // 0=Monday, 6=Sunday
+  openTime    DateTime @map("open_time") @db.Time(6)
+  closeTime   DateTime @map("close_time") @db.Time(6)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_schedules")
+}
+
+model BranchUser {
+  id         String   @id @default(uuid()) @db.Uuid
+  branchId   String   @map("branch_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedBy String   @map("assigned_by") @db.Uuid
+
+  // Relations
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assigner User   @relation("AssignedBy", fields: [assignedBy], references: [id])
+
+  @@unique([branchId, userId])
+  @@map("branch_users")
+}
+
+// ============================================
+// 🍔 БЛОК: МЕНЮ
+// ============================================
+
+enum CategoryStatus {
+  active
+  inactive
+  archived
+}
+
+model MenuCategory {
+  id          String          @id @default(uuid()) @db.Uuid
+  branchId    String?         @map("branch_id") @db.Uuid
+  name        String          @db.VarChar(200)
+  nameI18n    Json?           @map("name_i18n") @db.JsonB
+  description String?         @db.Text
+  imageUrl    String?         @map("image_url") @db.VarChar(500)
+  parentId    String?         @map("parent_id") @db.Uuid
+  status      CategoryStatus  @default(active)
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  branch       Branch?        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  parent       MenuCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children     MenuCategory[] @relation("CategoryHierarchy")
+  menuItems    MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  categoryId          String   @map("category_id") @db.Uuid
+  name                String   @db.VarChar(300)
+  nameI18n            Json?    @map("name_i18n") @db.JsonB
+  description         String?  @db.Text
+  descriptionI18n     Json?    @map("description_i18n") @db.JsonB
+  weightGrams         Int?     @map("weight_grams") @db.SmallInt
+  volumeMl            Int?     @map("volume_ml") @db.SmallInt
+  price               Decimal  @db.Decimal(10, 2)
+  costPrice           Decimal? @map("cost_price") @db.Decimal(10, 2)
+  cookingTimeMinutes  Int?     @map("cooking_time_minutes") @db.SmallInt
+  calories            Int?     @db.SmallInt
+  proteins            Decimal? @db.Decimal(6, 2)
+  fats                Decimal? @db.Decimal(6, 2)
+  carbohydrates       Decimal? @db.Decimal(6, 2)
+  ingredients         String?  @db.Text
+  allergens           String?  @db.VarChar(500)
+  spicyLevel          Int      @default(0) @map("spicy_level") @db.SmallInt
+  isVegetarian        Boolean  @default(false) @map("is_vegetarian")
+  isVegan             Boolean  @default(false) @map("is_vegan")
+  isActive            Boolean  @default(true) @map("is_active")
+  isFeatured          Boolean  @default(false) @map("is_featured")
+  isNew               Boolean  @default(false) @map("is_new")
+  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  category          MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  images            MenuItemImage[]
+  stopList          StopList[]
+  orderItems        OrderItem[]
+  modifiers         MenuItemModifier[]
+  popularItemsStats PopularItemsStats[]
+
+  @@map("menu_items")
+}
+
+model MenuItemImage {
+  id         String   @id @default(uuid()) @db.Uuid
+  menuItemId String   @map("menu_item_id") @db.Uuid
+  imageUrl   String   @map("image_url") @db.VarChar(500)
+  isPrimary  Boolean  @default(false) @map("is_primary")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_images")
+}
+
+model StopList {
+  id               String    @id @default(uuid()) @db.Uuid
+  branchId         String    @map("branch_id") @db.Uuid
+  menuItemId       String    @map("menu_item_id") @db.Uuid
+  reason           String?   @db.Text
+  stoppedBy        String    @map("stopped_by") @db.Uuid
+  stoppedAt        DateTime  @default(now()) @map("stopped_at") @db.Timestamptz(6)
+  expectedReturnAt DateTime? @map("expected_return_at") @db.Timestamptz(6)
+  restoredAt       DateTime? @map("restored_at") @db.Timestamptz(6)
+  restoredBy       String?   @map("restored_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  branch    Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  stopper   User      @relation("StoppedBy", fields: [stoppedBy], references: [id])
+  restorer  User?     @relation("RestoredBy", fields: [restoredBy], references: [id])
+
+  @@map("stop_list")
+}
+
+// ============================================
+// ⚙️ БЛОК: МОДИФИКАТОРЫ
+// ============================================
+
+enum SelectionType {
+  single
+  multiple
+}
+
+model ModifierGroup {
+  id             String        @id @default(uuid()) @db.Uuid
+  branchId       String?       @map("branch_id") @db.Uuid
+  name           String        @db.VarChar(200)
+  nameI18n       Json?         @map("name_i18n") @db.JsonB
+  selectionType  SelectionType @map("selection_type")
+  isRequired     Boolean       @default(false) @map("is_required")
+  minSelections  Int           @default(0) @map("min_selections") @db.SmallInt
+  maxSelections  Int?          @map("max_selections") @db.SmallInt
+  isActive       Boolean       @default(true) @map("is_active")
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  branch            Branch?            @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  options           ModifierOption[]
+  menuItemModifiers MenuItemModifier[]
+
+  @@map("modifier_groups")
+}
+
+model ModifierOption {
+  id         String   @id @default(uuid()) @db.Uuid
+  groupId    String   @map("group_id") @db.Uuid
+  name       String   @db.VarChar(200)
+  nameI18n   Json?    @map("name_i18n") @db.JsonB
+  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(8, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  group              ModifierGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
+
+  @@map("modifier_options")
+}
+
+model MenuItemModifier {
+  id              String   @id @default(uuid()) @db.Uuid
+  menuItemId      String   @map("menu_item_id") @db.Uuid
+  modifierGroupId String   @map("modifier_group_id") @db.Uuid
+  sortOrder       Int      @default(0) @map("sort_order") @db.SmallInt
+
+  // Relations
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+  @@map("menu_item_modifiers")
+}
+
+// ============================================
+// 🧾 БЛОК: ЗАКАЗЫ
+// ============================================
+
+enum OrderType {
+  pickup
+  delivery
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  delivering
+  completed
+  cancelled
+}
+
+enum PaymentMethodType {
+  cash
+  card
+  finik
+  online
+}
+
+model Order {
+  id              String            @id @default(uuid()) @db.Uuid
+  orderNumber     String            @unique @map("order_number") @db.VarChar(20)
+  branchId        String            @map("branch_id") @db.Uuid
+  customerId      String?           @map("customer_id") @db.Uuid
+  customerName    String            @map("customer_name") @db.VarChar(200)
+  customerPhone   String            @map("customer_phone") @db.VarChar(20)
+  customerComment String?           @map("customer_comment") @db.Text
+  orderType       OrderType         @map("order_type")
+  status          OrderStatus       @default(pending)
+  paymentMethod   PaymentMethodType @map("payment_method")
+  totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
+  readyAt         DateTime?         @map("ready_at") @db.Timestamptz(6)
+  deliveredAt     DateTime?         @map("delivered_at") @db.Timestamptz(6)
+  cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason    String?           @map("cancel_reason") @db.Text
+  cancelledBy     String?           @map("cancelled_by") @db.Uuid
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  branch     Branch      @relation(fields: [branchId], references: [id])
+  customer   User?       @relation(fields: [customerId], references: [id])
+  canceller  User?       @relation("CancelledBy", fields: [cancelledBy], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  menuItemId  String   @map("menu_item_id") @db.Uuid
+  quantity    Int      @db.SmallInt
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
+  itemComment String?  @map("item_comment") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  order     Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem             @relation(fields: [menuItemId], references: [id])
+  modifiers OrderItemModifier[]
+
+  @@map("order_items")
+}
+
+model OrderItemModifier {
+  id               String   @id @default(uuid()) @db.Uuid
+  orderItemId      String   @map("order_item_id") @db.Uuid
+  modifierOptionId String   @map("modifier_option_id") @db.Uuid
+  priceDelta       Decimal  @map("price_delta") @db.Decimal(8, 2)
+
+  // Relations
+  orderItem      OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id])
+
+  @@map("order_item_modifiers")
+}
+
+// ============================================
+// 💳 БЛОК: ПЛАТЕЖИ
+// ============================================
+
+enum PaymentStatus {
+  pending
+  processing
+  completed
+  failed
+  refunded
+}
+
+model Payment {
+  id                 String        @id @default(uuid()) @db.Uuid
+  orderId            String        @map("order_id") @db.Uuid
+  paymentMethod      PaymentMethodType @map("payment_method")
+  amount             Decimal       @db.Decimal(10, 2)
+  currency           String        @default("KGS") @db.VarChar(3)
+  status             PaymentStatus @default(pending)
+  finikTransactionId String?       @map("finik_transaction_id") @db.VarChar(200)
+  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+// ============================================
+// 🚚 БЛОК: ДОСТАВКА
+// ============================================
+
+model DeliveryZone {
+  id                String   @id @default(uuid()) @db.Uuid
+  branchId          String   @map("branch_id") @db.Uuid
+  name              String   @db.VarChar(200)
+  polygonCoordinates Json    @map("polygon_coordinates") @db.JsonB
+  deliveryFee       Decimal  @map("delivery_fee") @db.Decimal(8, 2)
+  minOrderAmount    Decimal? @map("min_order_amount") @db.Decimal(10, 2)
+  estimatedMinutes  Int?     @map("estimated_minutes") @db.SmallInt
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_zones")
+}
+
+model DeliveryAddress {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  label       String?  @db.VarChar(100)
+  addressLine String   @map("address_line") @db.Text
+  apartment   String?  @db.VarChar(50)
+  entrance    String?  @db.VarChar(20)
+  floor       String?  @db.VarChar(10)
+  intercom    String?  @db.VarChar(50)
+  latitude    Decimal? @db.Decimal(10, 8)
+  longitude   Decimal? @db.Decimal(11, 8)
+  comment     String?  @db.Text
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("delivery_addresses")
+}
+
+// ============================================
+// 🎯 БЛОК: МАРКЕТИНГ
+// ============================================
+
+model Banner {
+  id         String    @id @default(uuid()) @db.Uuid
+  title      String    @db.VarChar(300)
+  subtitle   String?   @db.Text
+  imageUrl   String    @map("image_url") @db.VarChar(500)
+  linkTarget String?   @map("link_target") @db.VarChar(500)
+  sortOrder  Int       @default(0) @map("sort_order") @db.SmallInt
+  isActive   Boolean   @default(true) @map("is_active")
+  startsAt   DateTime? @map("starts_at") @db.Timestamptz(6)
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("banners")
+}
+
+// ============================================
+// 📊 БЛОК: АНАЛИТИКА
+// ============================================
+
+model PopularItemsStats {
+  id           String   @id @default(uuid()) @db.Uuid
+  branchId     String   @map("branch_id") @db.Uuid
+  menuItemId   String   @map("menu_item_id") @db.Uuid
+  date         DateTime @db.Date
+  orderCount   Int      @default(0) @map("order_count")
+  quantitySold Int      @default(0) @map("quantity_sold")
+  revenue      Decimal  @default(0) @map("revenue") @db.Decimal(12, 2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, menuItemId, date])
+  @@map("popular_items_stats")
+}
+
+// ============================================
+// ⚙️ БЛОК: НАСТРОЙКИ СИСТЕМЫ
+// ============================================
+
+model SystemSetting {
+  id    String @id @default(uuid()) @db.Uuid
+  key   String @unique @db.VarChar(200)
+  value Json   @db.JsonB
+
+  @@map("system_settings")
+}

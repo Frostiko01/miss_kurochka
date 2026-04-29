@@ -1,0 +1,14 @@
+export const locales = ['ru', 'kg'] as const
+export type Locale = (typeof locales)[number]
+
+export const defaultLocale: Locale = 'ru'
+
+export const localeNames: Record<Locale, string> = {
+  ru: 'Русский',
+  kg: 'Кыргызча'
+}
+
+export const localeFlags: Record<Locale, string> = {
+  ru: '🇷🇺',
+  kg: '🇰🇬'
+}
