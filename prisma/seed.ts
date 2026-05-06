@@ -15,7 +15,7 @@ async function main() {
       fullName: 'Администратор системы',
       role: 'admin',
       passwordHash: '$2a$10$example.hash.here', // В реальности используйте bcrypt
-      isActive: true,
+      status: 'active',
     },
   })
   console.log('✅ Создан администратор:', admin.email)
@@ -331,7 +331,7 @@ async function main() {
     update: {},
     create: {
       key: 'app.name',
-      value: { ru: 'Miss Kurochka', en: 'Miss Kurochka', ky: 'Miss Kurochka' }
+      value: JSON.stringify({ ru: 'Miss Kurochka', en: 'Miss Kurochka', ky: 'Miss Kurochka' })
     }
   })
 
@@ -340,7 +340,7 @@ async function main() {
     update: {},
     create: {
       key: 'app.currency',
-      value: { code: 'KGS', symbol: 'сом' }
+      value: JSON.stringify({ code: 'KGS', symbol: 'сом' })
     }
   })
 
@@ -349,7 +349,7 @@ async function main() {
     update: {},
     create: {
       key: 'app.languages',
-      value: { default: 'ru', available: ['ru', 'en', 'ky'] }
+      value: JSON.stringify({ default: 'ru', available: ['ru', 'en', 'ky'] })
     }
   })
   console.log('✅ Созданы системные настройки')

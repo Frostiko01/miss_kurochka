@@ -131,8 +131,18 @@ export function getI18nText(
 // Форматирование
 // ============================================
 
-export function formatPrice(price: number | string, currency: string = 'сом'): string {
-  const numPrice = typeof price === 'string' ? parseFloat(price) : price
+export function formatPrice(price: number | string | Prisma.Decimal, currency: string = 'сом'): string {
+  let numPrice: number
+  
+  if (typeof price === 'string') {
+    numPrice = parseFloat(price)
+  } else if (typeof price === 'number') {
+    numPrice = price
+  } else {
+    // Prisma.Decimal
+    numPrice = price.toNumber()
+  }
+  
   return `${numPrice.toFixed(0)} ${currency}`
 }
 

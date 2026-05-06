@@ -1,0 +1,54 @@
+{
+  "signin": {
+    "title": "Админ панелге кирүү",
+    "subtitle": "Администратордун маалыматтарын киргизиңиз",
+    "email": "Email",
+    "password": "Сыр сөз",
+    "loginButton": "Кирүү",
+    "loggingIn": "Кирүү...",
+    "backToHome": "← Башкы бетке кайтуу",
+    "errors": {
+      "invalidCredentials": "Туура эмес email же сыр сөз",
+      "notAdmin": "Сизде администратор укуктары жок",
+      "accountBlocked": "Сиздин аккаунт бөгөттөлгөн",
+      "telegramNotConfigured": "Telegram бот конфигурацияланган эмес",
+      "telegramSendFailed": "Telegram'га код жөнөтүү мүмкүн болгон жок",
+      "generic": "Кирүү учурунда ката кетти"
+    }
+  },
+  "verify": {
+    "title": "Эки факторлуу аутентификация",
+    "subtitle": "Telegram'дан 6 сандуу кодду киргизиңиз",
+    "codeSent": "Код сиздин Telegram'га жөнөтүлдү",
+    "code": "Ырастоо коду",
+    "verifyButton": "Ырастоо",
+    "verifying": "Текшерүү...",
+    "resendCode": "Кодду кайра жөнөтүү",
+    "resending": "Жөнөтүү...",
+    "backToLogin": "← Кирүүгө кайтуу",
+    "errors": {
+      "invalidCode": "Туура эмес же мөөнөтү өткөн код",
+      "codeExpired": "Коддун мөөнөтү өттү. Жаңысын сураңыз",
+      "generic": "Кодду текшерүү учурунда ката кетти"
+    }
+  },
+  "dashboard": {
+    "title": "Админ панель",
+    "welcome": "Кош келиңиз",
+    "logout": "Чыгуу",
+    "menu": {
+      "overview": "Жалпы көрүнүш",
+      "orders": "Заказдар",
+      "menu": "Меню",
+      "branches": "Филиалдар",
+      "users": "Колдонуучулар",
+      "settings": "Жөндөөлөр"
+    },
+    "stats": {
+      "totalOrders": "Бардыгы заказдар",
+      "totalRevenue": "Жалпы киреше",
+      "activeUsers": "Активдүү колдонуучулар",
+      "activeBranches": "Активдүү филиалдар"
+    }
+  }
+}

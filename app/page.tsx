@@ -1,17 +1,29 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
+import UserMenu from '@/components/UserMenu'
 import { useTranslations } from '@/app/i18n/hooks/useTranslations'
 
 export default function Home() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const { locale, changeLocale, translations, t, tArray } = useTranslations('landing')
   const [activeCategory, setActiveCategory] = useState('fried')
   const [cartCount, setCartCount] = useState(0)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
+
+  // Перенаправляем админов в админ-панель
+  useEffect(() => {
+    if (status === 'authenticated' && session?.user?.role === 'admin') {
+      router.push('/admin/dashboard')
+    }
+  }, [status, session, router])
 
   const heroImages = [
     'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=1920&q=80',
@@ -133,19 +145,10 @@ export default function Home() {
             className="hidden sm:block"
           />
 
-          {/* Cart Button */}
-          <button 
-            onClick={() => scrollToSection('order')}
-            className="relative bg-[#d62300] text-white px-4 sm:px-10 py-3 sm:py-5 rounded-2xl font-black text-sm sm:text-lg uppercase shadow-2xl hover:bg-[#b01e00] transition-all hover:scale-105"
-          >
-            <span className="hidden sm:inline">{t('header.cart')}</span>
-            <span className="sm:hidden">🛒</span>
-            {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-white text-[#d62300] w-7 h-7 rounded-full flex items-center justify-center text-sm font-black animate-bounce">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          {/* User Menu */}
+          <div className="hidden lg:block">
+            <UserMenu />
+          </div>
 
           {/* Mobile Menu Button */}
           <button 
@@ -167,6 +170,13 @@ export default function Home() {
               <button onClick={() => scrollToSection('combo')} className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors">{t('header.nav.combo')}</button>
               <button onClick={() => scrollToSection('menu')} className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors">{t('header.nav.menu')}</button>
               <button onClick={() => scrollToSection('contact')} className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors">{t('header.nav.contacts')}</button>
+              
+              {/* User Menu Mobile */}
+              <div className="pt-2 border-t-2 border-red-100">
+                <UserMenu mobile />
+              </div>
+              
+              {/* Language Switcher */}
               <div className="pt-2 border-t-2 border-red-100">
                 <LanguageSwitcher 
                   currentLocale={locale}
@@ -238,12 +248,6 @@ export default function Home() {
             <p className="text-base sm:text-xl text-white mb-6 sm:mb-10 font-bold" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
               {t('hero.subtitle')}
             </p>
-            <button 
-              onClick={() => scrollToSection('menu')}
-              className="bg-white text-[#d62300] px-8 sm:px-16 py-4 sm:py-7 rounded-2xl text-xl sm:text-3xl font-black uppercase shadow-2xl hover:scale-105 transition-transform"
-            >
-              {t('hero.cta')}
-            </button>
           </div>
         </section>
 
@@ -357,7 +361,7 @@ export default function Home() {
 
             {/* Menu Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-8">
-              {menuData[activeCategory as keyof typeof menuData].map((item, idx) => (
+              {menuData[activeCategory as keyof typeof menuData].map((item: any, idx: number) => (
                 <div
                   key={idx}
                   className="bg-white rounded-3xl overflow-hidden shadow-xl hover:shadow-[0_20px_60px_rgba(214,35,0,0.3)] transition-all duration-300 hover:-translate-y-2 border-2 border-gray-100 animate-fade-in"
@@ -392,7 +396,7 @@ export default function Home() {
                     
                     {/* Prices */}
                     <div className="space-y-1 mb-4">
-                      {item.prices.map((price, i) => (
+                      {item.prices.map((price: any, i: number) => (
                         <div key={i} className="flex items-center justify-between">
                           <span className="text-xs text-gray-500 font-semibold">{price.split(' - ')[0]}</span>
                           <span className="text-base sm:text-lg font-black text-[#d62300]">{price.split(' - ')[1]}</span>

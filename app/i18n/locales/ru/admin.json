@@ -1,0 +1,54 @@
+{
+  "signin": {
+    "title": "Вход в админ-панель",
+    "subtitle": "Введите учетные данные администратора",
+    "email": "Email",
+    "password": "Пароль",
+    "loginButton": "Войти",
+    "loggingIn": "Вход...",
+    "backToHome": "← Вернуться на главную",
+    "errors": {
+      "invalidCredentials": "Неверный email или пароль",
+      "notAdmin": "У вас нет прав администратора",
+      "accountBlocked": "Ваш аккаунт заблокирован",
+      "telegramNotConfigured": "Telegram бот не настроен",
+      "telegramSendFailed": "Не удалось отправить код в Telegram",
+      "generic": "Произошла ошибка при входе"
+    }
+  },
+  "verify": {
+    "title": "Двухфакторная аутентификация",
+    "subtitle": "Введите 6-значный код из Telegram",
+    "codeSent": "Код отправлен в ваш Telegram",
+    "code": "Код подтверждения",
+    "verifyButton": "Подтвердить",
+    "verifying": "Проверка...",
+    "resendCode": "Отправить код повторно",
+    "resending": "Отправка...",
+    "backToLogin": "← Вернуться к входу",
+    "errors": {
+      "invalidCode": "Неверный или истекший код",
+      "codeExpired": "Код истек. Запросите новый",
+      "generic": "Произошла ошибка при проверке кода"
+    }
+  },
+  "dashboard": {
+    "title": "Админ-панель",
+    "welcome": "Добро пожаловать",
+    "logout": "Выйти",
+    "menu": {
+      "overview": "Обзор",
+      "orders": "Заказы",
+      "menu": "Меню",
+      "branches": "Филиалы",
+      "users": "Пользователи",
+      "settings": "Настройки"
+    },
+    "stats": {
+      "totalOrders": "Всего заказов",
+      "totalRevenue": "Общая выручка",
+      "activeUsers": "Активных пользователей",
+      "activeBranches": "Активных филиалов"
+    }
+  }
+}
