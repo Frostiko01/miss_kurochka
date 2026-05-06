@@ -2,8 +2,9 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminHeader from "@/components/admin/AdminHeader";
 
 export default function AdminLayout({
   children,
@@ -12,6 +13,7 @@ export default function AdminLayout({
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -42,9 +44,13 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: '#050c26' }}>
-      <AdminSidebar />
-      <main className="flex-1 overflow-x-hidden">
+    <div className="min-h-screen" style={{ backgroundColor: '#050c26' }}>
+      <AdminHeader />
+      <AdminSidebar onCollapsedChange={setIsSidebarCollapsed} />
+      <main 
+        className="overflow-x-hidden transition-all duration-300" 
+        style={{ paddingLeft: isSidebarCollapsed ? '120px' : '320px' }}
+      >
         {children}
       </main>
     </div>

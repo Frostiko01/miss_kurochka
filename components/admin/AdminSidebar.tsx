@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface MenuItem {
   name: string;
@@ -87,11 +87,17 @@ const menuItems: MenuItem[] = [
   },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({ onCollapsedChange }: { onCollapsedChange?: (collapsed: boolean) => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (onCollapsedChange) {
+      onCollapsedChange(isCollapsed);
+    }
+  }, [isCollapsed, onCollapsedChange]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/admin/signin" });
@@ -101,93 +107,76 @@ export default function AdminSidebar() {
     <>
       {/* Sidebar - Dark Modern Theme */}
       <aside
-        className={`fixed left-0 top-0 h-screen backdrop-blur-xl transition-all duration-300 z-40 ${
+        className={`fixed backdrop-blur-xl transition-all duration-300 z-40 rounded-2xl ${
           isCollapsed ? "w-20" : "w-72"
         }`}
         style={{
           backgroundColor: '#181f38',
+          borderColor: '#242b47',
+          top: '105px',
+          left: '16px',
+          bottom: '16px',
         }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-6">
-          {!isCollapsed && (
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20" style={{ backgroundColor: '#555e7d' }}>
-                <span className="text-2xl">🍗</span>
-              </div>
-              <div>
-                <h1 className="text-xl font-black uppercase tracking-tight" style={{ color: 'white' }}>
-                  Miss Kurochka
-                </h1>
-                <p className="text-xs font-semibold" style={{ color: '#78819d' }}>
-                  Admin Panel
-                </p>
-              </div>
-            </div>
-          )}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: '#78819d' }}
+        {/* Toggle Button - positioned at top edge */}
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="absolute p-2 rounded-lg transition-colors"
+          style={{ 
+            color: '#78819d',
+            top: '-12px',
+            right: '16px',
+            backgroundColor: '#181f38',
+            zIndex: 10
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#242b47'}
+          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181f38'}
+        >
+          <svg
+            className={`w-5 h-5 transition-transform ${
+              isCollapsed ? "rotate-180" : ""
+            }`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <svg
-              className={`w-5 h-5 transition-transform ${
-                isCollapsed ? "rotate-180" : ""
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
-              />
-            </svg>
-          </button>
-        </div>
-
-        {/* User Info */}
-        {!isCollapsed && (
-          <div className="p-6">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-blue-500/20" style={{ borderColor: 'rgba(64, 71, 238, 0.3)' }}>
-                <span className="text-xl font-black text-white">
-                  {session?.user?.fullName?.charAt(0) || "A"}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold text-sm text-white truncate">
-                  {session?.user?.fullName || "Admin"}
-                </p>
-                <p className="text-xs truncate" style={{ color: '#78819d' }}>
-                  {session?.user?.email}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M11 19l-7-7 7-7m8 14l-7-7 7-7"
+            />
+          </svg>
+        </button>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin scrollbar-track-transparent">
+        <nav className="flex-1 overflow-y-auto p-4 space-y-1 scrollbar-thin scrollbar-track-transparent" style={{ marginTop: '24px' }}>
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <button
                 key={item.href}
                 onClick={() => router.push(item.href)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all group relative ${
-                  isActive
-                    ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/20"
-                    : "text-white"
-                }`}
-                style={!isActive ? { color: '#78819d' } : {}}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative"
+                style={{
+                  backgroundColor: isActive ? '#4047ee' : 'transparent',
+                  color: isActive ? 'white' : '#78819d',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = '#242b47';
+                    e.currentTarget.style.color = 'white';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#78819d';
+                  }
+                }}
               >
                 <svg
-                  className={`w-6 h-6 flex-shrink-0 ${
-                    isActive ? "text-white" : ""
-                  }`}
+                  className="w-6 h-6 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -205,14 +194,14 @@ export default function AdminSidebar() {
                       {item.nameRu}
                     </span>
                     {item.badge && (
-                      <span className="bg-blue-500 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg">
+                      <span className="text-white text-xs font-black px-2 py-1 rounded-full" style={{ backgroundColor: '#4047ee' }}>
                         {item.badge}
                       </span>
                     )}
                   </>
                 )}
                 {isCollapsed && item.badge && (
-                  <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center shadow-lg">
+                  <span className="absolute -top-1 -right-1 text-white text-xs font-black w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#4047ee' }}>
                     {item.badge}
                   </span>
                 )}
@@ -222,13 +211,21 @@ export default function AdminSidebar() {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-4">
+        <div className="p-4 rounded-br-2xl" style={{ backgroundColor: '#181f38' }}>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold group"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-bold"
             style={{
               backgroundColor: 'rgba(64, 71, 238, 0.1)',
               color: '#4047ee',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#242b47';
+              e.currentTarget.style.color = 'white';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(64, 71, 238, 0.1)';
+              e.currentTarget.style.color = '#4047ee';
             }}
           >
             <svg
@@ -248,9 +245,6 @@ export default function AdminSidebar() {
           </button>
         </div>
       </aside>
-
-      {/* Spacer for content */}
-      <div className={`${isCollapsed ? "w-20" : "w-72"} flex-shrink-0`} />
     </>
   );
 }
