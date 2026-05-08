@@ -180,11 +180,58 @@ export default function AdminBranchesPage() {
     setFormErrors({});
   };
 
+  // Редактирование филиала
+  const handleEditBranch = (branch: Branch) => {
+    setToast({
+      message: "Функция редактирования в разработке",
+      type: "info",
+    });
+  };
+
+  // Переключение статуса филиала
+  const handleToggleStatus = async (branchId: string, branchName: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    const action = newStatus === "active" ? "активирован" : "деактивирован";
+    
+    try {
+      const response = await fetch(`/api/admin/branches`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: branchId,
+          status: newStatus,
+        }),
+      });
+
+      if (response.ok) {
+        setToast({
+          message: `Филиал "${branchName}" ${action}!`,
+          type: "success",
+        });
+        fetchBranches();
+      } else {
+        const data = await response.json();
+        setToast({
+          message: data.error || "Ошибка при изменении статуса",
+          type: "error",
+        });
+      }
+    } catch (error) {
+      console.error("Error toggling branch status:", error);
+      setToast({
+        message: "Ошибка сети. Попробуйте позже.",
+        type: "error",
+      });
+    }
+  };
+
   return (
     <div className="p-8 min-h-screen" style={{ backgroundColor: '#050c26' }}>
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-black text-white uppercase tracking-tight drop-shadow-lg">
+        <h1 className="text-4xl font-black uppercase tracking-tight drop-shadow-lg" style={{ color: 'white' }}>
           Филиалы
         </h1>
         <p className="text-slate-300 font-semibold mt-2 text-lg">
@@ -217,8 +264,8 @@ export default function AdminBranchesPage() {
                 placeholder="Поиск по названию, адресу или телефону..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
+                className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none transition-all border"
+                style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
               />
             </div>
           </div>
@@ -228,19 +275,22 @@ export default function AdminBranchesPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-              style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
+              className="w-full px-4 py-3 rounded-xl text-white focus:outline-none transition-all border"
+              style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
             >
-              <option value="all">Все статусы</option>
-              <option value="active">Активные</option>
-              <option value="inactive">Неактивные</option>
+              <option value="all" style={{ backgroundColor: '#181f38', color: 'white' }}>Все статусы</option>
+              <option value="active" style={{ backgroundColor: '#181f38', color: 'white' }}>Активные</option>
+              <option value="inactive" style={{ backgroundColor: '#181f38', color: 'white' }}>Неактивные</option>
             </select>
           </div>
 
           {/* Add Button */}
           <button
             onClick={() => setShowAddModal(true)}
-            className="px-6 py-3 text-white rounded-xl font-bold hover:shadow-lg transition-all flex items-center gap-2 justify-center"
+            className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
+            style={{ backgroundColor: '#4047ee' }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5a5ff5'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4047ee'}
             style={{ background: 'linear-gradient(to right, #3b82f6, #2563eb)', boxShadow: 'hover:0 0 20px rgba(37, 99, 235, 0.2)' }}
           >
             <svg
@@ -371,7 +421,7 @@ export default function AdminBranchesPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-xl font-black text-white mb-2">
+            <h3 className="text-xl font-black mb-2" style={{ color: 'white' }}>
               Филиалы не найдены
             </h3>
             <p className="text-slate-300 mb-6">
@@ -494,8 +544,21 @@ export default function AdminBranchesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <button className="p-2 rounded-lg transition-colors" style={{ color: '#78819d' }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.5)'} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}>
+                      <div className="flex items-center gap-3 justify-end">
+                        <button 
+                          onClick={() => handleEditBranch(branch)}
+                          className="p-2 rounded-lg transition-colors" 
+                          style={{ color: '#78819d' }} 
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#242b47';
+                            e.currentTarget.style.color = 'white';
+                          }} 
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.color = '#78819d';
+                          }}
+                          title="Редактировать"
+                        >
                           <svg
                             className="w-5 h-5"
                             fill="none"
@@ -510,20 +573,55 @@ export default function AdminBranchesPage() {
                             />
                           </svg>
                         </button>
-                        <button className="p-2 rounded-lg transition-colors" style={{ color: '#78819d' }} onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.5)'; e.currentTarget.style.color = '#f87171'; }} onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#78819d'; }}>
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
+                        <button 
+                          onClick={() => handleToggleStatus(branch.id, branch.name, branch.status)}
+                          className="p-2 rounded-lg transition-colors" 
+                          style={{ color: '#78819d' }} 
+                          onMouseEnter={(e) => { 
+                            e.currentTarget.style.backgroundColor = '#242b47'; 
+                            e.currentTarget.style.color = branch.status === 'active' ? '#4047ee' : '#10b981'; 
+                          }} 
+                          onMouseLeave={(e) => { 
+                            e.currentTarget.style.backgroundColor = 'transparent'; 
+                            e.currentTarget.style.color = '#78819d'; 
+                          }}
+                          title={branch.status === 'active' ? 'Деактивировать' : 'Активировать'}
+                        >
+                          {branch.status === 'active' ? (
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          ) : (
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                          )}
                         </button>
                       </div>
                     </td>
@@ -559,7 +657,7 @@ export default function AdminBranchesPage() {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black text-white">
+                    <h2 className="text-2xl font-black" style={{ color: 'white' }}>
                       Добавить филиал
                     </h2>
                     <p className="text-white/80 text-sm">

@@ -4,7 +4,7 @@ export default function AdminOrdersPage() {
   return (
     <div className="p-8 min-h-screen" style={{ backgroundColor: '#050c26' }}>
       <div className="mb-8">
-        <h1 className="text-4xl font-black text-white uppercase tracking-tight">
+        <h1 className="text-4xl font-black uppercase tracking-tight" style={{ color: 'white' }}>
           Заказы
         </h1>
         <p className="font-semibold mt-2" style={{ color: '#78819d' }}>
@@ -29,7 +29,7 @@ export default function AdminOrdersPage() {
               />
             </svg>
           </div>
-          <h3 className="text-2xl font-black text-white mb-2">
+          <h3 className="text-2xl font-black mb-2" style={{ color: 'white' }}>
             Страница в разработке
           </h3>
           <p style={{ color: '#78819d' }}>
