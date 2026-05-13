@@ -22,7 +22,7 @@ export default function LanguageSwitcher({
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-white border-2 border-[#d62300] rounded-xl font-bold text-[#d62300] hover:bg-[#d62300] hover:text-white transition-all shadow-lg text-sm"
+        className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 bg-[#d62300] rounded-xl font-bold text-white hover:bg-[#b01e00] transition-all shadow-lg text-sm"
       >
         <span className="text-lg sm:text-xl">{localeFlags[currentLocale]}</span>
         <span className="hidden md:inline text-xs sm:text-sm">{localeNames[currentLocale]}</span>

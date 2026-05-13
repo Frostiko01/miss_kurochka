@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminHeader from "@/components/admin/AdminHeader";
@@ -13,15 +13,26 @@ export default function AdminLayout({
 }) {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
+  // Если это страница входа, не применяем проверку авторизации
+  const isSignInPage = pathname === "/admin/signin";
+
   useEffect(() => {
+    if (isSignInPage) return; // Не проверяем авторизацию на странице входа
+
     if (status === "unauthenticated") {
       router.push("/admin/signin");
     } else if (status === "authenticated" && session?.user?.role !== "admin") {
       router.push("/");
     }
-  }, [status, session, router]);
+  }, [status, session, router, isSignInPage]);
+
+  // Для страницы входа возвращаем только children без layout
+  if (isSignInPage) {
+    return <>{children}</>;
+  }
 
   // Показываем загрузку пока проверяем сессию
   if (status === "loading") {

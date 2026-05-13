@@ -14,12 +14,12 @@ function SignInContent() {
   const resetSuccess = searchParams.get("reset") === "success";
   const authError = searchParams.get("error");
 
-  // Если пользователь уже авторизован, перенаправляем на профиль
+  // Если пользователь уже авторизован, перенаправляем на callbackUrl
   useEffect(() => {
     if (status === "authenticated") {
-      router.push("/profile");
+      router.push(callbackUrl);
     }
-  }, [status, router]);
+  }, [status, router, callbackUrl]);
 
   const [formData, setFormData] = useState({
     email: "",
@@ -31,7 +31,7 @@ function SignInContent() {
   const [oauthProvider, setOauthProvider] = useState("");
 
   // Обрабатываем ошибку из URL при загрузке страницы
-  useState(() => {
+  useEffect(() => {
     if (authError) {
       // Декодируем ошибку из URL
       const errorMessages: Record<string, string> = {
@@ -42,7 +42,7 @@ function SignInContent() {
       
       setError(errorMessages[authError] || authError);
     }
-  });
+  }, [authError]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +93,7 @@ function SignInContent() {
     setError(""); // Очищаем ошибку при попытке входа через Google
     setShowOAuthModal(false); // Закрываем модальное окно
     try {
-      await signIn("google", { callbackUrl: "/profile" });
+      await signIn("google", { callbackUrl });
     } catch (err) {
       setError("Ошибка при входе через Google");
       setIsLoading(false);
@@ -117,9 +117,16 @@ function SignInContent() {
     );
   }
 
-  // Если пользователь авторизован, не показываем форму
+  // Если пользователь авторизован, показываем загрузку и перенаправляем
   if (status === "authenticated") {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#d62300] mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-semibold">Перенаправление...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -227,7 +234,7 @@ function SignInContent() {
             </div>
             <div className="relative z-10">
               <div className="flex justify-center mb-4">
-                <Image src="/logo.svg" alt="Miss Kurochka" width={80} height={80} className="drop-shadow-2xl" />
+                <Image src="/logo.png" alt="Miss Kurochka" width={80} height={80} className="drop-shadow-2xl" />
               </div>
               <h2 className="text-3xl font-black text-white uppercase tracking-tight drop-shadow-lg">
                 Вход

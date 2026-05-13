@@ -1,0 +1,30 @@
+/* Leaflet CSS */
+@import 'leaflet/dist/leaflet.css';
+
+/* Кастомные стили для карты */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px;
+}
+
+/* Темная тема для карты */
+.dark .leaflet-control-container .leaflet-control {
+  background-color: #374151;
+  border-color: #4B5563;
+}
+
+.dark .leaflet-control-container .leaflet-control a {
+  color: #E5E7EB;
+}
+
+.dark .leaflet-control-container .leaflet-control a:hover {
+  color: #F3F4F6;
+  background-color: #4B5563;
+}

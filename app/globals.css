@@ -40,7 +40,7 @@ h1, h2, h3, h4, h5, h6 {
   font-weight: 900;
   letter-spacing: -0.03em;
   text-transform: uppercase;
-  color: var(--bk-black);
+  /* color: var(--bk-black); */ /* Removed to allow inline styles to work */
 }
 
 /* Burger King Button Styles - Bold and Confident */

@@ -28,7 +28,12 @@ export default function AdminBranchesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [showSortMenu, setShowSortMenu] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
@@ -45,6 +50,12 @@ export default function AdminBranchesPage() {
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    branchId: string;
+    branchName: string;
+    currentStatus: string;
+  } | null>(null);
 
   // Загрузка филиалов
   const fetchBranches = async () => {
@@ -58,7 +69,40 @@ export default function AdminBranchesPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setBranches(data.branches);
+        // Сортировка на клиенте
+        let sortedBranches = [...data.branches];
+        
+        sortedBranches.sort((a, b) => {
+          let aValue, bValue;
+          
+          switch (sortBy) {
+            case "name":
+              aValue = a.name.toLowerCase();
+              bValue = b.name.toLowerCase();
+              break;
+            case "createdAt":
+              aValue = new Date(a.createdAt).getTime();
+              bValue = new Date(b.createdAt).getTime();
+              break;
+            case "orders":
+              aValue = a._count.orders;
+              bValue = b._count.orders;
+              break;
+            case "status":
+              aValue = a.status;
+              bValue = b.status;
+              break;
+            default:
+              aValue = new Date(a.createdAt).getTime();
+              bValue = new Date(b.createdAt).getTime();
+          }
+          
+          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
+          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
+          return 0;
+        });
+        
+        setBranches(sortedBranches);
       }
     } catch (error) {
       console.error("Error fetching branches:", error);
@@ -69,7 +113,7 @@ export default function AdminBranchesPage() {
 
   useEffect(() => {
     fetchBranches();
-  }, [search, statusFilter]);
+  }, [search, statusFilter, sortBy, sortOrder]);
 
   // Валидация формы
   const validateForm = () => {
@@ -182,14 +226,136 @@ export default function AdminBranchesPage() {
 
   // Редактирование филиала
   const handleEditBranch = (branch: Branch) => {
-    setToast({
-      message: "Функция редактирования в разработке",
-      type: "info",
+    setEditingBranch(branch);
+    setFormData({
+      name: branch.name,
+      address: branch.address,
+      phone: branch.phone,
+      latitude: branch.latitude?.toString() || "",
+      longitude: branch.longitude?.toString() || "",
+      isActive: branch.status === "active",
+      branchEmail: "",
+      branchPassword: "",
+    });
+    setFormErrors({});
+    setShowEditModal(true);
+  };
+
+  // Сохранение изменений филиала
+  const handleUpdateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!editingBranch) return;
+
+    // Валидация (без email и пароля для редактирования)
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = "Название обязательно";
+    }
+
+    if (!formData.address.trim()) {
+      errors.address = "Адрес обязателен";
+    }
+
+    if (!formData.phone.trim()) {
+      errors.phone = "Телефон обязателен";
+    } else if (!validatePhoneNumber(formData.phone)) {
+      errors.phone = "Неверный формат телефона. Используйте +996 XXX XXX XXX";
+    }
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/admin/branches", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          id: editingBranch.id,
+          name: formData.name.trim(),
+          address: formData.address.trim(),
+          phone: formData.phone.trim(),
+          latitude: formData.latitude || null,
+          longitude: formData.longitude || null,
+          status: formData.isActive ? "active" : "inactive",
+        }),
+      });
+
+      if (response.ok) {
+        setShowEditModal(false);
+        setEditingBranch(null);
+        setFormData({
+          name: "",
+          address: "",
+          phone: "",
+          latitude: "",
+          longitude: "",
+          isActive: true,
+          branchEmail: "",
+          branchPassword: "",
+        });
+        setFormErrors({});
+        setToast({
+          message: "Филиал успешно обновлен!",
+          type: "success",
+        });
+        fetchBranches();
+      } else {
+        const data = await response.json();
+        setFormErrors({ submit: data.error || "Ошибка при обновлении филиала" });
+      }
+    } catch (error) {
+      console.error("Error updating branch:", error);
+      setFormErrors({ submit: "Ошибка сети. Попробуйте позже." });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Закрытие модального окна редактирования
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setEditingBranch(null);
+    setFormData({
+      name: "",
+      address: "",
+      phone: "",
+      latitude: "",
+      longitude: "",
+      isActive: true,
+      branchEmail: "",
+      branchPassword: "",
+    });
+    setFormErrors({});
+  };
+
+  // Открытие модального окна подтверждения
+  const openConfirmModal = (branchId: string, branchName: string, currentStatus: string) => {
+    setConfirmModal({
+      show: true,
+      branchId,
+      branchName,
+      currentStatus,
     });
   };
 
+  // Закрытие модального окна подтверждения
+  const closeConfirmModal = () => {
+    setConfirmModal(null);
+  };
+
   // Переключение статуса филиала
-  const handleToggleStatus = async (branchId: string, branchName: string, currentStatus: string) => {
+  const handleToggleStatus = async () => {
+    if (!confirmModal) return;
+
+    const { branchId, branchName, currentStatus } = confirmModal;
     const newStatus = currentStatus === "active" ? "inactive" : "active";
     const action = newStatus === "active" ? "активирован" : "деактивирован";
     
@@ -211,12 +377,14 @@ export default function AdminBranchesPage() {
           type: "success",
         });
         fetchBranches();
+        closeConfirmModal();
       } else {
         const data = await response.json();
         setToast({
           message: data.error || "Ошибка при изменении статуса",
           type: "error",
         });
+        closeConfirmModal();
       }
     } catch (error) {
       console.error("Error toggling branch status:", error);
@@ -224,6 +392,7 @@ export default function AdminBranchesPage() {
         message: "Ошибка сети. Попробуйте позже.",
         type: "error",
       });
+      closeConfirmModal();
     }
   };
 
@@ -241,73 +410,179 @@ export default function AdminBranchesPage() {
 
       {/* Search and Filters */}
       <div className="rounded-2xl p-6 mb-6" style={{ backgroundColor: '#181f38' }}>
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
+        <div className="flex flex-col gap-4">
+          {/* Search and Buttons Row */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <svg
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  style={{ color: '#78819d' }}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Поиск по названию, адресу или телефону..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none transition-all border"
+                  style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
+                />
+              </div>
+            </div>
+
+            {/* Filters Button */}
+            <button
+              onClick={() => setShowSortMenu(!showSortMenu)}
+              className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center lg:justify-start"
+              style={{ 
+                backgroundColor: statusFilter !== "all" ? '#4047ee' : '#242b47' 
+              }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Фильтры
+              <svg 
+                className="w-4 h-4 transition-transform duration-300" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                style={{ transform: showSortMenu ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Add Button */}
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
+              style={{ backgroundColor: '#4047ee' }}
+            >
               <svg
-                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
+                className="w-5 h-5"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
-                style={{ color: '#78819d' }}
               >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  d="M12 4v16m8-8H4"
                 />
               </svg>
-              <input
-                type="text"
-                placeholder="Поиск по названию, адресу или телефону..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none transition-all border"
-                style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-              />
+              Добавить филиал
+            </button>
+          </div>
+
+          {/* Expandable Filters Container */}
+          <div 
+            className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ 
+              maxHeight: showSortMenu ? '1000px' : '0',
+              opacity: showSortMenu ? 1 : 0
+            }}
+          >
+            <div className="pt-4 border-t" style={{ borderColor: '#242b47' }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold uppercase" style={{ color: '#78819d' }}>
+                  Фильтры и сортировка
+                </h3>
+                {statusFilter !== "all" && (
+                  <button
+                    onClick={() => setStatusFilter("all")}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
+                    style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
+                  >
+                    Сбросить все
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {/* Sorting Card */}
+                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
+                    Сортировка
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
+                    style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}
+                  >
+                    <option value="name" style={{ backgroundColor: '#181f38' }}>По названию</option>
+                    <option value="createdAt" style={{ backgroundColor: '#181f38' }}>По дате создания</option>
+                    <option value="orders" style={{ backgroundColor: '#181f38' }}>По заказам</option>
+                    <option value="status" style={{ backgroundColor: '#181f38' }}>По статусу</option>
+                  </select>
+                </div>
+
+                {/* Status Filter Card */}
+                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
+                    Статус
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
+                    style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}
+                  >
+                    <option value="all" style={{ backgroundColor: '#181f38' }}>Все статусы</option>
+                    <option value="active" style={{ backgroundColor: '#181f38' }}>Активные</option>
+                    <option value="inactive" style={{ backgroundColor: '#181f38' }}>Неактивные</option>
+                  </select>
+                </div>
+
+                {/* Sort Order Toggle */}
+                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <div className="flex gap-2 w-full">
+                    <button
+                      onClick={() => setSortOrder("asc")}
+                      className="flex-1 px-4 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                      style={{
+                        backgroundColor: sortOrder === "asc" ? '#4047ee' : '#181f38',
+                        color: sortOrder === "asc" ? 'white' : '#78819d',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        borderColor: sortOrder === "asc" ? '#4047ee' : '#242b47'
+                      }}
+                    >
+                      <span className="text-lg">🔼</span>
+                      <span className="text-sm">А-Я</span>
+                    </button>
+                    <button
+                      onClick={() => setSortOrder("desc")}
+                      className="flex-1 px-4 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                      style={{
+                        backgroundColor: sortOrder === "desc" ? '#4047ee' : '#181f38',
+                        color: sortOrder === "desc" ? 'white' : '#78819d',
+                        borderWidth: '1px',
+                        borderStyle: 'solid',
+                        borderColor: sortOrder === "desc" ? '#4047ee' : '#242b47'
+                      }}
+                    >
+                      <span className="text-lg">🔽</span>
+                      <span className="text-sm">Я-А</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-
-          {/* Status Filter */}
-          <div className="lg:w-48">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-white focus:outline-none transition-all border"
-              style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-            >
-              <option value="all" style={{ backgroundColor: '#181f38', color: 'white' }}>Все статусы</option>
-              <option value="active" style={{ backgroundColor: '#181f38', color: 'white' }}>Активные</option>
-              <option value="inactive" style={{ backgroundColor: '#181f38', color: 'white' }}>Неактивные</option>
-            </select>
-          </div>
-
-          {/* Add Button */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
-            style={{ backgroundColor: '#4047ee' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5a5ff5'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4047ee'}
-            style={{ background: 'linear-gradient(to right, #3b82f6, #2563eb)', boxShadow: 'hover:0 0 20px rgba(37, 99, 235, 0.2)' }}
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Добавить филиал
-          </button>
         </div>
       </div>
 
@@ -321,7 +596,7 @@ export default function AdminBranchesPage() {
               </p>
               <p className="text-3xl font-black text-white">{branches.length}</p>
             </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/20" style={{ backgroundColor: '#555e7d' }}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#555e7d' }}>
               <svg
                 className="w-6 h-6 text-white"
                 fill="none"
@@ -349,7 +624,7 @@ export default function AdminBranchesPage() {
                 {branches.filter((b) => b.status === "active").length}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/20" style={{ backgroundColor: '#555e7d' }}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#555e7d' }}>
               <svg
                 className="w-6 h-6 text-white"
                 fill="none"
@@ -377,7 +652,7 @@ export default function AdminBranchesPage() {
                 {branches.filter((b) => b.status === "inactive").length}
               </p>
             </div>
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg shadow-red-500/20" style={{ backgroundColor: '#555e7d' }}>
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#555e7d' }}>
               <svg
                 className="w-6 h-6 text-white"
                 fill="none"
@@ -432,8 +707,10 @@ export default function AdminBranchesPage() {
             {!search && (
               <button
                 onClick={() => setShowAddModal(true)}
-                className="px-6 py-3 text-white rounded-xl font-bold hover:shadow-lg transition-all inline-flex items-center gap-2"
-                style={{ background: 'linear-gradient(to right, #3b82f6, #2563eb)', boxShadow: 'hover:0 0 20px rgba(37, 99, 235, 0.2)' }}
+                className="px-6 py-3 text-white rounded-xl font-bold transition-all inline-flex items-center gap-2"
+                style={{ backgroundColor: '#4047ee' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5a5ff5'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4047ee'}
               >
                 <svg
                   className="w-5 h-5"
@@ -485,13 +762,13 @@ export default function AdminBranchesPage() {
                   <tr
                     key={branch.id}
                     className="transition-colors"
-                    style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
-                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.8)'}
-                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.5)'}
+                    style={{ backgroundColor: '#181f38' }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#242b47'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#181f38'}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20" style={{ backgroundColor: '#555e7d' }}>
+                        <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: '#555e7d' }}>
                           <svg
                             className="w-5 h-5 text-white"
                             fill="none"
@@ -574,7 +851,7 @@ export default function AdminBranchesPage() {
                           </svg>
                         </button>
                         <button 
-                          onClick={() => handleToggleStatus(branch.id, branch.name, branch.status)}
+                          onClick={() => openConfirmModal(branch.id, branch.name, branch.status)}
                           className="p-2 rounded-lg transition-colors" 
                           style={{ color: '#78819d' }} 
                           onMouseEnter={(e) => { 
@@ -638,12 +915,13 @@ export default function AdminBranchesPage() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#181f38' }}>
             {/* Header */}
-            <div className="sticky top-0 p-6 rounded-t-2xl" style={{ background: 'linear-gradient(to right, #3b82f6, #2563eb)' }}>
+            <div className="sticky top-0 p-6 rounded-t-2xl border-b" style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)' }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(64, 71, 238, 0.2)' }}>
                     <svg
-                      className="w-6 h-6 text-white"
+                      className="w-6 h-6"
+                      style={{ color: '#4047ee' }}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -657,19 +935,26 @@ export default function AdminBranchesPage() {
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-2xl font-black" style={{ color: 'white' }}>
+                    <h2 className="text-2xl font-black" style={{ color: '#4047ee' }}>
                       Добавить филиал
                     </h2>
-                    <p className="text-white/80 text-sm">
+                    <p className="text-sm" style={{ color: '#78819d' }}>
                       Заполните информацию о новом филиале
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={handleCloseModal}
-                  className="p-2 rounded-lg transition-colors text-white"
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: '#78819d' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#242b47';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#78819d';
+                  }}
                 >
                   <svg
                     className="w-6 h-6"
@@ -723,11 +1008,11 @@ export default function AdminBranchesPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, name: e.target.value })
                   }
-                  className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                  className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border ${
                     formErrors.name ? "border-red-500" : ""
                   }`}
                   placeholder="Например: Филиал Центр"
-                  style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
+                  style={{ backgroundColor: '#050c26', borderColor: formErrors.name ? '#ef4444' : '#242b47' }}
                 />
                 {formErrors.name && (
                   <p className="mt-2 text-sm text-red-400">{formErrors.name}</p>
@@ -808,11 +1093,11 @@ export default function AdminBranchesPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, branchEmail: e.target.value })
                       }
-                      className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border ${
                         formErrors.branchEmail ? "border-red-500" : ""
                       }`}
                       placeholder="branch@example.com"
-                      style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
+                      style={{ backgroundColor: '#050c26', borderColor: formErrors.branchEmail ? '#ef4444' : '#242b47' }}
                     />
                     {formErrors.branchEmail && (
                       <p className="mt-2 text-sm text-red-400">{formErrors.branchEmail}</p>
@@ -830,11 +1115,11 @@ export default function AdminBranchesPage() {
                       onChange={(e) =>
                         setFormData({ ...formData, branchPassword: e.target.value })
                       }
-                      className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border ${
                         formErrors.branchPassword ? "border-red-500" : ""
                       }`}
                       placeholder="Минимум 6 символов"
-                      style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
+                      style={{ backgroundColor: '#050c26', borderColor: formErrors.branchPassword ? '#ef4444' : '#242b47' }}
                     />
                     {formErrors.branchPassword && (
                       <p className="mt-2 text-sm text-red-400">{formErrors.branchPassword}</p>
@@ -870,9 +1155,9 @@ export default function AdminBranchesPage() {
                   type="button"
                   onClick={handleCloseModal}
                   className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all"
-                  style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.8)'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(24, 31, 56, 0.5)'}
+                  style={{ backgroundColor: '#242b47' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2d3654'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#242b47'}
                 >
                   Отмена
                 </button>
@@ -880,7 +1165,9 @@ export default function AdminBranchesPage() {
                   type="submit"
                   disabled={isSubmitting}
                   className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  style={{ background: 'linear-gradient(to right, #3b82f6, #2563eb)', boxShadow: '0 0 20px rgba(37, 99, 235, 0.2)' }}
+                  style={{ backgroundColor: '#4047ee' }}
+                  onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#5a5ff5')}
+                  onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#4047ee')}
                 >
                   {isSubmitting ? (
                     <>
@@ -908,6 +1195,332 @@ export default function AdminBranchesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Branch Modal */}
+      {showEditModal && editingBranch && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#181f38' }}>
+            {/* Header */}
+            <div className="sticky top-0 p-6 rounded-t-2xl border-b" style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'rgba(64, 71, 238, 0.2)' }}>
+                    <svg
+                      className="w-6 h-6"
+                      style={{ color: '#4047ee' }}
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-black" style={{ color: '#4047ee' }}>
+                      Редактировать филиал
+                    </h2>
+                    <p className="text-sm" style={{ color: '#78819d' }}>
+                      Обновите информацию о филиале
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleCloseEditModal}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: '#78819d' }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#242b47';
+                    e.currentTarget.style.color = 'white';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#78819d';
+                  }}
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleUpdateBranch} className="p-6 space-y-6">
+              {/* Error Message */}
+              {formErrors.submit && (
+                <div className="bg-red-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <svg
+                      className="w-5 h-5 text-red-400 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p className="text-red-400 font-semibold">{formErrors.submit}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-bold text-white mb-2">
+                  Название филиала <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                  className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border ${
+                    formErrors.name ? "border-red-500" : ""
+                  }`}
+                  placeholder="Например: Филиал Центр"
+                  style={{ backgroundColor: '#050c26', borderColor: formErrors.name ? '#ef4444' : '#242b47' }}
+                />
+                {formErrors.name && (
+                  <p className="mt-2 text-sm text-red-400">{formErrors.name}</p>
+                )}
+              </div>
+
+              {/* Address with Map */}
+              <div>
+                <label className="block text-sm font-bold text-white mb-2">
+                  Адрес <span className="text-red-400">*</span>
+                </label>
+                
+                {/* Map Picker */}
+                <MapPicker
+                  onLocationSelect={(address, coordinates) => {
+                    setFormData({
+                      ...formData,
+                      address: address,
+                      latitude: coordinates.lat.toString(),
+                      longitude: coordinates.lng.toString(),
+                    });
+                  }}
+                  initialCoordinates={
+                    formData.latitude && formData.longitude
+                      ? {
+                          lat: parseFloat(formData.latitude),
+                          lng: parseFloat(formData.longitude),
+                        }
+                      : undefined
+                  }
+                  initialAddress={formData.address}
+                />
+                
+                {formErrors.address && (
+                  <p className="mt-2 text-sm text-red-400">{formErrors.address}</p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <PhoneInput
+                label="Телефон"
+                required
+                value={formData.phone}
+                onChange={(value) => setFormData({ ...formData, phone: value })}
+                error={formErrors.phone}
+                placeholder="+996 555 123 456"
+              />
+
+              {/* Status */}
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isActive}
+                    onChange={(e) =>
+                      setFormData({ ...formData, isActive: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                    style={{ backgroundColor: 'rgba(24, 31, 56, 0.5)', accentColor: '#3b82f6' }}
+                  />
+                  <div>
+                    <span className="text-white font-bold">Активный филиал</span>
+                    <p className="text-sm" style={{ color: '#78819d' }}>
+                      Филиал будет доступен для заказов
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseEditModal}
+                  className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all"
+                  style={{ backgroundColor: '#242b47' }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2d3654'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#242b47'}
+                >
+                  Отмена
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 px-6 py-3 text-white rounded-xl font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#4047ee' }}
+                  onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#5a5ff5')}
+                  onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#4047ee')}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      Сохранение...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                      Сохранить изменения
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-2xl max-w-md w-full shadow-2xl"
+            style={{ backgroundColor: '#181f38' }}
+          >
+            {/* Header */}
+            <div className="p-6 border-b" style={{ borderColor: '#242b47' }}>
+              <div className="flex items-center gap-3">
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center"
+                  style={{ 
+                    backgroundColor: confirmModal.currentStatus === 'active' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(34, 197, 94, 0.2)'
+                  }}
+                >
+                  <svg
+                    className="w-6 h-6"
+                    style={{ color: confirmModal.currentStatus === 'active' ? '#ef4444' : '#22c55e' }}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {confirmModal.currentStatus === 'active' ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    )}
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold" style={{ color: '#4047ee' }}>
+                    {confirmModal.currentStatus === 'active' ? 'Деактивировать филиал?' : 'Активировать филиал?'}
+                  </h3>
+                  <p className="text-sm" style={{ color: '#78819d' }}>
+                    Подтвердите действие
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6">
+              <p className="text-white mb-2">
+                Вы уверены, что хотите{' '}
+                <span className="font-bold" style={{ color: confirmModal.currentStatus === 'active' ? '#ef4444' : '#22c55e' }}>
+                  {confirmModal.currentStatus === 'active' ? 'деактивировать' : 'активировать'}
+                </span>
+                {' '}филиал?
+              </p>
+              <p className="font-bold text-white mb-4">
+                "{confirmModal.branchName}"
+              </p>
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(120, 129, 157, 0.1)' }}>
+                <p className="text-sm" style={{ color: '#78819d' }}>
+                  {confirmModal.currentStatus === 'active' 
+                    ? '⚠️ Филиал станет недоступен для заказов'
+                    : '✓ Филиал станет доступен для заказов'
+                  }
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t flex gap-3" style={{ borderColor: '#242b47' }}>
+              <button
+                onClick={closeConfirmModal}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-white transition-all"
+                style={{ backgroundColor: '#242b47' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2d3654'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#242b47'}
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleToggleStatus}
+                className="flex-1 px-4 py-3 rounded-xl font-bold text-white transition-all"
+                style={{ 
+                  backgroundColor: confirmModal.currentStatus === 'active' ? '#ef4444' : '#22c55e'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = confirmModal.currentStatus === 'active' ? '#dc2626' : '#16a34a';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = confirmModal.currentStatus === 'active' ? '#ef4444' : '#22c55e';
+                }}
+              >
+                {confirmModal.currentStatus === 'active' ? 'Деактивировать' : 'Активировать'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -138,3 +138,115 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const session = await auth();
+
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, status } = body;
+
+    if (!id || !status) {
+      return NextResponse.json(
+        { error: "Branch ID and status are required" },
+        { status: 400 }
+      );
+    }
+
+    if (status !== "active" && status !== "inactive") {
+      return NextResponse.json(
+        { error: "Invalid status. Must be 'active' or 'inactive'" },
+        { status: 400 }
+      );
+    }
+
+    // Проверяем существование филиала
+    const existingBranch = await prisma.branch.findUnique({
+      where: { id },
+    });
+
+    if (!existingBranch) {
+      return NextResponse.json(
+        { error: "Branch not found" },
+        { status: 404 }
+      );
+    }
+
+    // Обновляем статус филиала
+    const updatedBranch = await prisma.branch.update({
+      where: { id },
+      data: { status },
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      branch: updatedBranch 
+    });
+  } catch (error) {
+    console.error("Error updating branch status:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const session = await auth();
+
+    if (!session || session.user.role !== "admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { id, name, address, phone, latitude, longitude, status } = body;
+
+    if (!id || !name || !address || !phone) {
+      return NextResponse.json(
+        { error: "ID, name, address, and phone are required" },
+        { status: 400 }
+      );
+    }
+
+    // Проверяем существование филиала
+    const existingBranch = await prisma.branch.findUnique({
+      where: { id },
+    });
+
+    if (!existingBranch) {
+      return NextResponse.json(
+        { error: "Branch not found" },
+        { status: 404 }
+      );
+    }
+
+    // Обновляем филиал
+    const updatedBranch = await prisma.branch.update({
+      where: { id },
+      data: {
+        name,
+        address,
+        phone,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        status: status || existingBranch.status,
+      },
+    });
+
+    return NextResponse.json({ 
+      success: true, 
+      branch: updatedBranch 
+    });
+  } catch (error) {
+    console.error("Error updating branch:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}

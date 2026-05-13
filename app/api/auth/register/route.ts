@@ -15,7 +15,57 @@ const registerSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { step } = body;
+    const { step, skipVerification } = body;
+
+    // Упрощенная регистрация без верификации (для модального окна)
+    if (skipVerification) {
+      const { email, password, fullName } = body;
+
+      // Валидация данных
+      const validatedData = registerSchema.parse({ email, password, fullName });
+
+      // Проверяем, существует ли пользователь
+      const existingUser = await prisma.user.findUnique({
+        where: { email: validatedData.email },
+      });
+
+      if (existingUser) {
+        return NextResponse.json(
+          { error: "Пользователь с таким email уже существует" },
+          { status: 400 }
+        );
+      }
+
+      // Хешируем пароль
+      const passwordHash = await bcrypt.hash(validatedData.password, 12);
+
+      // Создаем пользователя (без поля phone, так как его нет в схеме)
+      const user = await prisma.user.create({
+        data: {
+          email: validatedData.email,
+          passwordHash,
+          fullName: validatedData.fullName,
+          role: "customer",
+          status: "active",
+        },
+        select: {
+          id: true,
+          email: true,
+          fullName: true,
+          avatarUrl: true,
+          role: true,
+          createdAt: true,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          message: "Регистрация успешна",
+          user,
+        },
+        { status: 201 }
+      );
+    }
 
     // Шаг 1: Отправка кода верификации
     if (step === "send_code") {

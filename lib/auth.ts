@@ -2,10 +2,9 @@ import NextAuth, { DefaultSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { prisma, prismaForAuth } from "./prisma";
+import { prisma } from "./prisma";
 import bcrypt from "bcryptjs";
 import { authConfig } from "@/auth.config";
-import type { Adapter } from "@auth/core/adapters";
 
 declare module "next-auth" {
   interface Session {
@@ -13,6 +12,7 @@ declare module "next-auth" {
       id: string;
       role: string;
       fullName: string;
+      phone?: string | null;
       avatarUrl: string | null;
     } & DefaultSession["user"];
   }
@@ -24,39 +24,9 @@ declare module "next-auth" {
   }
 }
 
-// Кастомный адаптер который добавляет fullName
-function CustomPrismaAdapter(p: typeof prismaForAuth): Adapter {
-  const baseAdapter = PrismaAdapter(p);
-  
-  return {
-    ...baseAdapter,
-    createUser: async (data) => {
-      // Убираем поля которых нет в схеме и добавляем fullName
-      const { name, image, ...rest } = data;
-      
-      const userData = {
-        ...rest,
-        fullName: data.name || "User",
-        avatarUrl: data.image || null,
-        emailVerified: data.emailVerified || null, // Важно: сохраняем emailVerified
-      };
-      
-      const createdUser = await p.user.create({
-        data: userData as any,
-      });
-      
-      // Возвращаем в формате AdapterUser
-      return {
-        ...createdUser,
-        emailVerified: createdUser.createdAt, // NextAuth ожидает Date или null
-      } as any;
-    },
-  };
-}
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
-  adapter: CustomPrismaAdapter(prismaForAuth),
+  adapter: PrismaAdapter(prisma),
   basePath: "/api/auth",
   debug: process.env.NODE_ENV === "development",
   pages: {
@@ -131,6 +101,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           email: user.email,
           fullName: user.fullName,
+          phone: user.phone,
           avatarUrl: user.avatarUrl,
           role: user.role,
         };
@@ -139,7 +110,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     ...authConfig.callbacks,
-    async signIn({ user }) {
+    async signIn({ user, account, profile }) {
       // Проверяем статус пользователя при входе
       if (user.email) {
         const existingUser = await prisma.user.findUnique({
@@ -148,6 +119,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         if (existingUser && existingUser.status === "blocked") {
           return false;
+        }
+
+        // Если это OAuth вход и пользователь не существует, создаем его
+        if (account?.provider === "google" && !existingUser) {
+          await prisma.user.create({
+            data: {
+              email: user.email!,
+              fullName: user.name || "User",
+              avatarUrl: user.image || null,
+              role: "customer",
+              status: "active",
+            },
+          });
         }
       }
       return true;
@@ -176,12 +160,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.id = dbUser.id;
           token.role = dbUser.role;
           token.fullName = dbUser.fullName;
+          token.phone = dbUser.phone;
           token.avatarUrl = dbUser.avatarUrl;
         }
       }
 
       if (trigger === "update" && session) {
         token.fullName = session.fullName;
+        token.phone = session.phone;
         token.avatarUrl = session.avatarUrl;
       }
 
@@ -193,6 +179,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.id as string;
         session.user.role = token.role as string;
         session.user.fullName = token.fullName as string;
+        session.user.phone = token.phone as string | null;
         session.user.avatarUrl = token.avatarUrl as string | null;
       }
       console.log("👤 Сессия создана:", {

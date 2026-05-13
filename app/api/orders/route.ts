@@ -1,27 +1,99 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { auth } from '@/lib/auth'
 
 // POST /api/orders - Создать новый заказ
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const session = await auth()
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
+    }
+
     const body = await request.json()
     const {
-      branchId,
-      customerId,
       customerName,
       customerPhone,
       customerComment,
       orderType,
       paymentMethod,
-      items, // [{ menuItemId, quantity, modifiers: [{ modifierOptionId }] }]
+      deliveryAddressId,
     } = body
 
+    // Получаем корзину пользователя
+    const cart = await prisma.cart.findUnique({
+      where: { userId: session.user.id },
+      include: {
+        items: {
+          include: {
+            menuItem: true,
+            modifiers: {
+              include: {
+                modifierOption: true,
+              },
+            },
+          },
+        },
+        branch: true,
+      },
+    })
+
+    if (!cart || cart.items.length === 0) {
+      return NextResponse.json(
+        { error: "Корзина пуста" },
+        { status: 400 }
+      )
+    }
+
+    const branchId = cart.branchId
+    const customerId = session.user.id
+
     // Валидация
-    if (!branchId || !customerName || !customerPhone || !items?.length) {
+    if (!branchId || !customerName || !customerPhone) {
+      return NextResponse.json(
+        { error: 'Не указаны обязательные поля' },
+        { status: 400 }
+      )
+    }
+
+    // Проверяем адрес доставки если тип заказа - доставка
+    if (orderType === 'delivery' && !deliveryAddressId) {
+      return NextResponse.json(
+        { error: 'Не указан адрес доставки' },
+        { status: 400 }
+      )
+    }
+
+    // Проверяем стоп-лист филиала перед созданием заказа
+    const menuItemIds = cart.items.map(item => item.menuItemId)
+    const stopListItems = await prisma.stopList.findMany({
+      where: {
+        branchId,
+        restoredAt: null,
+        menuItemId: {
+          in: menuItemIds,
+        },
+      },
+      include: {
+        menuItem: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    })
+
+    if (stopListItems.length > 0) {
+      const unavailableItems = stopListItems.map(item => item.menuItem.name).join(', ')
       return NextResponse.json(
         {
-          success: false,
-          error: 'Missing required fields',
+          error: `Следующие блюда временно недоступны: ${unavailableItems}`,
+          unavailableItems: stopListItems.map(item => ({
+            menuItemId: item.menuItemId,
+            name: item.menuItem.name,
+            reason: item.reason,
+          })),
         },
         { status: 400 }
       )
@@ -30,54 +102,41 @@ export async function POST(request: Request) {
     // Генерируем номер заказа
     const orderNumber = `ORD-${Date.now()}`
 
-    // Рассчитываем общую сумму
+    // Рассчитываем общую сумму из корзины
     let totalAmount = 0
     const orderItemsData = []
 
-    for (const item of items) {
-      const menuItem = await prisma.menuItem.findUnique({
-        where: { id: item.menuItemId },
-      })
+    for (const cartItem of cart.items) {
+      const menuItem = cartItem.menuItem
 
-      if (!menuItem) {
+      if (!menuItem.isActive) {
         return NextResponse.json(
-          {
-            success: false,
-            error: `Menu item ${item.menuItemId} not found`,
-          },
-          { status: 404 }
+          { error: `Блюдо "${menuItem.name}" неактивно` },
+          { status: 400 }
         )
       }
 
-      let itemTotal = menuItem.price.toNumber() * item.quantity
+      let itemTotal = menuItem.price.toNumber() * cartItem.quantity
       const modifiersData = []
 
       // Добавляем стоимость модификаторов
-      if (item.modifiers?.length) {
-        for (const mod of item.modifiers) {
-          const modOption = await prisma.modifierOption.findUnique({
-            where: { id: mod.modifierOptionId },
-          })
-
-          if (modOption) {
-            const modPrice = modOption.priceDelta.toNumber()
-            itemTotal += modPrice * item.quantity
-            modifiersData.push({
-              modifierOptionId: mod.modifierOptionId,
-              priceDelta: modPrice,
-            })
-          }
-        }
+      for (const mod of cartItem.modifiers) {
+        const modPrice = mod.modifierOption.priceDelta.toNumber()
+        itemTotal += modPrice * cartItem.quantity
+        modifiersData.push({
+          modifierOptionId: mod.modifierOptionId,
+          priceDelta: modPrice,
+        })
       }
 
       totalAmount += itemTotal
 
       orderItemsData.push({
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
+        menuItemId: cartItem.menuItemId,
+        quantity: cartItem.quantity,
         unitPrice: menuItem.price,
         totalPrice: itemTotal,
-        itemComment: item.comment,
+        itemComment: cartItem.itemComment,
         modifiers: {
           create: modifiersData,
         },
@@ -95,6 +154,7 @@ export async function POST(request: Request) {
         customerComment,
         orderType: orderType || 'pickup',
         paymentMethod: paymentMethod || 'cash',
+        deliveryAddressId: orderType === 'delivery' ? deliveryAddressId : null,
         totalAmount,
         status: 'pending',
         items: {
@@ -112,7 +172,11 @@ export async function POST(request: Request) {
       include: {
         items: {
           include: {
-            menuItem: true,
+            menuItem: {
+              include: {
+                images: true,
+              },
+            },
             modifiers: {
               include: {
                 modifierOption: true,
@@ -121,38 +185,33 @@ export async function POST(request: Request) {
           },
         },
         payments: true,
+        branch: true,
+        deliveryAddress: true,
       },
     })
 
-    return NextResponse.json({
-      success: true,
-      data: order,
-    })
+    return NextResponse.json({ order })
   } catch (error) {
     console.error('Error creating order:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to create order',
-      },
+      { error: 'Ошибка создания заказа' },
       { status: 500 }
     )
   }
 }
 
-// GET /api/orders - Получить заказы
-export async function GET(request: Request) {
+// GET /api/orders - Получить заказы пользователя
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const customerId = searchParams.get('customerId')
-    const branchId = searchParams.get('branchId')
-    const status = searchParams.get('status')
+    const session = await auth()
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Не авторизован" }, { status: 401 })
+    }
 
     const orders = await prisma.order.findMany({
       where: {
-        ...(customerId && { customerId }),
-        ...(branchId && { branchId }),
-        ...(status && { status: status as any }),
+        customerId: session.user.id,
       },
       include: {
         items: {
@@ -175,24 +234,18 @@ export async function GET(request: Request) {
         },
         payments: true,
         branch: true,
+        deliveryAddress: true,
       },
       orderBy: {
         createdAt: 'desc',
       },
-      take: 50,
     })
 
-    return NextResponse.json({
-      success: true,
-      data: orders,
-    })
+    return NextResponse.json({ orders })
   } catch (error) {
     console.error('Error fetching orders:', error)
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch orders',
-      },
+      { error: 'Ошибка получения заказов' },
       { status: 500 }
     )
   }

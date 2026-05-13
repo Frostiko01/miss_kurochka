@@ -64,12 +64,12 @@ export const authConfig = {
       }
 
       // Защита пользовательских маршрутов от админов и филиалов
-      if (pathname.startsWith("/profile")) {
+      if (pathname.startsWith("/profile") || pathname.startsWith("/cart") || pathname.startsWith("/checkout") || pathname.startsWith("/orders")) {
         if (!isLoggedIn) {
-          return Response.redirect(new URL("/auth/signin", nextUrl));
+          return Response.redirect(new URL("/auth/signin?callbackUrl=" + encodeURIComponent(pathname), nextUrl));
         }
 
-        // Админы и филиалы не могут заходить в профиль пользователя
+        // Админы и филиалы не могут заходить в пользовательские маршруты
         if (auth?.user?.role === "admin") {
           return Response.redirect(new URL("/admin/dashboard", nextUrl));
         }
@@ -80,14 +80,12 @@ export const authConfig = {
         return true;
       }
 
-      // Главная страница - админы и филиалы перенаправляются
+      // Главная страница - только админы перенаправляются
       if (pathname === "/") {
         if (isLoggedIn && auth?.user?.role === "admin") {
           return Response.redirect(new URL("/admin/dashboard", nextUrl));
         }
-        if (isLoggedIn && auth?.user?.role === "branch") {
-          return Response.redirect(new URL("/branch/dashboard", nextUrl));
-        }
+        // Убираем перенаправление для branch и customer - они остаются на главной
       }
 
       const isOnAuthPage = pathname.startsWith("/auth/signin") || 
@@ -98,9 +96,7 @@ export const authConfig = {
         if (auth?.user?.role === "admin") {
           return Response.redirect(new URL("/admin/dashboard", nextUrl));
         }
-        if (auth?.user?.role === "branch") {
-          return Response.redirect(new URL("/branch/dashboard", nextUrl));
-        }
+        // Обычные пользователи и филиалы идут на главную
         return Response.redirect(new URL("/", nextUrl));
       }
 

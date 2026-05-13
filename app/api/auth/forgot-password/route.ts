@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
     // Проверяем, существует ли пользователь
     const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        accounts: true, // Включаем OAuth аккаунты
+      },
     });
 
     // Из соображений безопасности всегда возвращаем успех,
@@ -25,6 +28,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         message: "Если пользователь существует, код отправлен на email",
       });
+    }
+
+    // Проверяем, зарегистрирован ли пользователь через OAuth без пароля
+    const hasOAuthAccount = user.accounts && user.accounts.length > 0;
+    const hasPassword = !!user.passwordHash;
+
+    if (hasOAuthAccount && !hasPassword) {
+      const provider = user.accounts[0].provider;
+      const providerName = provider === 'google' ? 'Google' : provider;
+      return NextResponse.json(
+        { 
+          error: `Этот аккаунт зарегистрирован через ${providerName}. Восстановление пароля недоступно. Войдите через ${providerName}.` 
+        },
+        { status: 400 }
+      );
     }
 
     // Генерируем код

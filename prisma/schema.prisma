@@ -30,6 +30,7 @@ model User {
   username      String?  @unique @db.VarChar(100)
   passwordHash  String?  @map("password_hash") @db.VarChar(255)
   fullName      String     @map("full_name") @db.VarChar(100)
+  phone         String?    @db.VarChar(20)
   avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
   role          UserRole   @default(customer)
   status        UserStatus @default(active)
@@ -42,6 +43,7 @@ model User {
   branchUsers       BranchUser[]
   deliveryAddresses DeliveryAddress[]
   orders            Order[]
+  cart              Cart?
   bannersCreated    Banner[]
   stopListEntries   StopList[]        @relation("StoppedBy")
   stopListRestored  StopList[]        @relation("RestoredBy")
@@ -86,6 +88,7 @@ model Branch {
   menuCategories    MenuCategory[]
   stopList          StopList[]
   orders            Order[]
+  carts             Cart[]
   deliveryZones     DeliveryZone[]
   popularItemsStats PopularItemsStats[]
   modifierGroups    ModifierGroup[]
@@ -134,15 +137,23 @@ enum CategoryStatus {
   archived
 }
 
+enum CategoryType {
+  regular
+  combo
+  mini_combo
+}
+
 model MenuCategory {
   id          String          @id @default(uuid()) @db.Uuid
   branchId    String?         @map("branch_id") @db.Uuid
   name        String          @db.VarChar(200)
   nameI18n    Json?           @map("name_i18n") @db.JsonB
   description String?         @db.Text
-  imageUrl    String?         @map("image_url") @db.VarChar(500)
+  imageUrl    String?         @map("image_url") @db.Text
   parentId    String?         @map("parent_id") @db.Uuid
+  type        CategoryType    @default(regular)
   status      CategoryStatus  @default(active)
+  sortOrder   Int             @default(0) @map("sort_order")
   createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
@@ -187,6 +198,7 @@ model MenuItem {
   images            MenuItemImage[]
   stopList          StopList[]
   orderItems        OrderItem[]
+  cartItems         CartItem[]
   modifiers         MenuItemModifier[]
   popularItemsStats PopularItemsStats[]
 
@@ -196,7 +208,7 @@ model MenuItem {
 model MenuItemImage {
   id         String   @id @default(uuid()) @db.Uuid
   menuItemId String   @map("menu_item_id") @db.Uuid
-  imageUrl   String   @map("image_url") @db.VarChar(500)
+  imageUrl   String   @map("image_url") @db.Text
   isPrimary  Boolean  @default(false) @map("is_primary")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -269,6 +281,7 @@ model ModifierOption {
   // Relations
   group              ModifierGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
   orderItemModifiers OrderItemModifier[]
+  cartItemModifiers  CartItemModifier[]
 
   @@map("modifier_options")
 }
@@ -285,6 +298,55 @@ model MenuItemModifier {
 
   @@unique([menuItemId, modifierGroupId])
   @@map("menu_item_modifiers")
+}
+
+// ============================================
+// 🛒 БЛОК: КОРЗИНА
+// ============================================
+
+model Cart {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  branchId   String?  @map("branch_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  items  CartItem[]
+
+  @@unique([userId])
+  @@map("carts")
+}
+
+model CartItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  cartId      String   @map("cart_id") @db.Uuid
+  menuItemId  String   @map("menu_item_id") @db.Uuid
+  quantity    Int      @db.SmallInt
+  itemComment String?  @map("item_comment") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Relations
+  cart      Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem            @relation(fields: [menuItemId], references: [id])
+  modifiers CartItemModifier[]
+
+  @@map("cart_items")
+}
+
+model CartItemModifier {
+  id               String   @id @default(uuid()) @db.Uuid
+  cartItemId       String   @map("cart_item_id") @db.Uuid
+  modifierOptionId String   @map("modifier_option_id") @db.Uuid
+
+  // Relations
+  cartItem       CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id])
+
+  @@map("cart_item_modifiers")
 }
 
 // ============================================
@@ -568,4 +630,45 @@ model VerificationCode {
 
   @@index([email, type, used])
   @@map("verification_codes")
+}
+
+// ============================================
+// 🎁 БЛОК: КОМБО-НАБОРЫ
+// ============================================
+
+model ComboOffer {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(300)
+  nameI18n    Json?    @map("name_i18n") @db.JsonB
+  description String?  @db.Text
+  items       Json     @db.JsonB // Массив строк с описанием состава
+  price       Decimal  @db.Decimal(10, 2)
+  oldPrice    Decimal? @map("old_price") @db.Decimal(10, 2)
+  imageUrl    String   @map("image_url") @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("combo_offers")
+}
+
+// ============================================
+// 🍟 БЛОК: ДОПОЛНИТЕЛЬНЫЕ ПРЕДЛОЖЕНИЯ
+// ============================================
+
+model AdditionalOffer {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  nameI18n    Json?    @map("name_i18n") @db.JsonB
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?  @map("image_url") @db.Text
+  category    String   @db.VarChar(100) // sauce, drink, side, etc.
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("additional_offers")
 }

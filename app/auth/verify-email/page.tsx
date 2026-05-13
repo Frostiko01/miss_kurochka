@@ -22,7 +22,7 @@ function VerifyEmailContent() {
   // Если пользователь уже авторизован, перенаправляем на профиль
   useEffect(() => {
     if (status === "authenticated") {
-      router.push("/profile");
+      router.push("/");
     }
   }, [status, router]);
 
@@ -68,7 +68,7 @@ function VerifyEmailContent() {
       });
 
       if (result?.ok) {
-        router.push("/profile");
+        router.push("/");
         router.refresh();
       } else {
         router.push("/auth/signin");
@@ -153,7 +153,7 @@ function VerifyEmailContent() {
             </div>
             <div className="relative z-10">
               <div className="flex justify-center mb-4">
-                <Image src="/logo.svg" alt="Miss Kurochka" width={80} height={80} className="drop-shadow-2xl" />
+                <Image src="/logo.png" alt="Miss Kurochka" width={80} height={80} className="drop-shadow-2xl" />
               </div>
               <h2 className="text-3xl font-black text-white uppercase tracking-tight drop-shadow-lg">
                 Подтверждение Email

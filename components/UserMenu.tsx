@@ -3,14 +3,17 @@
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { useState } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface UserMenuProps {
   mobile?: boolean;
+  onAuthClick?: () => void;
 }
 
-export default function UserMenu({ mobile = false }: UserMenuProps) {
+export default function UserMenu({ mobile = false, onAuthClick }: UserMenuProps) {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const { theme } = useTheme();
 
   if (status === "loading") {
     return (
@@ -22,18 +25,16 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
   if (!session && mobile) {
     return (
       <div className="flex flex-col gap-3">
-        <Link
-          href="/auth/signin"
-          className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors py-2"
+        <button
+          onClick={onAuthClick}
+          className={`text-left font-bold transition-colors py-2 ${
+            theme === 'dark' 
+              ? 'text-white hover:text-gray-300' 
+              : 'text-black hover:text-gray-700'
+          }`}
         >
           Войти
-        </Link>
-        <Link
-          href="/auth/signup"
-          className="px-4 py-3 text-center font-bold text-white bg-[#d62300] hover:bg-[#b01e00] rounded-xl transition-colors shadow-lg"
-        >
-          Регистрация
-        </Link>
+        </button>
       </div>
     );
   }
@@ -42,18 +43,16 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
   if (!session) {
     return (
       <div className="flex items-center gap-3">
-        <Link
-          href="/auth/signin"
-          className="text-sm font-bold text-gray-700 hover:text-[#d62300] transition-colors"
+        <button
+          onClick={onAuthClick}
+          className={`text-sm font-bold transition-colors ${
+            theme === 'dark'
+              ? 'text-gray-300 hover:text-[#d62300]'
+              : 'text-gray-700 hover:text-[#d62300]'
+          }`}
         >
           Войти
-        </Link>
-        <Link
-          href="/auth/signup"
-          className="px-4 py-2 text-sm font-bold text-white bg-[#d62300] hover:bg-[#b01e00] rounded-lg transition-colors shadow-lg"
-        >
-          Регистрация
-        </Link>
+        </button>
       </div>
     );
   }
@@ -63,7 +62,9 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
     return (
       <div className="flex flex-col gap-3">
         {/* Профиль пользователя */}
-        <div className="flex items-center gap-3 pb-3 border-b-2 border-red-100">
+        <div className={`flex items-center gap-3 pb-3 border-b-2 ${
+          theme === 'dark' ? 'border-red-900' : 'border-red-100'
+        }`}>
           {session.user.avatarUrl ? (
             <img
               src={session.user.avatarUrl}
@@ -76,11 +77,17 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
             </div>
           )}
           <div>
-            <p className="text-sm font-black text-gray-900">
+            <p className={`text-sm font-black ${
+              theme === 'dark' ? 'text-white' : 'text-gray-900'
+            }`}>
               {session.user.fullName}
             </p>
-            <p className="text-xs text-gray-500">{session.user.email}</p>
-            <p className="text-xs text-[#d62300] mt-1 capitalize font-bold">
+            <p className={`text-xs ${
+              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+            }`}>{session.user.email}</p>
+            <p className={`text-xs mt-1 capitalize font-bold ${
+              theme === 'dark' ? 'text-white' : 'text-black'
+            }`}>
               {session.user.role === "customer"
                 ? "Клиент"
                 : session.user.role === "admin"
@@ -93,20 +100,32 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
         {/* Ссылки */}
         <Link
           href="/profile"
-          className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors py-2"
+          className={`text-left font-bold transition-colors py-2 ${
+            theme === 'dark' 
+              ? 'text-white hover:text-gray-300' 
+              : 'text-black hover:text-gray-700'
+          }`}
         >
           Мой профиль
         </Link>
         <Link
           href="/orders"
-          className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors py-2"
+          className={`text-left font-bold transition-colors py-2 ${
+            theme === 'dark' 
+              ? 'text-white hover:text-gray-300' 
+              : 'text-black hover:text-gray-700'
+          }`}
         >
           Мои заказы
         </Link>
         {session.user.role === "admin" && (
           <Link
             href="/admin"
-            className="text-left font-bold text-[#d62300] hover:text-[#b01e00] transition-colors py-2"
+            className={`text-left font-bold transition-colors py-2 ${
+              theme === 'dark' 
+                ? 'text-white hover:text-gray-300' 
+                : 'text-black hover:text-gray-700'
+            }`}
           >
             Панель администратора
           </Link>
@@ -142,10 +161,14 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
           </div>
         )}
         <div className="hidden md:block text-left">
-          <p className="text-sm font-bold text-gray-900">
+          <p className={`text-sm font-bold ${
+            theme === 'dark' ? 'text-white' : 'text-gray-900'
+          }`}>
             {session.user.fullName}
           </p>
-          <p className="text-xs text-gray-500">{session.user.email}</p>
+          <p className={`text-xs ${
+            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+          }`}>{session.user.email}</p>
         </div>
       </button>
 
@@ -155,15 +178,27 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
             className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-2xl border-2 border-gray-100 py-2 z-20">
-            <div className="px-4 py-3 border-b-2 border-gray-100">
-              <p className="text-sm font-black text-gray-900">
+          <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border-2 py-2 z-20 ${
+            theme === 'dark' 
+              ? 'bg-gray-800 border-gray-700' 
+              : 'bg-white border-gray-100'
+          }`}>
+            <div className={`px-4 py-3 border-b-2 ${
+              theme === 'dark' ? 'border-gray-700' : 'border-gray-100'
+            }`}>
+              <p className={`text-sm font-black ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
                 {session.user.fullName}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className={`text-xs truncate ${
+                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+              }`}>
                 {session.user.email}
               </p>
-              <p className="text-xs text-[#d62300] mt-1 capitalize font-bold">
+              <p className={`text-xs mt-1 capitalize font-bold ${
+                theme === 'dark' ? 'text-white' : 'text-black'
+              }`}>
                 {session.user.role === "customer"
                   ? "Клиент"
                   : session.user.role === "admin"
@@ -175,14 +210,22 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
             <div className="py-1">
               <Link
                 href="/profile"
-                className="block px-4 py-2 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-[#d62300] transition-colors"
+                className={`block px-4 py-2 text-sm font-bold transition-colors ${
+                  theme === 'dark'
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-black'
+                }`}
                 onClick={() => setIsOpen(false)}
               >
                 Мой профиль
               </Link>
               <Link
                 href="/orders"
-                className="block px-4 py-2 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-[#d62300] transition-colors"
+                className={`block px-4 py-2 text-sm font-bold transition-colors ${
+                  theme === 'dark'
+                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                    : 'text-gray-700 hover:bg-gray-100 hover:text-black'
+                }`}
                 onClick={() => setIsOpen(false)}
               >
                 Мои заказы
@@ -190,7 +233,11 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
               {session.user.role === "admin" && (
                 <Link
                   href="/admin"
-                  className="block px-4 py-2 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-[#d62300] transition-colors"
+                  className={`block px-4 py-2 text-sm font-bold transition-colors ${
+                    theme === 'dark'
+                      ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                      : 'text-gray-700 hover:bg-gray-100 hover:text-black'
+                  }`}
                   onClick={() => setIsOpen(false)}
                 >
                   Панель администратора
@@ -198,13 +245,17 @@ export default function UserMenu({ mobile = false }: UserMenuProps) {
               )}
             </div>
 
-            <div className="border-t-2 border-gray-100 py-1">
+            <div className={`border-t-2 py-1 ${
+              theme === 'dark' ? 'border-gray-700' : 'border-gray-100'
+            }`}>
               <button
                 onClick={() => {
                   setIsOpen(false);
                   signOut({ callbackUrl: "/" });
                 }}
-                className="block w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
+                className={`block w-full text-left px-4 py-2 text-sm font-bold text-red-600 transition-colors ${
+                  theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-red-50'
+                }`}
               >
                 Выйти
               </button>

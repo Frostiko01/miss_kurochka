@@ -4,25 +4,23 @@ import { Pool } from 'pg'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
-  prismaForAuth: PrismaClient | undefined
+  pool: Pool | undefined
 }
 
-// Prisma Client с adapter для основного использования
-const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+// Создаем pool только если его еще нет
+const pool = globalForPrisma.pool ?? new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
+
+// Создаем adapter
 const adapter = new PrismaPg(pool)
 
-export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter })
-
-// Отдельный Prisma Client для NextAuth
-// NextAuth adapter требует стандартный Prisma Client с обычным adapter
-const poolForAuth = new Pool({ connectionString: process.env.DATABASE_URL })
-const adapterForAuth = new PrismaPg(poolForAuth)
-
-export const prismaForAuth = globalForPrisma.prismaForAuth ?? new PrismaClient({ 
-  adapter: adapterForAuth 
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({
+  adapter,
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
 })
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma
-  globalForPrisma.prismaForAuth = prismaForAuth
+  globalForPrisma.pool = pool
 }

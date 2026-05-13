@@ -1,224 +1,495 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useSession, signOut } from "next-auth/react";
+
+interface Order {
+  id: string;
+  customerName: string;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+}
 
 export default function BranchDashboardPage() {
+  const { data: session } = useSession();
   const router = useRouter();
-  const { data: session, status } = useSession();
   const [stats, setStats] = useState({
-    totalOrders: 0,
-    totalRevenue: 0,
+    todayOrders: 0,
+    todayRevenue: 0,
     activeItems: 0,
+    stopListItems: 0,
   });
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Защита маршрута - только для филиалов
+  // Загрузка статистики и заказов
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/branch/signin");
-    } else if (status === "authenticated" && session?.user?.role !== "branch") {
-      router.push("/");
-    }
-  }, [status, session, router]);
+    const fetchData = async () => {
+      try {
+        // Загружаем статистику
+        const statsResponse = await fetch('/api/branch/stats');
+        if (statsResponse.ok) {
+          const statsData = await statsResponse.json();
+          setStats(statsData);
+        }
 
-  // Загрузка статистики (заглушка)
-  useEffect(() => {
-    if (status === "authenticated" && session?.user?.role === "branch") {
-      setStats({
-        totalOrders: 456,
-        totalRevenue: 123456,
-        activeItems: 45,
-      });
-    }
-  }, [status, session]);
+        // Загружаем последние заказы
+        const ordersResponse = await fetch('/api/branch/orders?limit=5');
+        if (ordersResponse.ok) {
+          const ordersData = await ordersResponse.json();
+          setRecentOrders(ordersData.orders || []);
+        }
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleLogout = async () => {
-    await signOut({ callbackUrl: "/branch/signin" });
+    fetchData();
+    
+    // Обновляем данные каждые 30 секунд
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Данные для графика (последние 7 дней)
+  const salesData = [
+    { day: 'Пн', amount: 45000 },
+    { day: 'Вт', amount: 52000 },
+    { day: 'Ср', amount: 48000 },
+    { day: 'Чт', amount: 61000 },
+    { day: 'Пт', amount: 73000 },
+    { day: 'Сб', amount: 85000 },
+    { day: 'Вс', amount: 67000 },
+  ];
+
+  const maxAmount = Math.max(...salesData.map(d => d.amount));
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'pending': return '#F59E0B';
+      case 'preparing': return '#3B82F6';
+      case 'ready': return '#10B981';
+      case 'completed': return '#6B7280';
+      case 'cancelled': return '#EF4444';
+      default: return '#94A3B8';
+    }
   };
 
-  // Показываем загрузку пока проверяем сессию
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600 font-semibold">Загрузка...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Если не авторизован или не филиал, не показываем контент
-  if (status !== "authenticated" || session?.user?.role !== "branch") {
-    return null;
-  }
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Ожидает';
+      case 'preparing': return 'Готовится';
+      case 'ready': return 'Готов';
+      case 'completed': return 'Завершен';
+      case 'cancelled': return 'Отменен';
+      default: return status;
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center shadow-lg">
-                <svg
-                  className="w-6 h-6 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
-                  />
+    <div className="min-h-screen" style={{ backgroundColor: '#0B0F14' }}>
+      <div className="p-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 
+            className="text-4xl font-bold tracking-tight" 
+            style={{ color: '#F3F5F7' }}
+          >
+            Панель управления
+          </h1>
+          <p className="font-medium mt-2" style={{ color: '#98A2B3' }}>
+            Добро пожаловать, {session?.user?.fullName}
+          </p>
+        </div>
+
+        {/* Stats Grid - Dark Theme */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Заказы сегодня */}
+          <div 
+            className="p-6 transition-all hover:shadow-xl"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div 
+                className="w-12 h-12 flex items-center justify-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(124, 140, 165, 0.3)'
+                }}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
               </div>
-              <div>
-                <h1 className="text-2xl font-black text-gray-900 uppercase">
-                  Панель филиала
-                </h1>
-                <p className="text-sm text-gray-600 font-semibold">
-                  Добро пожаловать, {session.user.fullName}
-                </p>
+            </div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#98A2B3' }}>
+              Заказы сегодня
+            </p>
+            <p className="text-4xl font-bold" style={{ color: '#F3F5F7' }}>
+              {loading ? '...' : stats.todayOrders}
+            </p>
+          </div>
+
+          {/* Выручка сегодня */}
+          <div 
+            className="p-6 transition-all hover:shadow-xl"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div 
+                className="w-12 h-12 flex items-center justify-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-bold shadow-lg hover:shadow-xl"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <p className="text-sm font-semibold mb-2" style={{ color: '#98A2B3' }}>
+              Выручка сегодня
+            </p>
+            <p className="text-4xl font-bold" style={{ color: '#F3F5F7' }}>
+              {loading ? '...' : `${stats.todayRevenue.toLocaleString()} с`}
+            </p>
+          </div>
+
+          {/* Активные блюда */}
+          <div 
+            className="p-6 transition-all hover:shadow-xl"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div 
+                className="w-12 h-12 flex items-center justify-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+                }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
-              Выйти
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#98A2B3' }}>
+              Активные блюда
+            </p>
+            <p className="text-4xl font-bold" style={{ color: '#F3F5F7' }}>
+              {loading ? '...' : stats.activeItems}
+            </p>
+          </div>
+
+          {/* В стоп-листе */}
+          <div 
+            className="p-6 transition-all hover:shadow-xl"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div 
+                className="w-12 h-12 flex items-center justify-center"
+                style={{ 
+                  background: 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+                }}
+              >
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#98A2B3' }}>
+              В стоп-листе
+            </p>
+            <p className="text-4xl font-bold" style={{ color: '#F3F5F7' }}>
+              {loading ? '...' : stats.stopListItems}
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Actions - New Colors */}
+        <div 
+          className="p-8 mb-8"
+          style={{ 
+            backgroundColor: '#1A212B',
+            borderRadius: '16px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+            border: '1px solid rgba(255,255,255,0.05)'
+          }}
+        >
+          <h2 
+            className="text-2xl font-bold mb-6" 
+            style={{ color: '#F3F5F7' }}
+          >
+            Быстрые действия
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <button
+              onClick={() => router.push('/branch/orders')}
+              className="p-6 text-left transition-all hover:shadow-lg"
+              style={{ 
+                backgroundColor: '#2A3442',
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#344255';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#2A3442';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div 
+                className="w-14 h-14 flex items-center justify-center mb-4"
+                style={{ 
+                  background: 'linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)',
+                  borderRadius: '12px'
+                }}
+              >
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#F3F5F7' }}>
+                Просмотр заказов
+              </h3>
+              <p className="text-sm font-medium" style={{ color: '#98A2B3' }}>
+                Управление текущими заказами
+              </p>
+            </button>
+
+            <button
+              onClick={() => router.push('/branch/menu')}
+              className="p-6 text-left transition-all hover:shadow-lg"
+              style={{ 
+                backgroundColor: '#2A3442',
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#344255';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#2A3442';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div 
+                className="w-14 h-14 flex items-center justify-center mb-4"
+                style={{ 
+                  background: 'linear-gradient(135deg, #8B5CF6 0%, #6366F1 100%)',
+                  borderRadius: '12px'
+                }}
+              >
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#F3F5F7' }}>
+                Меню филиала
+              </h3>
+              <p className="text-sm font-medium" style={{ color: '#98A2B3' }}>
+                Просмотр доступных блюд
+              </p>
+            </button>
+
+            <button
+              onClick={() => router.push('/branch/stop-list')}
+              className="p-6 text-left transition-all hover:shadow-lg"
+              style={{ 
+                backgroundColor: '#2A3442',
+                borderRadius: '14px',
+                border: '1px solid rgba(255,255,255,0.05)'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#344255';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.5)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#2A3442';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <div 
+                className="w-14 h-14 flex items-center justify-center mb-4"
+                style={{ 
+                  background: 'linear-gradient(135deg, #F59E0B 0%, #EF4444 100%)',
+                  borderRadius: '12px'
+                }}
+              >
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#F3F5F7' }}>
+                Стоп-лист
+              </h3>
+              <p className="text-sm font-medium" style={{ color: '#98A2B3' }}>
+                Управление недоступными блюдами
+              </p>
             </button>
           </div>
         </div>
-      </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-gray-600 uppercase">
-                  Заказы сегодня
-                </p>
-                <p className="text-3xl font-black text-gray-900 mt-2">
-                  {stats.totalOrders}
-                </p>
-              </div>
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-                <svg
-                  className="w-7 h-7 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-gray-600 uppercase">
-                  Выручка
-                </p>
-                <p className="text-3xl font-black text-gray-900 mt-2">
-                  {stats.totalRevenue.toLocaleString()} с
-                </p>
-              </div>
-              <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                <svg
-                  className="w-7 h-7 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-lg p-6 border-2 border-gray-100 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-bold text-gray-600 uppercase">
-                  Активные блюда
-                </p>
-                <p className="text-3xl font-black text-gray-900 mt-2">
-                  {stats.activeItems}
-                </p>
-              </div>
-              <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                <svg
-                  className="w-7 h-7 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Coming Soon */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-100 text-center">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-8 h-8 text-blue-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        {/* Analytics Section - New Colors */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Sales Performance Chart */}
+          <div 
+            className="p-8"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <h2 
+              className="text-2xl font-bold mb-6" 
+              style={{ color: '#F3F5F7' }}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+              Результаты продаж
+            </h2>
+            <div className="space-y-4">
+              {salesData.map((item, index) => (
+                <div key={index} className="flex items-center gap-4">
+                  <span className="text-sm font-semibold w-8" style={{ color: '#98A2B3' }}>
+                    {item.day}
+                  </span>
+                  <div className="flex-1 h-12 relative overflow-hidden" style={{ 
+                    backgroundColor: '#202937',
+                    borderRadius: '8px'
+                  }}>
+                    <div 
+                      className="h-full transition-all duration-500 flex items-center justify-end pr-4"
+                      style={{ 
+                        width: `${(item.amount / maxAmount) * 100}%`,
+                        background: 'linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)',
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <span className="text-xs font-bold text-white">
+                        {item.amount.toLocaleString()} с
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
-          <h2 className="text-2xl font-black text-gray-900 uppercase mb-2">
-            Скоро
-          </h2>
-          <p className="text-gray-600 font-semibold">
-            Дополнительные функции панели филиала находятся в разработке
-          </p>
+
+          {/* Recent Orders Table */}
+          <div 
+            className="p-8"
+            style={{ 
+              backgroundColor: '#1A212B',
+              borderRadius: '16px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+            <h2 
+              className="text-2xl font-bold mb-6" 
+              style={{ color: '#F3F5F7' }}
+            >
+              Последние заказы
+            </h2>
+            {loading ? (
+              <div className="text-center py-8">
+                <div 
+                  className="animate-spin rounded-full h-10 w-10 border-4 mx-auto" 
+                  style={{ 
+                    borderColor: '#202937',
+                    borderTopColor: '#7C8CA5'
+                  }}
+                ></div>
+              </div>
+            ) : recentOrders.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="w-16 h-16 mx-auto mb-4" style={{ color: '#6B7280' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="font-medium" style={{ color: '#98A2B3' }}>
+                  Нет заказов
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentOrders.map((order) => (
+                  <div 
+                    key={order.id}
+                    className="p-4 transition-all hover:shadow-md"
+                    style={{ 
+                      backgroundColor: '#202937',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255,255,255,0.05)'
+                    }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-bold" style={{ color: '#F3F5F7' }}>
+                        {order.customerName || 'Клиент'}
+                      </span>
+                      <span 
+                        className="text-xs font-semibold px-3 py-1"
+                        style={{ 
+                          backgroundColor: getStatusColor(order.status),
+                          color: '#FFFFFF',
+                          borderRadius: '6px'
+                        }}
+                      >
+                        {getStatusText(order.status)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium" style={{ color: '#98A2B3' }}>
+                        {new Date(order.createdAt).toLocaleString('ru-RU', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </span>
+                      <span className="font-bold text-lg" style={{ color: '#7C8CA5' }}>
+                        {order.totalAmount.toLocaleString()} с
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
