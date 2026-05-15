@@ -27,11 +27,10 @@ declare module "next-auth" {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
-  basePath: "/api/auth",
   debug: process.env.NODE_ENV === "development",
   pages: {
     signIn: "/auth/signin",
-    error: "/auth/signin", // Перенаправляем ошибки на страницу входа
+    error: "/auth/error",
   },
   providers: [
     GoogleProvider({

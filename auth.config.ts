@@ -5,103 +5,133 @@ export const authConfig = {
     signIn: "/auth/signin",
     error: "/auth/error",
   },
+  session: {
+    strategy: "jwt" as const,
+  },
   callbacks: {
+    // Читаем роль из JWT токена и кладём в сессию
+    // Этот callback вызывается в Edge Runtime (middleware) — без Prisma
+    async jwt({ token, user }) {
+      if (user) {
+        // При первом входе user содержит роль (из authorize/Google)
+        token.role = (user as any).role ?? "customer";
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        (session.user as any).role = (token.role as string) ?? "customer";
+        (session.user as any).id = token.sub;
+      }
+      return session;
+    },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
+      const role = ((auth?.user as any)?.role as string) ?? "";
       const pathname = nextUrl.pathname;
 
-      // Разрешаем доступ к API маршрутам всегда
-      if (pathname.startsWith("/api")) {
-        return true;
-      }
+      // API — всегда разрешён
+      if (pathname.startsWith("/api")) return true;
 
-      // Защита админских маршрутов
+      // ============ ADMIN ============
       if (pathname.startsWith("/admin")) {
-        // Разрешаем доступ к странице входа админа
         if (pathname === "/admin/signin") {
-          // Если админ уже авторизован, перенаправляем в админку
-          if (isLoggedIn && auth?.user?.role === "admin") {
+          if (isLoggedIn && role === "admin") {
             return Response.redirect(new URL("/admin/dashboard", nextUrl));
           }
           return true;
         }
-
-        // Для всех остальных админских маршрутов требуется авторизация
         if (!isLoggedIn) {
           return Response.redirect(new URL("/admin/signin", nextUrl));
         }
-
-        // Проверяем роль админа
-        if (auth?.user?.role !== "admin") {
+        if (role !== "admin") {
           return Response.redirect(new URL("/", nextUrl));
         }
-
         return true;
       }
 
-      // Защита маршрутов филиалов
+      // ============ BRANCH ============
       if (pathname.startsWith("/branch")) {
-        // Разрешаем доступ к странице входа филиала
         if (pathname === "/branch/signin") {
-          // Если филиал уже авторизован, перенаправляем в панель
-          if (isLoggedIn && auth?.user?.role === "branch") {
+          if (isLoggedIn && role === "branch") {
             return Response.redirect(new URL("/branch/dashboard", nextUrl));
           }
           return true;
         }
-
-        // Для всех остальных маршрутов филиала требуется авторизация
         if (!isLoggedIn) {
           return Response.redirect(new URL("/branch/signin", nextUrl));
         }
-
-        // Проверяем роль филиала
-        if (auth?.user?.role !== "branch") {
+        if (role !== "branch") {
           return Response.redirect(new URL("/", nextUrl));
         }
-
         return true;
       }
 
-      // Защита пользовательских маршрутов от админов и филиалов
-      if (pathname.startsWith("/profile") || pathname.startsWith("/cart") || pathname.startsWith("/checkout") || pathname.startsWith("/orders")) {
-        if (!isLoggedIn) {
-          return Response.redirect(new URL("/auth/signin?callbackUrl=" + encodeURIComponent(pathname), nextUrl));
+      // ============ AUTH PAGES ============
+      if (pathname.startsWith("/auth")) {
+        if (isLoggedIn) {
+          if (role === "admin") {
+            return Response.redirect(new URL("/admin/dashboard", nextUrl));
+          }
+          if (role === "branch") {
+            return Response.redirect(new URL("/branch/dashboard", nextUrl));
+          }
+          return Response.redirect(new URL("/home", nextUrl));
         }
+        return true;
+      }
 
-        // Админы и филиалы не могут заходить в пользовательские маршруты
-        if (auth?.user?.role === "admin") {
+      // ============ PROTECTED USER ROUTES ============
+      const protectedPaths = [
+        "/home",
+        "/profile",
+        "/cart",
+        "/checkout",
+        "/orders",
+        "/menu",
+        "/favorites",
+        "/promotions",
+        "/addresses",
+        "/notifications",
+        "/settings",
+        "/support",
+        "/branches",
+      ];
+      const isProtectedRoute = protectedPaths.some((p) => pathname.startsWith(p));
+      if (isProtectedRoute) {
+        if (!isLoggedIn) {
+          return Response.redirect(
+            new URL(
+              `/auth/signin?callbackUrl=${encodeURIComponent(pathname)}`,
+              nextUrl
+            )
+          );
+        }
+        if (role === "admin") {
           return Response.redirect(new URL("/admin/dashboard", nextUrl));
         }
-        if (auth?.user?.role === "branch") {
+        if (role === "branch") {
           return Response.redirect(new URL("/branch/dashboard", nextUrl));
         }
-
         return true;
       }
 
-      // Главная страница - только админы перенаправляются
+      // ============ LANDING ============
       if (pathname === "/") {
-        if (isLoggedIn && auth?.user?.role === "admin") {
-          return Response.redirect(new URL("/admin/dashboard", nextUrl));
+        if (isLoggedIn) {
+          if (role === "admin") {
+            return Response.redirect(new URL("/admin/dashboard", nextUrl));
+          }
+          if (role === "branch") {
+            return Response.redirect(new URL("/branch/dashboard", nextUrl));
+          }
+          return Response.redirect(new URL("/home", nextUrl));
         }
-        // Убираем перенаправление для branch и customer - они остаются на главной
-      }
-
-      const isOnAuthPage = pathname.startsWith("/auth/signin") || 
-                          pathname.startsWith("/auth/signup");
-
-      // Если на странице авторизации и уже залогинен - редирект на главную
-      if (isOnAuthPage && isLoggedIn) {
-        if (auth?.user?.role === "admin") {
-          return Response.redirect(new URL("/admin/dashboard", nextUrl));
-        }
-        // Обычные пользователи и филиалы идут на главную
-        return Response.redirect(new URL("/", nextUrl));
+        return true;
       }
 
       return true;
     },
   },
-  providers: [], // Провайдеры добавляются в lib/auth.ts
+  providers: [],
 } satisfies NextAuthConfig;

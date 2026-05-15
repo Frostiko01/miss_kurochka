@@ -1,7 +1,8 @@
 'use client'
 
-import { useTheme } from '@/contexts/ThemeContext'
-import { Drumstick, Package, MapPin } from 'lucide-react'
+import Link from 'next/link'
+import { signOut } from 'next-auth/react'
+import { Drumstick, Package, MapPin, Mail, Phone as PhoneIcon, User as UserIcon, ArrowLeft, LogOut } from 'lucide-react'
 
 interface User {
   fullName: string
@@ -16,137 +17,109 @@ interface ProfileContentProps {
 }
 
 export default function ProfileContent({ user }: ProfileContentProps) {
-  const { theme } = useTheme()
+  const initials = user.fullName.charAt(0).toUpperCase()
 
   return (
-    <div className={`min-h-screen py-12 px-4 transition-colors duration-300 ${theme === 'dark' ? 'bg-gradient-to-br from-gray-800 to-gray-900' : 'bg-gradient-to-br from-orange-50 to-yellow-50'}`}>
-      <div className="max-w-4xl mx-auto">
-        <div className={`rounded-2xl shadow-xl overflow-hidden ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-          {/* Header */}
-          <div className="bg-gradient-to-r from-[#d62300] to-[#ff0000] px-8 py-12 text-white">
-            <div className="flex items-center gap-6">
-              {user.avatarUrl ? (
-                <img
-                  src={user.avatarUrl}
-                  alt={user.fullName}
-                  className="w-24 h-24 rounded-full border-4 border-white shadow-lg"
-                />
-              ) : (
-                <div className="w-24 h-24 rounded-full bg-white/20 border-4 border-white flex items-center justify-center text-4xl font-bold">
-                  {user.fullName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <div>
-                <h1 className="text-3xl font-black mb-2">{user.fullName}</h1>
-                <p className="text-white/80">{user.email}</p>
+    <div className="min-h-screen bg-[var(--bg-muted)] py-8 px-4">
+      <div className="container-page max-w-3xl">
+        <Link
+          href="/home"
+          className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--fg-muted)] hover:text-[var(--fg)] mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          На главную
+        </Link>
+
+        {/* Header card */}
+        <div className="surface p-6 sm:p-7 mb-5">
+          <div className="flex items-center gap-5">
+            {user.avatarUrl ? (
+              <img
+                src={user.avatarUrl}
+                alt={user.fullName}
+                className="w-20 h-20 rounded-full object-cover border border-[var(--border)]"
+              />
+            ) : (
+              <div className="w-20 h-20 rounded-full bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center text-3xl font-extrabold">
+                {initials}
               </div>
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-8">
-            <h2 className={`text-2xl font-bold mb-6 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-              Информация профиля
-            </h2>
-
-            <div className="space-y-4">
-              <div className={`border-b pb-4 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                <label className={`text-sm font-semibold uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Полное имя
-                </label>
-                <p className={`mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user.fullName}</p>
-              </div>
-
-              <div className={`border-b pb-4 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                <label className={`text-sm font-semibold uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Email
-                </label>
-                <p className={`mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>{user.email}</p>
-              </div>
-
-              <div className={`border-b pb-4 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
-                <label className={`text-sm font-semibold uppercase ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                  Номер телефона
-                </label>
-                <p className={`mt-1 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-                  {user.phone || 'Не указан'}
-                </p>
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="mt-8 flex gap-4">
-              <a
-                href="/"
-                className="px-6 py-3 bg-[#d62300] text-white rounded-lg font-semibold hover:bg-[#b01e00] transition-colors"
-              >
-                На главную
-              </a>
-              <a
-                href="/cart"
-                className={`px-6 py-3 rounded-lg font-semibold transition-colors ${theme === 'dark' ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`}
-              >
-                Корзина
-              </a>
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl font-extrabold tracking-tight truncate">{user.fullName}</h1>
+              <p className="text-sm text-[var(--fg-muted)] truncate">{user.email}</p>
+              <span className="badge badge-brand mt-2">
+                {user.role === 'customer' ? 'Клиент' : user.role === 'admin' ? 'Администратор' : 'Филиал'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Additional Info */}
-        <div className={`mt-6 rounded-2xl shadow-xl p-8 ${theme === 'dark' ? 'bg-gray-800' : 'bg-white'}`}>
-          <h2 className={`text-2xl font-bold mb-4 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-            Быстрые действия
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <a
-              href="/menu"
-              className={`p-6 border-2 rounded-xl transition-all text-center ${
-                theme === 'dark' 
-                  ? 'border-gray-700 hover:border-[#d62300] hover:bg-gray-700' 
-                  : 'border-gray-200 hover:border-orange-600 hover:bg-orange-50'
-              }`}
-            >
-              <div className="flex justify-center mb-2">
-                <Drumstick className={`w-12 h-12 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-              </div>
-              <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Меню</h3>
-              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-                Посмотреть наше меню
-              </p>
-            </a>
-
-            <a
-              href="/orders"
-              className={`p-6 border-2 rounded-xl transition-all text-center ${
-                theme === 'dark' 
-                  ? 'border-gray-700 hover:border-[#d62300] hover:bg-gray-700' 
-                  : 'border-gray-200 hover:border-orange-600 hover:bg-orange-50'
-              }`}
-            >
-              <div className="flex justify-center mb-2">
-                <Package className={`w-12 h-12 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-              </div>
-              <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Заказы</h3>
-              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>История заказов</p>
-            </a>
-
-            <a
-              href="/branches"
-              className={`p-6 border-2 rounded-xl transition-all text-center ${
-                theme === 'dark' 
-                  ? 'border-gray-700 hover:border-[#d62300] hover:bg-gray-700' 
-                  : 'border-gray-200 hover:border-orange-600 hover:bg-orange-50'
-              }`}
-            >
-              <div className="flex justify-center mb-2">
-                <MapPin className={`w-12 h-12 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-              </div>
-              <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>Филиалы</h3>
-              <p className={`text-sm mt-1 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Найти ближайший</p>
-            </a>
+        {/* Info */}
+        <div className="surface p-6 sm:p-7 mb-5">
+          <h2 className="text-base font-extrabold mb-4">Информация профиля</h2>
+          <div className="space-y-3">
+            <InfoRow icon={<UserIcon className="w-4 h-4" />} label="Имя" value={user.fullName} />
+            <InfoRow icon={<Mail className="w-4 h-4" />} label="Email" value={user.email} />
+            <InfoRow icon={<PhoneIcon className="w-4 h-4" />} label="Телефон" value={user.phone || 'Не указан'} />
           </div>
         </div>
+
+        {/* Quick actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+          <QuickAction href="/" icon={<Drumstick className="w-5 h-5" />} title="Меню" subtitle="Перейти к блюдам" />
+          <QuickAction href="/orders" icon={<Package className="w-5 h-5" />} title="Заказы" subtitle="История и статусы" />
+          <QuickAction href="/cart" icon={<MapPin className="w-5 h-5" />} title="Корзина" subtitle="Оформить заказ" />
+        </div>
+
+        <button
+          onClick={() => signOut({ callbackUrl: '/' })}
+          className="btn btn-secondary w-full"
+        >
+          <LogOut className="w-4 h-4" />
+          Выйти из аккаунта
+        </button>
       </div>
     </div>
+  )
+}
+
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 py-2.5 border-b border-[var(--border)] last:border-0">
+      <div className="w-8 h-8 rounded-lg bg-[var(--bg-muted)] flex items-center justify-center text-[var(--fg-muted)]">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-[var(--fg-subtle)] font-semibold">{label}</p>
+        <p className="text-sm font-semibold truncate">{value}</p>
+      </div>
+    </div>
+  )
+}
+
+function QuickAction({
+  href,
+  icon,
+  title,
+  subtitle,
+}: {
+  href: string
+  icon: React.ReactNode
+  title: string
+  subtitle: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="card card-hover p-4 flex items-center gap-3 group"
+    >
+      <div className="w-10 h-10 rounded-xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center group-hover:bg-[var(--brand)] group-hover:text-white transition">
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-bold truncate">{title}</p>
+        <p className="text-xs text-[var(--fg-muted)] truncate">{subtitle}</p>
+      </div>
+    </Link>
   )
 }

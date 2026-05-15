@@ -369,7 +369,6 @@ enum OrderStatus {
 }
 
 enum PaymentMethodType {
-  cash
   card
   finik
   online

@@ -125,7 +125,6 @@ export default function BranchOrdersPage() {
 
   const getPaymentMethodText = (method: string) => {
     const methods: Record<string, string> = {
-      cash: '💵 Наличные',
       card: '💳 Карта',
       online: '🌐 Онлайн',
       finik: '📱 Finik',

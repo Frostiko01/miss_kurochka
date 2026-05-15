@@ -153,7 +153,7 @@ export async function POST(request: NextRequest) {
         customerPhone,
         customerComment,
         orderType: orderType || 'pickup',
-        paymentMethod: paymentMethod || 'cash',
+        paymentMethod: paymentMethod || 'card',
         deliveryAddressId: orderType === 'delivery' ? deliveryAddressId : null,
         totalAmount,
         status: 'pending',
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
         },
         payments: {
           create: {
-            paymentMethod: paymentMethod || 'cash',
+            paymentMethod: paymentMethod || 'card',
             amount: totalAmount,
             currency: 'KGS',
             status: 'pending',

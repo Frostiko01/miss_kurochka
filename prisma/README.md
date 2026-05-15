@@ -39,7 +39,7 @@
 - `order_item_modifiers` - выбранные модификаторы
 
 ### 💳 Платежи
-- `payments` - платежи (cash, card, finik, online)
+- `payments` - платежи (card, finik, online)
 
 ### 🚚 Доставка
 - `delivery_zones` - зоны доставки с полигонами

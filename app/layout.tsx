@@ -22,7 +22,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${nunito.variable} h-full antialiased`}
+      className={`${nunito.variable} h-full antialiased light`}
     >
       <head>
         <link 

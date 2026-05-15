@@ -87,7 +87,7 @@ export interface CreateOrderRequest {
   customerPhone: string
   customerComment?: string
   orderType: 'pickup' | 'delivery'
-  paymentMethod: 'cash' | 'card' | 'finik' | 'online'
+  paymentMethod: 'card' | 'finik' | 'online'
   items: OrderItemInput[]
 }
 
@@ -210,10 +210,10 @@ export const ORDER_STATUS_LABELS: Record<string, I18nText> = {
 }
 
 export const PAYMENT_METHOD_LABELS: Record<string, I18nText> = {
-  cash: {
-    ru: 'Наличные',
-    en: 'Cash',
-    ky: 'Накталай'
+  card: {
+    ru: 'Карта',
+    en: 'Card',
+    ky: 'Карта'
   },
   card: {
     ru: 'Карта',

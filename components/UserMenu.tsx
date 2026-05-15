@@ -2,8 +2,8 @@
 
 import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
-import { useState } from "react";
-import { useTheme } from "@/contexts/ThemeContext";
+import { useState, useRef, useEffect } from "react";
+import { LogOut, User, Package, Settings, ChevronDown } from "lucide-react";
 
 interface UserMenuProps {
   mobile?: boolean;
@@ -13,255 +13,180 @@ interface UserMenuProps {
 export default function UserMenu({ mobile = false, onAuthClick }: UserMenuProps) {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
-  const { theme } = useTheme();
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false);
+    };
+    if (isOpen) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [isOpen]);
 
   if (status === "loading") {
-    return (
-      <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
-    );
+    return <div className="h-9 w-9 rounded-full bg-[var(--bg-muted)] animate-pulse" />;
   }
 
-  // Незарегистрированный пользователь - МОБИЛЬНАЯ ВЕРСИЯ
-  if (!session && mobile) {
-    return (
-      <div className="flex flex-col gap-3">
-        <button
-          onClick={onAuthClick}
-          className={`text-left font-bold transition-colors py-2 ${
-            theme === 'dark' 
-              ? 'text-white hover:text-gray-300' 
-              : 'text-black hover:text-gray-700'
-          }`}
-        >
-          Войти
-        </button>
-      </div>
-    );
-  }
-
-  // Незарегистрированный пользователь - ДЕСКТОП
+  // Не авторизован
   if (!session) {
-    return (
-      <div className="flex items-center gap-3">
+    if (mobile) {
+      return (
         <button
           onClick={onAuthClick}
-          className={`text-sm font-bold transition-colors ${
-            theme === 'dark'
-              ? 'text-gray-300 hover:text-[#d62300]'
-              : 'text-gray-700 hover:text-[#d62300]'
-          }`}
+          className="btn btn-primary w-full"
         >
           Войти
         </button>
-      </div>
+      );
+    }
+    return (
+      <button onClick={onAuthClick} className="btn btn-secondary btn-sm">
+        Войти
+      </button>
     );
   }
 
-  // Авторизованный пользователь - МОБИЛЬНАЯ ВЕРСИЯ
+  const initials = session.user.fullName.charAt(0).toUpperCase();
+  const roleLabel =
+    session.user.role === "customer"
+      ? "Клиент"
+      : session.user.role === "admin"
+      ? "Администратор"
+      : "Филиал";
+
+  // Авторизован, мобильный
   if (mobile) {
     return (
-      <div className="flex flex-col gap-3">
-        {/* Профиль пользователя */}
-        <div className={`flex items-center gap-3 pb-3 border-b-2 ${
-          theme === 'dark' ? 'border-red-900' : 'border-red-100'
-        }`}>
+      <div className="flex flex-col gap-1.5">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--bg-muted)]">
           {session.user.avatarUrl ? (
             <img
               src={session.user.avatarUrl}
               alt={session.user.fullName}
-              className="h-12 w-12 rounded-full object-cover border-2 border-[#d62300]"
+              className="h-10 w-10 rounded-full object-cover"
             />
           ) : (
-            <div className="h-12 w-12 rounded-full bg-[#d62300] flex items-center justify-center text-white font-black text-lg">
-              {session.user.fullName.charAt(0).toUpperCase()}
+            <div className="h-10 w-10 rounded-full bg-[var(--brand)] flex items-center justify-center text-white font-bold text-base">
+              {initials}
             </div>
           )}
-          <div>
-            <p className={`text-sm font-black ${
-              theme === 'dark' ? 'text-white' : 'text-gray-900'
-            }`}>
-              {session.user.fullName}
-            </p>
-            <p className={`text-xs ${
-              theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-            }`}>{session.user.email}</p>
-            <p className={`text-xs mt-1 capitalize font-bold ${
-              theme === 'dark' ? 'text-white' : 'text-black'
-            }`}>
-              {session.user.role === "customer"
-                ? "Клиент"
-                : session.user.role === "admin"
-                ? "Администратор"
-                : "Филиал"}
-            </p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold truncate">{session.user.fullName}</p>
+            <p className="text-xs text-[var(--fg-subtle)] truncate">{session.user.email}</p>
           </div>
         </div>
 
-        {/* Ссылки */}
         <Link
           href="/profile"
-          className={`text-left font-bold transition-colors py-2 ${
-            theme === 'dark' 
-              ? 'text-white hover:text-gray-300' 
-              : 'text-black hover:text-gray-700'
-          }`}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
         >
-          Мой профиль
+          <User className="w-4 h-4 text-[var(--fg-muted)]" />
+          Профиль
         </Link>
         <Link
           href="/orders"
-          className={`text-left font-bold transition-colors py-2 ${
-            theme === 'dark' 
-              ? 'text-white hover:text-gray-300' 
-              : 'text-black hover:text-gray-700'
-          }`}
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
         >
+          <Package className="w-4 h-4 text-[var(--fg-muted)]" />
           Мои заказы
         </Link>
         {session.user.role === "admin" && (
           <Link
             href="/admin"
-            className={`text-left font-bold transition-colors py-2 ${
-              theme === 'dark' 
-                ? 'text-white hover:text-gray-300' 
-                : 'text-black hover:text-gray-700'
-            }`}
+            className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
           >
-            Панель администратора
+            <Settings className="w-4 h-4 text-[var(--fg-muted)]" />
+            Админ-панель
           </Link>
         )}
-        
-        {/* Кнопка выхода */}
         <button
           onClick={() => signOut({ callbackUrl: "/" })}
-          className="text-left font-bold text-red-600 hover:text-red-700 transition-colors py-2"
+          className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
         >
+          <LogOut className="w-4 h-4" />
           Выйти
         </button>
       </div>
     );
   }
 
-  // Авторизованный пользователь - ДЕСКТОП (выпадающее меню)
+  // Авторизован, десктоп
   return (
-    <div className="relative">
+    <div ref={ref} className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 focus:outline-none"
+        className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full hover:bg-[var(--bg-muted)] transition focus:outline-none"
       >
         {session.user.avatarUrl ? (
           <img
             src={session.user.avatarUrl}
             alt={session.user.fullName}
-            className="h-10 w-10 rounded-full object-cover border-2 border-[#d62300]"
+            className="h-8 w-8 rounded-full object-cover"
           />
         ) : (
-          <div className="h-10 w-10 rounded-full bg-[#d62300] flex items-center justify-center text-white font-black">
-            {session.user.fullName.charAt(0).toUpperCase()}
+          <div className="h-8 w-8 rounded-full bg-[var(--brand)] flex items-center justify-center text-white font-bold text-sm">
+            {initials}
           </div>
         )}
-        <div className="hidden md:block text-left">
-          <p className={`text-sm font-bold ${
-            theme === 'dark' ? 'text-white' : 'text-gray-900'
-          }`}>
-            {session.user.fullName}
-          </p>
-          <p className={`text-xs ${
-            theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-          }`}>{session.user.email}</p>
+        <div className="text-left max-w-[120px]">
+          <p className="text-xs font-bold truncate leading-tight">{session.user.fullName}</p>
+          <p className="text-[10px] text-[var(--fg-subtle)] truncate leading-tight">{roleLabel}</p>
         </div>
+        <ChevronDown
+          className={`w-3.5 h-3.5 text-[var(--fg-muted)] transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
 
       {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className={`absolute right-0 mt-2 w-56 rounded-xl shadow-2xl border-2 py-2 z-20 ${
-            theme === 'dark' 
-              ? 'bg-gray-800 border-gray-700' 
-              : 'bg-white border-gray-100'
-          }`}>
-            <div className={`px-4 py-3 border-b-2 ${
-              theme === 'dark' ? 'border-gray-700' : 'border-gray-100'
-            }`}>
-              <p className={`text-sm font-black ${
-                theme === 'dark' ? 'text-white' : 'text-gray-900'
-              }`}>
-                {session.user.fullName}
-              </p>
-              <p className={`text-xs truncate ${
-                theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-              }`}>
-                {session.user.email}
-              </p>
-              <p className={`text-xs mt-1 capitalize font-bold ${
-                theme === 'dark' ? 'text-white' : 'text-black'
-              }`}>
-                {session.user.role === "customer"
-                  ? "Клиент"
-                  : session.user.role === "admin"
-                  ? "Администратор"
-                  : "Филиал"}
-              </p>
-            </div>
-
-            <div className="py-1">
-              <Link
-                href="/profile"
-                className={`block px-4 py-2 text-sm font-bold transition-colors ${
-                  theme === 'dark'
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-black'
-                }`}
-                onClick={() => setIsOpen(false)}
-              >
-                Мой профиль
-              </Link>
-              <Link
-                href="/orders"
-                className={`block px-4 py-2 text-sm font-bold transition-colors ${
-                  theme === 'dark'
-                    ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-black'
-                }`}
-                onClick={() => setIsOpen(false)}
-              >
-                Мои заказы
-              </Link>
-              {session.user.role === "admin" && (
-                <Link
-                  href="/admin"
-                  className={`block px-4 py-2 text-sm font-bold transition-colors ${
-                    theme === 'dark'
-                      ? 'text-gray-300 hover:bg-gray-700 hover:text-white'
-                      : 'text-gray-700 hover:bg-gray-100 hover:text-black'
-                  }`}
-                  onClick={() => setIsOpen(false)}
-                >
-                  Панель администратора
-                </Link>
-              )}
-            </div>
-
-            <div className={`border-t-2 py-1 ${
-              theme === 'dark' ? 'border-gray-700' : 'border-gray-100'
-            }`}>
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  signOut({ callbackUrl: "/" });
-                }}
-                className={`block w-full text-left px-4 py-2 text-sm font-bold text-red-600 transition-colors ${
-                  theme === 'dark' ? 'hover:bg-gray-700' : 'hover:bg-red-50'
-                }`}
-              >
-                Выйти
-              </button>
-            </div>
+        <div className="absolute right-0 mt-2 w-60 rounded-2xl bg-white border border-[var(--border)] shadow-lg py-1.5 z-50 animate-fadeIn">
+          <div className="px-3 py-2.5 border-b border-[var(--border)]">
+            <p className="text-sm font-bold truncate">{session.user.fullName}</p>
+            <p className="text-xs text-[var(--fg-subtle)] truncate">{session.user.email}</p>
+            <span className="badge badge-brand mt-2">{roleLabel}</span>
           </div>
-        </>
+
+          <div className="py-1">
+            <Link
+              href="/profile"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+            >
+              <User className="w-4 h-4 text-[var(--fg-muted)]" />
+              Профиль
+            </Link>
+            <Link
+              href="/orders"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+            >
+              <Package className="w-4 h-4 text-[var(--fg-muted)]" />
+              Мои заказы
+            </Link>
+            {session.user.role === "admin" && (
+              <Link
+                href="/admin"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+              >
+                <Settings className="w-4 h-4 text-[var(--fg-muted)]" />
+                Админ-панель
+              </Link>
+            )}
+          </div>
+
+          <div className="border-t border-[var(--border)] py-1">
+            <button
+              onClick={() => {
+                setIsOpen(false);
+                signOut({ callbackUrl: "/" });
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
+            >
+              <LogOut className="w-4 h-4" />
+              Выйти
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
