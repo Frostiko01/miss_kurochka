@@ -175,24 +175,27 @@ export default function OrdersPage() {
 
                 <div className="flex items-center gap-2 pt-3 border-t border-[var(--border)]">
                   <div className="flex -space-x-2">
-                    {order.items.slice(0, 4).map((item: any) => (
-                      <div
-                        key={item.id}
-                        className="w-9 h-9 rounded-lg overflow-hidden border-2 border-white bg-[var(--bg-muted)]"
-                      >
-                        {item.menuItem.images && item.menuItem.images.length > 0 ? (
-                          <img
-                            src={item.menuItem.images[0].imageUrl}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-base">
-                            🍗
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                    {order.items.slice(0, 4).map((item: any) => {
+                      const img = item.menuItem?.images?.[0]?.imageUrl ?? item.comboOffer?.imageUrl ?? null
+                      return (
+                        <div
+                          key={item.id}
+                          className="w-9 h-9 rounded-lg overflow-hidden border-2 border-white bg-[var(--bg-muted)]"
+                        >
+                          {img ? (
+                            <img
+                              src={img}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-base">
+                              🍗
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                   <span className="text-xs text-[var(--fg-muted)]">
                     {order.items.length} {order.items.length === 1 ? 'товар' : 'товаров'}

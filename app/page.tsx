@@ -15,11 +15,12 @@ export default function Home() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const { locale, changeLocale, t } = useTranslations('landing')
-  const [activeCategory, setActiveCategory] = useState('fried')
+  const [activeCategory, setActiveCategory] = useState('all')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [currentSlide, setCurrentSlide] = useState(0)
   const comboScrollRef = useRef<HTMLDivElement>(null)
+  const menuScrollRef = useRef<HTMLDivElement>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [comboDeals, setComboDeals] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
@@ -28,7 +29,23 @@ export default function Home() {
   const [selectedMenuItem, setSelectedMenuItem] = useState<any>(null)
   const [showItemModal, setShowItemModal] = useState(false)
   const [cartItems, setCartItems] = useState<{ [key: string]: { quantity: number; cartItemId: string } }>({})
+  const [comboItems, setComboItems] = useState<{ [key: string]: { quantity: number; cartItemId: string } }>({})
+  const [selectedCombo, setSelectedCombo] = useState<any>(null)
 
+  // Обновляем cartItems и comboItems из ответа API (единая функция)
+  const syncCart = (cartData: any) => {
+    const itemsMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
+    const combosMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
+    cartData?.items?.forEach((item: any) => {
+      if (item.menuItem) {
+        itemsMap[item.menuItem.id] = { quantity: item.quantity, cartItemId: item.id }
+      } else if (item.comboOffer) {
+        combosMap[item.comboOffer.id] = { quantity: item.quantity, cartItemId: item.id }
+      }
+    })
+    setCartItems(itemsMap)
+    setComboItems(combosMap)
+  }
   // Модалка регистрации при первом входе (только для гостей)
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -45,6 +62,19 @@ export default function Home() {
     fetchBranches()
     fetchMenu()
   }, [])
+
+  // Подгружаем корзину при логине
+  useEffect(() => {
+    if (!session) {
+      setCartItems({})
+      setComboItems({})
+      return
+    }
+    fetch('/api/cart')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.cart) syncCart(data.cart) })
+      .catch(() => {})
+  }, [session])
 
   useEffect(() => {
     if (selectedBranch) fetchMenu()
@@ -88,9 +118,10 @@ export default function Home() {
         const formattedCombos = data.combos.map((combo: any) => ({
           id: combo.id,
           name: combo.name,
+          description: combo.description,
           items: combo.items,
-          price: `${combo.price} сом`,
-          oldPrice: combo.oldPrice ? `${combo.oldPrice} сом` : null,
+          price: Number(combo.price),
+          oldPrice: combo.oldPrice ? Number(combo.oldPrice) : null,
           image: combo.imageUrl,
         }))
         setComboDeals(formattedCombos)
@@ -102,10 +133,25 @@ export default function Home() {
 
   const heroImages = [
     'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=1920&q=80',
-    'https://images.unsplash.com/photo-1608039829572-78524f79c4c7?w=1920&q=80',
+    'https://images.unsplash.com/photo-1527477396000-e27163b481c2?w=1920&q=80',
     'https://images.unsplash.com/photo-1567620832903-9fc6debc209f?w=1920&q=80',
     'https://images.unsplash.com/photo-1562967914-608f82629710?w=1920&q=80',
   ]
+
+  // Загружаем баннеры из БД — если есть, используем их изображения вместо дефолтных
+  const [dbBanners, setDbBanners] = useState<{ id: string; title: string; subtitle: string | null; imageUrl: string; linkTarget: string | null }[]>([])
+
+  useEffect(() => {
+    fetch('/api/banners')
+      .then(r => r.json())
+      .then(data => { if (data.banners?.length > 0) setDbBanners(data.banners) })
+      .catch(() => {})
+  }, [])
+
+  // Если есть баннеры из БД — используем их, иначе дефолтные фото
+  const slides = dbBanners.length > 0
+    ? dbBanners.map(b => ({ image: b.imageUrl, title: b.title, subtitle: b.subtitle, link: b.linkTarget }))
+    : heroImages.map(img => ({ image: img, title: null, subtitle: null, link: null }))
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 30)
@@ -115,7 +161,7 @@ export default function Home() {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % heroImages.length)
+      setCurrentSlide((prev) => (prev + 1) % slides.length)
     }, 5500)
     return () => clearInterval(interval)
   }, [])
@@ -180,18 +226,44 @@ export default function Home() {
       })
       if (response.ok) {
         const data = await response.json()
-        const itemsMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
-        data.cart?.items?.forEach((item: any) => {
-          itemsMap[item.menuItem.id] = { quantity: item.quantity, cartItemId: item.id }
-        })
-        setCartItems(itemsMap)
+        syncCart(data.cart)
       }
     } catch (error) {
       console.error('Ошибка:', error)
     }
   }
 
+  const addComboToCart = async (comboOfferId: string, quantity: number = 1) => {
+    if (!session) {
+      setShowAuthModal(true)
+      return
+    }
+    try {
+      const response = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comboOfferId,
+          quantity,
+          branchId: selectedBranch,
+        }),
+      })
+      const data = await response.json()
+      if (response.ok) {
+        syncCart(data.cart)
+      } else {
+        console.error('Ошибка добавления комбо:', data.error)
+      }
+    } catch (error) {
+      console.error('Ошибка добавления комбо:', error)
+    }
+  }
+
   const handleItemClick = (item: any) => {
+    if (!session) {
+      setShowAuthModal(true)
+      return
+    }
     if (item.modifiers && item.modifiers.length > 0) {
       setSelectedMenuItem(item)
       setShowItemModal(true)
@@ -207,11 +279,7 @@ export default function Home() {
         const response = await fetch(`/api/cart/items?id=${cartItemId}`, { method: 'DELETE' })
         if (response.ok) {
           const data = await response.json()
-          const itemsMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
-          data.cart?.items?.forEach((item: any) => {
-            itemsMap[item.menuItem.id] = { quantity: item.quantity, cartItemId: item.id }
-          })
-          setCartItems(itemsMap)
+          syncCart(data.cart)
         }
       } else {
         const response = await fetch('/api/cart/items', {
@@ -221,11 +289,7 @@ export default function Home() {
         })
         if (response.ok) {
           const data = await response.json()
-          const itemsMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
-          data.cart?.items?.forEach((item: any) => {
-            itemsMap[item.menuItem.id] = { quantity: item.quantity, cartItemId: item.id }
-          })
-          setCartItems(itemsMap)
+          syncCart(data.cart)
         }
       }
     } catch (error) {
@@ -383,14 +447,14 @@ export default function Home() {
           className="relative overflow-hidden min-h-[480px] sm:min-h-[560px] flex items-center"
         >
           <div className="absolute inset-0">
-            {heroImages.map((image, index) => (
+            {slides.map((slide, index) => (
               <div
                 key={index}
                 className={`absolute inset-0 transition-opacity duration-1000 ${
                   index === currentSlide ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                <img src={image} alt="" className="w-full h-full object-cover" />
+                <img src={slide.image} alt={slide.title ?? ''} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-br from-black/55 via-black/40 to-[var(--brand)]/55" />
               </div>
             ))}
@@ -398,7 +462,7 @@ export default function Home() {
 
           {/* Indicators */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-1.5">
-            {heroImages.map((_, index) => (
+            {slides.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentSlide(index)}
@@ -469,57 +533,107 @@ export default function Home() {
                 className="flex gap-5 overflow-x-auto pb-2 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0"
                 style={{ scrollBehavior: 'auto' }}
               >
-                {[...comboDeals, ...comboDeals].map((combo, idx) => (
-                  <article
-                    key={idx}
-                    className="card card-hover flex-shrink-0 w-[300px] overflow-hidden flex flex-col animate-fade-in"
-                    style={{ animationDelay: `${(idx % 4) * 80}ms` }}
-                  >
-                    <div className="aspect-square relative overflow-hidden bg-[var(--bg-muted)]">
-                      <img
-                        src={combo.image}
-                        alt={combo.name}
-                        className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                      />
-                      <span className="absolute top-3 left-3 badge badge-brand">
-                        <Flame className="w-3 h-3" />
-                        {t('combo.badge')}
-                      </span>
-                    </div>
-                    <div className="p-5 flex flex-col flex-1">
-                      <h3 className="text-lg font-extrabold mb-3 leading-tight">{combo.name}</h3>
-                      <ul className="space-y-1.5 mb-5 flex-1">
-                        {combo.items.map((item: string, i: number) => (
-                          <li
-                            key={i}
-                            className="flex items-center text-sm text-[var(--fg-muted)]"
-                          >
-                            <span className="w-1 h-1 bg-[var(--brand)] rounded-full mr-2.5 flex-shrink-0" />
-                            <span className="truncate">{item}</span>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="flex items-end justify-between pt-4 border-t border-[var(--border)]">
-                        <div>
-                          {combo.oldPrice && (
-                            <div className="text-xs text-[var(--fg-subtle)] line-through font-semibold">
-                              {combo.oldPrice}
-                            </div>
-                          )}
-                          <div className="text-2xl font-extrabold text-[var(--brand)] leading-none mt-1">
-                            {combo.price}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => addToCart(combo.id)}
-                          className="btn btn-primary btn-sm"
-                        >
-                          {t('combo.button')}
-                        </button>
+                {[...comboDeals, ...comboDeals].map((combo, idx) => {
+                  const cartRef = comboItems[combo.id]
+                  const qty = cartRef?.quantity ?? 0
+
+                  return (
+                    <article
+                      key={idx}
+                      className="card flex-shrink-0 w-[280px] sm:w-[300px] overflow-hidden flex flex-col animate-fade-in"
+                      style={{ animationDelay: `${(idx % 4) * 80}ms` }}
+                    >
+                      {/* Фото — клик открывает описание */}
+                      <div
+                        className="aspect-square relative overflow-hidden bg-[var(--bg-muted)] cursor-pointer group"
+                        onClick={() => setSelectedCombo(combo)}
+                      >
+                        {combo.image ? (
+                          <img
+                            src={combo.image}
+                            alt={combo.name}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-5xl">🍗</div>
+                        )}
+                        <span className="absolute top-3 left-3 badge badge-brand">
+                          <Flame className="w-3 h-3" />
+                          {t('combo.badge')}
+                        </span>
                       </div>
-                    </div>
-                  </article>
-                ))}
+
+                      <div className="p-4 flex flex-col flex-1">
+                        {/* Название — клик открывает описание */}
+                        <h3
+                          className="text-base font-extrabold mb-2 leading-tight cursor-pointer hover:text-[var(--brand)] transition-colors"
+                          onClick={() => setSelectedCombo(combo)}
+                        >
+                          {combo.name}
+                        </h3>
+
+                        <ul className="space-y-1 mb-4 flex-1">
+                          {combo.items.slice(0, 3).map((item: string, i: number) => (
+                            <li key={i} className="flex items-center text-xs text-[var(--fg-muted)]">
+                              <span className="w-1 h-1 bg-[var(--brand)] rounded-full mr-2 flex-shrink-0" />
+                              <span className="truncate">{item}</span>
+                            </li>
+                          ))}
+                          {combo.items.length > 3 && (
+                            <li
+                              className="text-xs text-[var(--brand)] font-semibold cursor-pointer"
+                              onClick={() => setSelectedCombo(combo)}
+                            >
+                              +{combo.items.length - 3} ещё...
+                            </li>
+                          )}
+                        </ul>
+
+                        <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+                          <div>
+                            {combo.oldPrice && (
+                              <div className="text-xs text-[var(--fg-subtle)] line-through font-semibold">
+                                {combo.oldPrice} сом
+                              </div>
+                            )}
+                            <div className="text-xl font-extrabold text-[var(--brand)] leading-none">
+                              {combo.price} <span className="text-xs font-bold text-[var(--fg-muted)]">сом</span>
+                            </div>
+                          </div>
+
+                          {/* Кнопка +/− */}
+                          {qty > 0 ? (
+                            <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
+                              <button
+                                onClick={() => cartRef && updateCartItemQuantity(cartRef.cartItemId, qty - 1)}
+                                className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                                aria-label="Уменьшить"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+                              <span className="font-bold text-sm text-white min-w-[20px] text-center">{qty}</span>
+                              <button
+                                onClick={() => addComboToCart(combo.id)}
+                                className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                                aria-label="Увеличить"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => addComboToCart(combo.id)}
+                              className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition shadow-sm"
+                              aria-label="Добавить"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  )
+                })}
               </div>
             </div>
           </section>
@@ -528,7 +642,7 @@ export default function Home() {
         {/* ============ MENU ============ */}
         <section id="menu" className="py-14 sm:py-20 bg-[var(--bg-muted)]">
           <div className="container-page">
-            <div className="flex items-end justify-between mb-10">
+            <div className="flex items-end justify-between mb-6">
               <div>
                 <span className="badge badge-brand mb-3">
                   <Flame className="w-3 h-3" />
@@ -543,97 +657,186 @@ export default function Home() {
               </p>
             </div>
 
-            {popularItems.length > 0 ? (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-                {popularItems.map((item: any, idx: number) => (
-                  <article
-                    key={item.id}
-                    className="card card-hover overflow-hidden flex flex-col animate-fade-in cursor-pointer group"
-                    style={{ animationDelay: `${idx * 40}ms` }}
-                    onClick={() => handleItemClick(item)}
+            {/* Категории */}
+            {allCategories.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-3 mb-6 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                <button
+                  onClick={() => setActiveCategory('all')}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                    activeCategory === 'all'
+                      ? 'bg-[var(--brand)] text-white border-[var(--brand)] shadow-sm'
+                      : 'bg-white text-[var(--fg-muted)] border-[var(--border)] hover:border-[var(--brand)] hover:text-[var(--brand)]'
+                  }`}
+                >
+                  Все
+                </button>
+                {allCategories.map((cat: any) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                      activeCategory === cat.id
+                        ? 'bg-[var(--brand)] text-white border-[var(--brand)] shadow-sm'
+                        : 'bg-white text-[var(--fg-muted)] border-[var(--border)] hover:border-[var(--brand)] hover:text-[var(--brand)]'
+                    }`}
                   >
-                    <div className="aspect-[4/3] relative overflow-hidden bg-[var(--bg-muted)]">
-                      {item.images && item.images.length > 0 ? (
-                        <img
-                          src={item.images[0].imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl text-[var(--fg-subtle)]">
-                          🍗
-                        </div>
-                      )}
-                      <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5">
-                        {item.isNew && <span className="badge badge-success">Новинка</span>}
-                        {item.isFeatured && <span className="badge badge-brand">Хит</span>}
-                      </div>
-                    </div>
-
-                    <div className="p-3 sm:p-4 flex flex-col flex-1">
-                      <h3 className="text-sm sm:text-base font-extrabold leading-tight mb-1 line-clamp-2">
-                        {item.name}
-                      </h3>
-                      {item.description && (
-                        <p className="text-xs text-[var(--fg-subtle)] mb-3 line-clamp-2 hidden sm:block">
-                          {item.description}
-                        </p>
-                      )}
-                      {(item.weightGrams || item.calories) && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {item.weightGrams && (
-                            <span className="text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--bg-muted)] text-[var(--fg-subtle)] font-semibold">
-                              {item.weightGrams}г
-                            </span>
-                          )}
-                          {item.calories && (
-                            <span className="text-[10px] sm:text-[11px] px-1.5 py-0.5 rounded-md bg-[var(--bg-muted)] text-[var(--fg-subtle)] font-semibold">
-                              {item.calories} ккал
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      <div className="mt-auto flex items-center justify-between gap-2">
-                        <div className="text-lg sm:text-xl font-extrabold text-[var(--fg)]">
-                          {item.price} <span className="text-xs font-bold text-[var(--fg-muted)]">сом</span>
-                        </div>
-                        {cartItems[item.id] ? (
-                          <div className="flex items-center gap-1 bg-[var(--brand)] rounded-lg p-1">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); decreaseQuantity(item.id) }}
-                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/15 rounded-md transition"
-                              aria-label="Уменьшить"
-                            >
-                              <Minus className="w-3.5 h-3.5" />
-                            </button>
-                            <span className="font-bold text-sm text-white min-w-[18px] text-center">
-                              {cartItems[item.id].quantity}
-                            </span>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); increaseQuantity(item.id) }}
-                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/15 rounded-md transition"
-                              aria-label="Увеличить"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleItemClick(item) }}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
-                            aria-label="Добавить"
-                          >
-                            <Plus className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </article>
+                    {cat.imageUrl && (
+                      <img src={cat.imageUrl} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    )}
+                    {cat.name}
+                  </button>
                 ))}
               </div>
-            ) : (
-              <EmptyState icon="🍴" title="Меню загружается..." subtitle="Пожалуйста, подождите" />
             )}
+
+            {/* Блюда — горизонтальный скролл */}
+            {(() => {
+              const filtered = activeCategory === 'all'
+                ? popularItems
+                : allItems.filter((item: any) => {
+                    const cat = allCategories.find((c: any) => c.id === activeCategory)
+                    return cat?.items?.some((ci: any) => ci.id === item.id)
+                  })
+              const displayItems = filtered.length > 0 ? filtered : popularItems
+
+              if (!displayItems.length) {
+                return <EmptyState icon="🍴" title="Меню загружается..." subtitle="Пожалуйста, подождите" />
+              }
+
+              const scrollBy = (dir: 'left' | 'right') => {
+                menuScrollRef.current?.scrollBy({
+                  left: dir === 'right' ? 320 : -320,
+                  behavior: 'smooth',
+                })
+              }
+
+              return (
+                <div className="relative group/menu">
+                  {/* Стрелка влево */}
+                  <button
+                    onClick={() => scrollBy('left')}
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition opacity-0 group-hover/menu:opacity-100 hidden sm:flex"
+                    aria-label="Назад"
+                  >
+                    <ChevronRight className="w-5 h-5 rotate-180" />
+                  </button>
+
+                  {/* Скролл-контейнер */}
+                  <div
+                    ref={menuScrollRef}
+                    className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory"
+                    style={{ scrollBehavior: 'smooth' }}
+                  >
+                    {displayItems.map((item: any, idx: number) => (
+                      <article
+                        key={item.id}
+                        className="card card-hover flex-shrink-0 w-[200px] sm:w-[220px] overflow-hidden flex flex-col animate-fade-in cursor-pointer group snap-start"
+                        style={{ animationDelay: `${idx * 40}ms` }}
+                        onClick={() => handleItemClick(item)}
+                      >
+                        <div className="aspect-[4/3] relative overflow-hidden bg-[var(--bg-muted)]">
+                          {item.images && item.images.length > 0 ? (
+                            <img
+                              src={item.images[0].imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-4xl text-[var(--fg-subtle)]">
+                              🍗
+                            </div>
+                          )}
+                          <div className="absolute top-2 left-2 flex flex-col gap-1">
+                            {item.isNew && <span className="badge badge-success">Новинка</span>}
+                            {item.isFeatured && <span className="badge badge-brand">Хит</span>}
+                          </div>
+                        </div>
+
+                        <div className="p-3 flex flex-col flex-1">
+                          <h3 className="text-sm font-extrabold leading-tight mb-1 line-clamp-2">
+                            {item.name}
+                          </h3>
+                          {item.description && (
+                            <p className="text-[11px] text-[var(--fg-subtle)] mb-2 line-clamp-2">
+                              {item.description}
+                            </p>
+                          )}
+                          {/* Размеры — показываем кнопки если их больше одного */}
+                          {item.sizes && item.sizes.length > 1 ? (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {item.sizes.map((size: any, si: number) => (
+                                <span
+                                  key={size.id}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold border ${
+                                    si === 0
+                                      ? 'bg-[var(--brand)] text-white border-[var(--brand)]'
+                                      : 'bg-[var(--bg-muted)] text-[var(--fg-subtle)] border-transparent'
+                                  }`}
+                                >
+                                  {size.weightGrams ? `${size.weightGrams}г` : size.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : item.sizes && item.sizes.length === 1 && item.sizes[0].weightGrams ? (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-[var(--bg-muted)] text-[var(--fg-subtle)] font-semibold">
+                                {item.sizes[0].weightGrams}г
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="mt-auto flex items-center justify-between gap-2">
+                            <div className="text-base font-extrabold text-[var(--fg)]">
+                              {item.sizes && item.sizes.length > 0 && Number(item.sizes[0].price) > 0
+                                ? Number(item.sizes[0].price)
+                                : '—'}{' '}
+                              <span className="text-[10px] font-bold text-[var(--fg-muted)]">сом</span>
+                            </div>
+                            {cartItems[item.id] ? (
+                              <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); decreaseQuantity(item.id) }}
+                                  className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/15 rounded-full transition"
+                                  aria-label="Уменьшить"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="font-bold text-xs text-white min-w-[16px] text-center">
+                                  {cartItems[item.id].quantity}
+                                </span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); increaseQuantity(item.id) }}
+                                  className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/15 rounded-full transition"
+                                  aria-label="Увеличить"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleItemClick(item) }}
+                                className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
+                                aria-label="Добавить"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+
+                  {/* Стрелка вправо */}
+                  <button
+                    onClick={() => scrollBy('right')}
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition opacity-0 group-hover/menu:opacity-100 hidden sm:flex"
+                    aria-label="Вперёд"
+                  >
+                    <ChevronRight className="w-5 h-5" />
+                  </button>
+                </div>
+              )
+            })()}
           </div>
         </section>
 
@@ -644,7 +847,7 @@ export default function Home() {
         >
           <div className="absolute inset-0">
             <img
-              src={heroImages[currentSlide]}
+              src={slides[currentSlide]?.image ?? ''}
               alt=""
               className="w-full h-full object-cover"
             />
@@ -655,13 +858,13 @@ export default function Home() {
             <h2 className="text-3xl sm:text-5xl font-extrabold text-white mb-6 leading-tight tracking-tight max-w-2xl mx-auto">
               {t('cta.title')}
             </h2>
-            <a
-              href="tel:+996555123456"
+            <button
+              onClick={() => setShowAuthModal(true)}
               className="btn btn-lg bg-white text-[var(--brand)] hover:bg-white/95 inline-flex"
             >
               <Phone className="w-4 h-4" />
               {t('cta.button')}
-            </a>
+            </button>
           </div>
         </section>
       </main>
@@ -723,6 +926,97 @@ export default function Home() {
         }}
         onAddToCart={addToCart}
       />
+
+      {/* Combo Modal */}
+      {selectedCombo && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+          onClick={() => setSelectedCombo(null)}
+        >
+          <div
+            className="bg-white rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {selectedCombo.image && (
+              <div className="relative h-52 bg-[var(--bg-muted)]">
+                <img
+                  src={selectedCombo.image}
+                  alt={selectedCombo.name}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => setSelectedCombo(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition shadow-sm"
+                  aria-label="Закрыть"
+                >
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              </div>
+            )}
+            <div className="p-5">
+              <h2 className="text-lg font-extrabold mb-1">{selectedCombo.name}</h2>
+              {selectedCombo.description && (
+                <p className="text-sm text-[var(--fg-muted)] mb-3">{selectedCombo.description}</p>
+              )}
+
+              {selectedCombo.items && Array.isArray(selectedCombo.items) && (
+                <div className="mb-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-2">Состав</p>
+                  <ul className="space-y-1.5">
+                    {selectedCombo.items.map((item: string, i: number) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
+                        <span className="w-1.5 h-1.5 bg-[var(--brand)] rounded-full shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-4 border-t border-[var(--border)]">
+                <div>
+                  {selectedCombo.oldPrice && (
+                    <p className="text-xs text-[var(--fg-subtle)] line-through">{selectedCombo.oldPrice} сом</p>
+                  )}
+                  <p className="text-2xl font-extrabold text-[var(--brand)]">{selectedCombo.price} сом</p>
+                </div>
+
+                {(() => {
+                  const cartRef = comboItems[selectedCombo.id]
+                  const qty = cartRef?.quantity ?? 0
+                  return qty > 0 ? (
+                    <div className="flex items-center gap-1 bg-[var(--brand)] rounded-full p-0.5">
+                      <button
+                        onClick={() => cartRef && updateCartItemQuantity(cartRef.cartItemId, qty - 1)}
+                        className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                        aria-label="Уменьшить"
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="font-bold text-base text-white min-w-[24px] text-center">{qty}</span>
+                      <button
+                        onClick={() => addComboToCart(selectedCombo.id)}
+                        className="w-9 h-9 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                        aria-label="Увеличить"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => addComboToCart(selectedCombo.id)}
+                      className="btn btn-primary"
+                    >
+                      <Plus className="w-4 h-4" />
+                      В корзину
+                    </button>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating cart убран — будет на отдельной странице меню */}
     </div>

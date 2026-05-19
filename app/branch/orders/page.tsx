@@ -409,7 +409,7 @@ export default function BranchOrdersPage() {
                   {selectedOrder.items.map((item) => (
                     <div key={item.id} className="rounded-xl p-4 flex justify-between items-center" style={{ backgroundColor: '#0B0F14', border: '1px solid #202937' }}>
                       <div>
-                        <div className="font-bold text-white">{item.menuItem.name}</div>
+                        <div className="font-bold text-white">{item.itemName ?? item.menuItem?.name ?? item.comboOffer?.name ?? ''}</div>
                         <div className="text-sm" style={{ color: '#98A2B3' }}>
                           {item.quantity} x {item.unitPrice} сом
                         </div>

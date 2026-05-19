@@ -31,6 +31,7 @@ export async function GET(
                 },
               },
             },
+            comboOffer: true,
             modifiers: {
               include: {
                 modifierOption: true,

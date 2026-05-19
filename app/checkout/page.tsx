@@ -80,6 +80,11 @@ export default function CheckoutPage() {
   const calculateTotal = (): number => {
     if (!cart) return 0
     return cart.items.reduce((sum: number, item: any) => {
+      // Комбо — фиксированная цена
+      if (item.comboOffer) {
+        return sum + Number(item.comboOffer.price) * item.quantity
+      }
+      if (!item.menuItem) return sum
       let itemPrice = Number(item.menuItem.price)
       item.modifiers.forEach((mod: any) => {
         itemPrice += Number(mod.modifierOption.price ?? mod.modifierOption.priceDelta ?? 0)
@@ -376,16 +381,22 @@ export default function CheckoutPage() {
               )}
 
               <div className="space-y-1.5 mb-4">
-                {cart?.items.map((item: any) => (
-                  <div key={item.id} className="flex justify-between text-sm">
-                    <span className="text-[var(--fg-muted)] truncate pr-2">
-                      {item.menuItem.name} × {item.quantity}
-                    </span>
-                    <span className="font-semibold shrink-0">
-                      {item.menuItem.price * item.quantity} сом
-                    </span>
-                  </div>
-                ))}
+                {cart?.items.map((item: any) => {
+                  const name = item.menuItem?.name ?? item.comboOffer?.name ?? ''
+                  const unitPrice = item.comboOffer
+                    ? Number(item.comboOffer.price)
+                    : Number(item.menuItem?.price ?? 0)
+                  return (
+                    <div key={item.id} className="flex justify-between text-sm">
+                      <span className="text-[var(--fg-muted)] truncate pr-2">
+                        {name} × {item.quantity}
+                      </span>
+                      <span className="font-semibold shrink-0">
+                        {unitPrice * item.quantity} сом
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
 
               <div className="border-t border-[var(--border)] pt-3 mb-4">

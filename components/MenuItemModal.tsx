@@ -12,27 +12,44 @@ interface MenuItemModalProps {
 
 export default function MenuItemModal({ item, isOpen, onClose, onAddToCart }: MenuItemModalProps) {
   const [selectedModifiers, setSelectedModifiers] = useState<string[]>([])
+  const [selectedSizeId, setSelectedSizeId] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(1)
   const [totalPrice, setTotalPrice] = useState(0)
 
   useEffect(() => {
+    if (item) {
+      // Автовыбор первого размера
+      const firstSize = item.sizes?.[0]
+      setSelectedSizeId(firstSize?.id ?? null)
+    }
+  }, [item])
+
+  useEffect(() => {
     if (item) calculatePrice()
-  }, [item, selectedModifiers, quantity])
+  }, [item, selectedModifiers, selectedSizeId, quantity])
 
   useEffect(() => {
     if (!isOpen) {
       setSelectedModifiers([])
+      setSelectedSizeId(item?.sizes?.[0]?.id ?? null)
       setQuantity(1)
     }
   }, [isOpen])
 
   const calculatePrice = () => {
     if (!item) return
-    let price = Number(item.price)
-    selectedModifiers.forEach((modId) => {
-      item.modifiers?.forEach((mod: any) => {
-        const option = mod.group.options.find((opt: any) => opt.id === modId)
-        if (option) price += Number(option.priceDelta)
+    // Базовая цена — из выбранного размера, иначе из первого размера
+    const sizes = item.sizes ?? []
+    const activeSize = sizes.find((s: any) => s.id === selectedSizeId) ?? sizes[0]
+    let price = activeSize ? Number(activeSize.price) : 0
+    // Добавляем специи
+    item.spices?.forEach((spice: any) => {
+      if (selectedModifiers.includes(spice.id)) price += Number(spice.price)
+    })
+    // Добавляем модификаторы
+    item.modifiers?.forEach((mod: any) => {
+      mod.group.options.forEach((opt: any) => {
+        if (selectedModifiers.includes(opt.id)) price += Number(opt.priceDelta)
       })
     })
     setTotalPrice(price * quantity)
@@ -136,6 +153,86 @@ export default function MenuItemModal({ item, isOpen, onClose, onAddToCart }: Me
                   Острое × {item.spicyLevel}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Размеры */}
+          {item.sizes && item.sizes.length > 0 && (
+            <div className="mb-5">
+              <h3 className="text-sm font-bold mb-2">
+                Размер <span className="text-[var(--brand)]">*</span>
+              </h3>
+              <div className="space-y-1.5">
+                {item.sizes.map((size: any) => {
+                  const selected = selectedSizeId === size.id
+                  return (
+                    <button
+                      key={size.id}
+                      onClick={() => setSelectedSizeId(size.id)}
+                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border transition ${
+                        selected
+                          ? 'border-[var(--brand)] bg-[var(--brand-soft)]'
+                          : 'border-[var(--border)] hover:border-[var(--border-strong)] bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition ${
+                          selected ? 'border-[var(--brand)] bg-[var(--brand)]' : 'border-[var(--border-strong)]'
+                        }`}>
+                          {selected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                        <span className={`text-sm font-semibold ${selected ? 'text-[var(--brand)]' : ''}`}>
+                          {size.name}{size.weightGrams ? ` · ${size.weightGrams}г` : ''}
+                        </span>
+                      </div>
+                      <span className="text-sm font-bold text-[var(--fg)]">{Number(size.price)} сом</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Специи */}
+          {item.spices && item.spices.length > 0 && (
+            <div className="mb-5">
+              <h3 className="text-sm font-bold mb-2">Специи / соусы</h3>
+              <div className="space-y-1.5">
+                {item.spices.map((spice: any) => {
+                  const selected = selectedModifiers.includes(spice.id)
+                  return (
+                    <button
+                      key={spice.id}
+                      onClick={() => {
+                        setSelectedModifiers(prev =>
+                          prev.includes(spice.id)
+                            ? prev.filter(id => id !== spice.id)
+                            : [...prev, spice.id]
+                        )
+                      }}
+                      className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-xl border transition ${
+                        selected
+                          ? 'border-[var(--brand)] bg-[var(--brand-soft)]'
+                          : 'border-[var(--border)] hover:border-[var(--border-strong)] bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center transition ${
+                          selected ? 'border-[var(--brand)] bg-[var(--brand)]' : 'border-[var(--border-strong)]'
+                        }`}>
+                          {selected && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                        </span>
+                        <span className={`text-sm font-semibold ${selected ? 'text-[var(--brand)]' : ''}`}>
+                          {spice.name}
+                        </span>
+                      </div>
+                      {Number(spice.price) > 0 && (
+                        <span className="text-sm font-bold text-[var(--fg)]">+{Number(spice.price)} сом</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
           )}
 

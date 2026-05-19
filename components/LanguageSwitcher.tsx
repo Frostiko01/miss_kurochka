@@ -32,7 +32,7 @@ export default function LanguageSwitcher({
     <div ref={ref} className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm font-semibold text-[var(--fg-muted)] hover:text-[var(--fg)] hover:bg-[var(--bg-muted)] transition"
+        className="flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-sm font-semibold bg-[var(--brand)] text-white hover:bg-[var(--brand-dark)] transition"
       >
         <span className="text-base leading-none">{localeFlags[currentLocale]}</span>
         <span className="hidden md:inline text-xs uppercase font-bold">{currentLocale}</span>

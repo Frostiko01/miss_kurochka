@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
                 name: true,
               },
             },
+            comboOffer: true,
             modifiers: {
               include: {
                 modifierOption: {

@@ -167,42 +167,79 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id                  String   @id @default(uuid()) @db.Uuid
-  categoryId          String   @map("category_id") @db.Uuid
-  name                String   @db.VarChar(300)
-  nameI18n            Json?    @map("name_i18n") @db.JsonB
-  description         String?  @db.Text
-  descriptionI18n     Json?    @map("description_i18n") @db.JsonB
-  weightGrams         Int?     @map("weight_grams") @db.SmallInt
-  volumeMl            Int?     @map("volume_ml") @db.SmallInt
-  price               Decimal  @db.Decimal(10, 2)
-  costPrice           Decimal? @map("cost_price") @db.Decimal(10, 2)
-  cookingTimeMinutes  Int?     @map("cooking_time_minutes") @db.SmallInt
-  calories            Int?     @db.SmallInt
-  proteins            Decimal? @db.Decimal(6, 2)
-  fats                Decimal? @db.Decimal(6, 2)
-  carbohydrates       Decimal? @db.Decimal(6, 2)
-  ingredients         String?  @db.Text
-  allergens           String?  @db.VarChar(500)
-  spicyLevel          Int      @default(0) @map("spicy_level") @db.SmallInt
-  isVegetarian        Boolean  @default(false) @map("is_vegetarian")
-  isVegan             Boolean  @default(false) @map("is_vegan")
-  isActive            Boolean  @default(true) @map("is_active")
-  isFeatured          Boolean  @default(false) @map("is_featured")
-  isNew               Boolean  @default(false) @map("is_new")
-  createdAt           DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String   @id @default(uuid()) @db.Uuid
+  categoryId         String   @map("category_id") @db.Uuid
+  name               String   @db.VarChar(300)
+  nameI18n           Json?    @map("name_i18n") @db.JsonB
+  description        String?  @db.Text
+  descriptionI18n    Json?    @map("description_i18n") @db.JsonB
+  // Нутриенты — общие для блюда, не зависят от размера
+  cookingTimeMinutes Int?     @map("cooking_time_minutes") @db.SmallInt
+  ingredients        String?  @db.Text
+  spicyLevel         Int      @default(0) @map("spicy_level") @db.SmallInt
+  isVegetarian       Boolean  @default(false) @map("is_vegetarian")
+  isVegan            Boolean  @default(false) @map("is_vegan")
+  isActive           Boolean  @default(true) @map("is_active")
+  isFeatured         Boolean  @default(false) @map("is_featured")
+  isNew              Boolean  @default(false) @map("is_new")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
   category          MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   images            MenuItemImage[]
+  sizes             MenuItemSize[]
+  spices            MenuItemSpice[]
   stopList          StopList[]
   orderItems        OrderItem[]
   cartItems         CartItem[]
   modifiers         MenuItemModifier[]
   popularItemsStats PopularItemsStats[]
+  comboItems        ComboOfferItem[]
 
   @@map("menu_items")
+}
+
+// ============================================
+// 📐 Размеры блюда (Маленький / Средний / Большой и т.д.)
+// Цена блюда определяется выбранным размером.
+// Первый по sortOrder размер считается дефолтным.
+// ============================================
+
+model MenuItemSize {
+  id          String   @id @default(uuid()) @db.Uuid
+  menuItemId  String   @map("menu_item_id") @db.Uuid
+  name        String   @db.VarChar(100)       // "Маленький", "Большой", "500мл"
+  price       Decimal  @db.Decimal(10, 2)     // Абсолютная цена этого размера
+  weightGrams Int?     @map("weight_grams") @db.SmallInt
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_sizes")
+}
+
+// ============================================
+// 🌶️ Специи / соусы блюда
+// Добавляются к итоговой цене (price = 0 если бесплатно).
+// ============================================
+
+model MenuItemSpice {
+  id         String   @id @default(uuid()) @db.Uuid
+  menuItemId String   @map("menu_item_id") @db.Uuid
+  name       String   @db.VarChar(100)        // "Острый соус", "Кетчуп", "Без специй"
+  price      Decimal  @default(0) @db.Decimal(8, 2)
+  isActive   Boolean  @default(true) @map("is_active")
+  sortOrder  Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("menu_item_spices")
 }
 
 model MenuItemImage {
@@ -321,18 +358,21 @@ model Cart {
 }
 
 model CartItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  cartId      String   @map("cart_id") @db.Uuid
-  menuItemId  String   @map("menu_item_id") @db.Uuid
-  quantity    Int      @db.SmallInt
-  itemComment String?  @map("item_comment") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id            String   @id @default(uuid()) @db.Uuid
+  cartId        String   @map("cart_id") @db.Uuid
+  menuItemId    String?  @map("menu_item_id") @db.Uuid
+  comboOfferId  String?  @map("combo_offer_id") @db.Uuid
+  sizeId        String?  @map("size_id") @db.Uuid  // Выбранный размер блюда
+  quantity      Int      @db.SmallInt
+  itemComment   String?  @map("item_comment") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   // Relations
-  cart      Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  menuItem  MenuItem            @relation(fields: [menuItemId], references: [id])
-  modifiers CartItemModifier[]
+  cart        Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem?           @relation(fields: [menuItemId], references: [id])
+  comboOffer  ComboOffer?         @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
+  modifiers   CartItemModifier[]
 
   @@map("cart_items")
 }
@@ -405,19 +445,22 @@ model Order {
 }
 
 model OrderItem {
-  id          String   @id @default(uuid()) @db.Uuid
-  orderId     String   @map("order_id") @db.Uuid
-  menuItemId  String   @map("menu_item_id") @db.Uuid
-  quantity    Int      @db.SmallInt
-  unitPrice   Decimal  @map("unit_price") @db.Decimal(10, 2)
-  totalPrice  Decimal  @map("total_price") @db.Decimal(10, 2)
-  itemComment String?  @map("item_comment") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  id            String   @id @default(uuid()) @db.Uuid
+  orderId       String   @map("order_id") @db.Uuid
+  menuItemId    String?  @map("menu_item_id") @db.Uuid
+  comboOfferId  String?  @map("combo_offer_id") @db.Uuid
+  itemName      String   @map("item_name") @db.VarChar(300)
+  quantity      Int      @db.SmallInt
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(10, 2)
+  totalPrice    Decimal  @map("total_price") @db.Decimal(10, 2)
+  itemComment   String?  @map("item_comment") @db.Text
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   // Relations
-  order     Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem  MenuItem             @relation(fields: [menuItemId], references: [id])
-  modifiers OrderItemModifier[]
+  order       Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem?            @relation(fields: [menuItemId], references: [id])
+  comboOffer  ComboOffer?          @relation(fields: [comboOfferId], references: [id])
+  modifiers   OrderItemModifier[]
 
   @@map("order_items")
 }
@@ -640,7 +683,6 @@ model ComboOffer {
   name        String   @db.VarChar(300)
   nameI18n    Json?    @map("name_i18n") @db.JsonB
   description String?  @db.Text
-  items       Json     @db.JsonB // Массив строк с описанием состава
   price       Decimal  @db.Decimal(10, 2)
   oldPrice    Decimal? @map("old_price") @db.Decimal(10, 2)
   imageUrl    String   @map("image_url") @db.Text
@@ -649,7 +691,31 @@ model ComboOffer {
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
+  // Relations
+  comboItems  ComboOfferItem[]
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+
   @@map("combo_offers")
+}
+
+// ============================================
+// 🔗 Состав комбо-набора (связь комбо ↔ блюда)
+// ============================================
+
+model ComboOfferItem {
+  id           String   @id @default(uuid()) @db.Uuid
+  comboOfferId String   @map("combo_offer_id") @db.Uuid
+  menuItemId   String   @map("menu_item_id") @db.Uuid
+  quantity     Int      @default(1) @db.SmallInt
+  sortOrder    Int      @default(0) @map("sort_order") @db.SmallInt
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  comboOffer   ComboOffer @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("combo_offer_items")
 }
 
 // ============================================

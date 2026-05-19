@@ -542,7 +542,7 @@ export default function AdminOrdersPage() {
                   {selectedOrder.items.map((item) => (
                     <div key={item.id} className="rounded-xl p-4 flex justify-between items-center" style={{ backgroundColor: '#050c26' }}>
                       <div>
-                        <div className="font-bold text-white">{item.menuItem.name}</div>
+                        <div className="font-bold text-white">{item.itemName ?? item.menuItem?.name ?? item.comboOffer?.name ?? ''}</div>
                         <div className="text-sm" style={{ color: '#78819d' }}>
                           {item.quantity} x {item.unitPrice} сом
                         </div>

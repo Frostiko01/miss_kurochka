@@ -231,41 +231,45 @@ export default function OrderDetailPage() {
             Состав заказа
           </h2>
           <div className="space-y-3">
-            {order.items.map((item: any) => (
-              <div
-                key={item.id}
-                className="flex gap-3 py-3 border-b border-[var(--border)] last:border-0"
-              >
-                <div className="w-16 h-16 rounded-xl overflow-hidden bg-[var(--bg-muted)] shrink-0">
-                  {item.menuItem.images && item.menuItem.images.length > 0 ? (
-                    <img
-                      src={item.menuItem.images[0].imageUrl}
-                      alt={item.menuItem.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-2xl">🍗</div>
-                  )}
+            {order.items.map((item: any) => {
+              const name = item.itemName ?? item.menuItem?.name ?? item.comboOffer?.name ?? ''
+              const img = item.menuItem?.images?.[0]?.imageUrl ?? item.comboOffer?.imageUrl ?? null
+              return (
+                <div
+                  key={item.id}
+                  className="flex gap-3 py-3 border-b border-[var(--border)] last:border-0"
+                >
+                  <div className="w-16 h-16 rounded-xl overflow-hidden bg-[var(--bg-muted)] shrink-0">
+                    {img ? (
+                      <img
+                        src={img}
+                        alt={name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-2xl">🍗</div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold">{name}</h3>
+                    {item.modifiers.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {item.modifiers.map((mod: any) => (
+                          <span key={mod.id} className="badge text-[10px]">
+                            {mod.modifierOption.name}
+                            {mod.priceDelta > 0 && ` +${mod.priceDelta}`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-[var(--fg-muted)] mt-1.5">
+                      {item.quantity} × {item.unitPrice} сом
+                    </p>
+                  </div>
+                  <p className="text-sm font-extrabold shrink-0">{item.totalPrice} сом</p>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-bold">{item.menuItem.name}</h3>
-                  {item.modifiers.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {item.modifiers.map((mod: any) => (
-                        <span key={mod.id} className="badge text-[10px]">
-                          {mod.modifierOption.name}
-                          {mod.priceDelta > 0 && ` +${mod.priceDelta}`}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-xs text-[var(--fg-muted)] mt-1.5">
-                    {item.quantity} × {item.unitPrice} сом
-                  </p>
-                </div>
-                <p className="text-sm font-extrabold shrink-0">{item.totalPrice} сом</p>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           <div className="mt-4 pt-4 border-t border-[var(--border)] flex items-baseline justify-between">

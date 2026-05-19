@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Toast from "@/components/admin/Toast";
 import ImageUpload from "@/components/admin/ImageUpload";
+import ModifierGroupEditor from "@/components/admin/ModifierGroupEditor";
+import InlineSizesEditor, { SizeOption } from "@/components/admin/InlineSizesEditor";
 
 type Tab = "categories" | "dishes";
 
@@ -86,6 +88,9 @@ export default function BranchMenuPage() {
   const [showAddDishModal, setShowAddDishModal] = useState(false);
   const [showEditDishModal, setShowEditDishModal] = useState(false);
   const [editingDish, setEditingDish] = useState<MenuItem | null>(null);
+  const [newlyCreatedDishId, setNewlyCreatedDishId] = useState<string | null>(null);
+  const [sizesEnabled, setSizesEnabled] = useState(false);
+  const [sizes, setSizes] = useState<SizeOption[]>([{ name: "250 г", priceDelta: 0 }]);
   const [dishFormData, setDishFormData] = useState({
     categoryId: "",
     name: "",
@@ -420,6 +425,9 @@ export default function BranchMenuPage() {
   // Закрытие модального окна добавления блюда
   const closeAddDishModal = () => {
     setShowAddDishModal(false);
+    setNewlyCreatedDishId(null);
+    setSizesEnabled(false);
+    setSizes([{ name: "250 г", priceDelta: 0 }]);
     setDishFormData({
       categoryId: "",
       name: "",
@@ -451,10 +459,12 @@ export default function BranchMenuPage() {
           cookingTimeMinutes: dishFormData.cookingTimeMinutes ? parseInt(dishFormData.cookingTimeMinutes) : null,
           imageUrl: dishFormData.imageUrl || null,
           isActive: dishFormData.isActive,
+          sizes: sizesEnabled ? sizes : undefined,
         }),
       });
 
       if (response.ok) {
+        const data = await response.json();
         setToast({
           message: "Блюдо успешно добавлено!",
           type: "success",
@@ -1246,8 +1256,19 @@ export default function BranchMenuPage() {
                   <span className="text-white font-bold">Активное блюдо</span>
                 </label>
               </div>
+
+              {/* Размеры — встроенный редактор прямо в форме */}
+              <InlineSizesEditor
+                enabled={sizesEnabled}
+                onEnabledChange={setSizesEnabled}
+                sizes={sizes}
+                onSizesChange={setSizes}
+              />
+
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={closeAddDishModal} className="flex-1 px-4 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#202937' }}>Отмена</button>
+                <button type="button" onClick={closeAddDishModal} className="flex-1 px-4 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#202937' }}>
+                  Отмена
+                </button>
                 <button type="submit" className="flex-1 px-4 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#7C8CA5' }}>Добавить</button>
               </div>
             </form>
@@ -1305,6 +1326,16 @@ export default function BranchMenuPage() {
                   <span className="text-white font-bold">Активное блюдо</span>
                 </label>
               </div>
+
+              {/* Модификаторы (размеры) */}
+              <div className="border-t pt-4" style={{ borderColor: '#202937' }}>
+                <ModifierGroupEditor
+                  menuItemId={editingDish.id}
+                  apiBase="/api/branch/menu-items/modifiers"
+                  onSaved={() => fetchMenuItems()}
+                />
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={closeEditDishModal} className="flex-1 px-4 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#202937' }}>Отмена</button>
                 <button type="submit" className="flex-1 px-4 py-3 rounded-xl font-bold text-white" style={{ backgroundColor: '#7C8CA5' }}>Сохранить</button>

@@ -2,152 +2,139 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-// GET - Получить блюда
+const includeMenuItem = {
+  category: { select: { name: true, branchId: true } },
+  images: { where: { isPrimary: true }, take: 1 },
+  sizes: { orderBy: { sortOrder: "asc" as const } },
+  spices: { orderBy: { sortOrder: "asc" as const } },
+};
+
+// GET - Список блюд филиала
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session || session.user.role !== "branch") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchUser = await prisma.branchUser.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (!branchUser) {
-      return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-    }
+    const branchUser = await prisma.branchUser.findFirst({ where: { userId: session.user.id } });
+    if (!branchUser) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
 
     const where: any = {
-      category: {
-        OR: [
-          { branchId: branchUser.branchId },
-          { branchId: null },
-        ],
-      },
+      category: { OR: [{ branchId: branchUser.branchId }, { branchId: null }] },
     };
-
-    if (search) {
-      where.name = { contains: search, mode: "insensitive" };
-    }
-
-    if (status === "active") {
-      where.isActive = true;
-    } else if (status === "inactive") {
-      where.isActive = false;
-    }
+    if (search) where.name = { contains: search, mode: "insensitive" };
+    if (status === "active") where.isActive = true;
+    else if (status === "inactive") where.isActive = false;
 
     const menuItems = await prisma.menuItem.findMany({
       where,
-      include: {
-        category: {
-          select: {
-            name: true,
-            branchId: true,
-          },
-        },
-        images: {
-          where: { isPrimary: true },
-          take: 1,
-        },
-      },
+      include: includeMenuItem,
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ menuItems });
+    // Конвертируем Decimal → Number
+    const normalized = menuItems.map((item: any) => ({
+      ...item,
+      price: item.sizes?.[0] ? Number(item.sizes[0].price) : 0,
+      weightGrams: item.sizes?.[0]?.weightGrams ?? null,
+      sizes: (item.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) })),
+      spices: (item.spices || []).map((sp: any) => ({ ...sp, price: Number(sp.price) })),
+    }));
+
+    return NextResponse.json({ menuItems: normalized });
   } catch (error) {
     console.error("Error fetching menu items:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 // POST - Создать блюдо
+// body: { categoryId, name, description?, cookingTimeMinutes?, imageUrl?, isActive?,
+//         sizes: [{ name, price, weightGrams? }], spices?: [{ name, price? }] }
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session || session.user.role !== "branch") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchUser = await prisma.branchUser.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (!branchUser) {
-      return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-    }
+    const branchUser = await prisma.branchUser.findFirst({ where: { userId: session.user.id } });
+    if (!branchUser) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
     const body = await request.json();
-    const {
-      categoryId,
-      name,
-      description,
-      price,
-      weightGrams,
-      cookingTimeMinutes,
-      imageUrl,
-      isActive,
-    } = body;
+    const { categoryId, name, description, cookingTimeMinutes, imageUrl, isActive, sizes, spices } = body;
 
-    console.log("📝 Branch creating menu item:", { name, categoryId, branchId: branchUser.branchId });
-
-    // Проверяем, что категория доступна филиалу
-    const category = await prisma.menuCategory.findUnique({
-      where: { id: categoryId },
-    });
-
-    if (!category) {
-      return NextResponse.json({ error: "Category not found" }, { status: 404 });
+    if (!categoryId || !name) {
+      return NextResponse.json({ error: "Category and name are required" }, { status: 400 });
+    }
+    if (!Array.isArray(sizes) || sizes.length === 0) {
+      return NextResponse.json({ error: "At least one size with price is required" }, { status: 400 });
     }
 
-    // Разрешаем добавлять в глобальные категории (branchId = null) и свои категории
+    const category = await prisma.menuCategory.findUnique({ where: { id: categoryId } });
+    if (!category) return NextResponse.json({ error: "Category not found" }, { status: 404 });
     if (category.branchId && category.branchId !== branchUser.branchId) {
-      return NextResponse.json(
-        { error: "Cannot add items to other branch categories" },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "Cannot add items to other branch categories" }, { status: 403 });
     }
 
     const menuItem = await prisma.menuItem.create({
       data: {
         categoryId,
         name,
-        description,
-        price,
-        weightGrams,
-        cookingTimeMinutes,
+        description: description || null,
+        cookingTimeMinutes: cookingTimeMinutes ? parseInt(cookingTimeMinutes) : null,
         isActive: isActive !== undefined ? isActive : true,
       },
     });
 
-    // Добавляем изображение только если оно действительно предоставлено (не пустая строка)
-    if (imageUrl && imageUrl.trim() !== '') {
-      await prisma.menuItemImage.create({
+    // Создаём размеры
+    for (let i = 0; i < sizes.length; i++) {
+      const s = sizes[i];
+      await (prisma as any).menuItemSize.create({
         data: {
           menuItemId: menuItem.id,
-          imageUrl: imageUrl.trim(),
-          isPrimary: true,
+          name: String(s.name).trim(),
+          price: parseFloat(s.price),
+          weightGrams: s.weightGrams ? parseInt(s.weightGrams) : null,
+          isActive: true,
+          sortOrder: i,
         },
       });
     }
 
+    // Создаём специи
+    if (Array.isArray(spices) && spices.length > 0) {
+      for (let i = 0; i < spices.length; i++) {
+        const sp = spices[i];
+        await (prisma as any).menuItemSpice.create({
+          data: {
+            menuItemId: menuItem.id,
+            name: String(sp.name).trim(),
+            price: sp.price ? parseFloat(sp.price) : 0,
+            isActive: true,
+            sortOrder: i,
+          },
+        });
+      }
+    }
+
+    if (imageUrl && imageUrl.trim()) {
+      await prisma.menuItemImage.create({
+        data: { menuItemId: menuItem.id, imageUrl: imageUrl.trim(), isPrimary: true },
+      });
+    }
+
+    const created = await prisma.menuItem.findUnique({ where: { id: menuItem.id }, include: includeMenuItem });
     console.log("✅ Menu item created:", menuItem.id);
-    return NextResponse.json({ menuItem }, { status: 201 });
+    return NextResponse.json({ menuItem: created }, { status: 201 });
   } catch (error) {
     console.error("❌ Error creating menu item:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -155,118 +142,95 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session || session.user.role !== "branch") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchUser = await prisma.branchUser.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (!branchUser) {
-      return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-    }
+    const branchUser = await prisma.branchUser.findFirst({ where: { userId: session.user.id } });
+    if (!branchUser) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
     const body = await request.json();
-    const {
-      id,
-      categoryId,
-      name,
-      description,
-      price,
-      weightGrams,
-      cookingTimeMinutes,
-      imageUrl,
-      isActive,
-    } = body;
+    const { id, categoryId, name, description, cookingTimeMinutes, imageUrl, isActive, sizes, spices } = body;
 
-    console.log("🔄 Branch updating menu item:", { id, branchId: branchUser.branchId });
+    if (!id) return NextResponse.json({ error: "Menu item ID is required" }, { status: 400 });
 
-    // Проверяем существование блюда
     const existingItem = await prisma.menuItem.findUnique({
       where: { id },
-      include: {
-        category: true,
-      },
+      include: { category: true },
     });
+    if (!existingItem) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
 
-    if (!existingItem) {
-      return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
+    if (existingItem.category.branchId && existingItem.category.branchId !== branchUser.branchId) {
+      return NextResponse.json({ error: "Cannot edit items from other branches" }, { status: 403 });
     }
 
-    // РАЗРЕШАЕМ редактировать блюда из глобальных категорий (branchId = null)
-    // Запрещаем только редактирование блюд из категорий ДРУГИХ филиалов
-    if (
-      existingItem.category.branchId &&
-      existingItem.category.branchId !== branchUser.branchId
-    ) {
-      console.log("❌ Cannot edit items from other branches");
-      return NextResponse.json(
-        { error: "Cannot edit items from other branches" },
-        { status: 403 }
-      );
-    }
-
-    // Проверяем новую категорию
-    if (categoryId !== existingItem.categoryId) {
-      const newCategory = await prisma.menuCategory.findUnique({
-        where: { id: categoryId },
-      });
-
-      if (!newCategory) {
-        return NextResponse.json({ error: "Category not found" }, { status: 404 });
-      }
-
-      // Разрешаем перемещать в глобальные категории и свои категории
+    if (categoryId && categoryId !== existingItem.categoryId) {
+      const newCategory = await prisma.menuCategory.findUnique({ where: { id: categoryId } });
+      if (!newCategory) return NextResponse.json({ error: "Category not found" }, { status: 404 });
       if (newCategory.branchId && newCategory.branchId !== branchUser.branchId) {
-        return NextResponse.json(
-          { error: "Cannot move to other branch category" },
-          { status: 403 }
-        );
+        return NextResponse.json({ error: "Cannot move to other branch category" }, { status: 403 });
       }
     }
 
-    const menuItem = await prisma.menuItem.update({
+    await prisma.menuItem.update({
       where: { id },
       data: {
         categoryId,
         name,
-        description,
-        price,
-        weightGrams,
-        cookingTimeMinutes,
-        isActive,
+        description: description || null,
+        cookingTimeMinutes: cookingTimeMinutes ? parseInt(cookingTimeMinutes) : null,
+        isActive: isActive !== undefined ? isActive : true,
       },
     });
 
-    // Обновляем изображение
-    if (imageUrl !== undefined) {
-      // Удаляем все старые изображения
-      await prisma.menuItemImage.deleteMany({
-        where: { menuItemId: id },
-      });
-
-      // Создаем новое, если оно не пустое
-      if (imageUrl && imageUrl.trim() !== '') {
-        await prisma.menuItemImage.create({
+    if (Array.isArray(sizes)) {
+      await (prisma as any).menuItemSize.deleteMany({ where: { menuItemId: id } });
+      for (let i = 0; i < sizes.length; i++) {
+        const s = sizes[i];
+        await (prisma as any).menuItemSize.create({
           data: {
             menuItemId: id,
-            imageUrl: imageUrl.trim(),
-            isPrimary: true,
+            name: String(s.name).trim(),
+            price: parseFloat(s.price),
+            weightGrams: s.weightGrams ? parseInt(s.weightGrams) : null,
+            isActive: true,
+            sortOrder: i,
           },
         });
       }
     }
 
-    console.log("✅ Menu item updated:", menuItem.id);
-    return NextResponse.json({ menuItem });
+    if (Array.isArray(spices)) {
+      await (prisma as any).menuItemSpice.deleteMany({ where: { menuItemId: id } });
+      for (let i = 0; i < spices.length; i++) {
+        const sp = spices[i];
+        await (prisma as any).menuItemSpice.create({
+          data: {
+            menuItemId: id,
+            name: String(sp.name).trim(),
+            price: sp.price ? parseFloat(sp.price) : 0,
+            isActive: true,
+            sortOrder: i,
+          },
+        });
+      }
+    }
+
+    if (imageUrl !== undefined) {
+      await prisma.menuItemImage.deleteMany({ where: { menuItemId: id } });
+      if (imageUrl && imageUrl.trim()) {
+        await prisma.menuItemImage.create({
+          data: { menuItemId: id, imageUrl: imageUrl.trim(), isPrimary: true },
+        });
+      }
+    }
+
+    const updated = await prisma.menuItem.findUnique({ where: { id }, include: includeMenuItem });
+    console.log("✅ Menu item updated:", id);
+    return NextResponse.json({ menuItem: updated });
   } catch (error) {
     console.error("❌ Error updating menu item:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
@@ -274,60 +238,32 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
-
     if (!session || session.user.role !== "branch") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const branchUser = await prisma.branchUser.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (!branchUser) {
-      return NextResponse.json({ error: "Branch not found" }, { status: 404 });
-    }
+    const branchUser = await prisma.branchUser.findFirst({ where: { userId: session.user.id } });
+    if (!branchUser) return NextResponse.json({ error: "Branch not found" }, { status: 404 });
 
     const body = await request.json();
     const { id } = body;
+    if (!id) return NextResponse.json({ error: "Menu item ID is required" }, { status: 400 });
 
-    console.log("🗑️ Branch deleting menu item:", { id, branchId: branchUser.branchId });
-
-    // Проверяем существование блюда
     const existingItem = await prisma.menuItem.findUnique({
       where: { id },
-      include: {
-        category: true,
-      },
+      include: { category: true },
     });
+    if (!existingItem) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
 
-    if (!existingItem) {
-      return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
+    if (existingItem.category.branchId && existingItem.category.branchId !== branchUser.branchId) {
+      return NextResponse.json({ error: "Cannot delete items from other branches" }, { status: 403 });
     }
 
-    // РАЗРЕШАЕМ удалять блюда из глобальных категорий (branchId = null)
-    // Запрещаем только удаление блюд из категорий ДРУГИХ филиалов
-    if (
-      existingItem.category.branchId &&
-      existingItem.category.branchId !== branchUser.branchId
-    ) {
-      console.log("❌ Cannot delete items from other branches");
-      return NextResponse.json(
-        { error: "Cannot delete items from other branches" },
-        { status: 403 }
-      );
-    }
-
-    await prisma.menuItem.delete({
-      where: { id },
-    });
-
+    await prisma.menuItem.delete({ where: { id } });
     console.log("✅ Menu item deleted:", id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Error deleting menu item:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

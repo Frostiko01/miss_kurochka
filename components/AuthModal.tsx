@@ -3,11 +3,21 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { X, Mail, Lock, User, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { X, Eye, EyeOff, ArrowLeft, User } from "lucide-react";
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+// Форматирует 9 цифр в "XXX XXX XXX"
+function formatPhoneDisplay(digits: string): string {
+  if (!digits) return "";
+  const parts = []
+  if (digits.length > 0) parts.push(digits.slice(0, 3))
+  if (digits.length > 3) parts.push(digits.slice(3, 6))
+  if (digits.length > 6) parts.push(digits.slice(6, 9))
+  return parts.join(" ")
 }
 
 export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
@@ -290,21 +300,18 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       <label htmlFor="fullName" className="label">
                         Имя
                       </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
-                        <input
-                          id="fullName"
-                          name="fullName"
-                          type="text"
-                          required
-                          value={formData.fullName}
-                          onChange={(e) =>
-                            setFormData({ ...formData, fullName: e.target.value })
-                          }
-                          className="input pl-9"
-                          placeholder="Иван Иванов"
-                        />
-                      </div>
+                      <input
+                        id="fullName"
+                        name="fullName"
+                        type="text"
+                        required
+                        value={formData.fullName}
+                        onChange={(e) =>
+                          setFormData({ ...formData, fullName: e.target.value })
+                        }
+                        className="input"
+                        placeholder="Иван Иванов"
+                      />
                     </div>
                   )}
 
@@ -312,22 +319,19 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     <label htmlFor="email" className="label">
                       Email
                     </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
-                      <input
-                        id="email"
-                        name="email"
-                        type="email"
-                        autoComplete="email"
-                        required
-                        value={formData.email}
-                        onChange={(e) =>
-                          setFormData({ ...formData, email: e.target.value })
-                        }
-                        className="input pl-9"
-                        placeholder="example@mail.com"
-                      />
-                    </div>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      value={formData.email}
+                      onChange={(e) =>
+                        setFormData({ ...formData, email: e.target.value })
+                      }
+                      className="input"
+                      placeholder="example@mail.com"
+                    />
                   </div>
 
                   {mode === "signup" && (
@@ -335,24 +339,30 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       <label htmlFor="phone" className="label">
                         Телефон <span className="text-[var(--fg-subtle)] font-normal">(необязательно)</span>
                       </label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--fg-muted)] font-semibold">
-                          +996
-                        </span>
+                      <div className="flex items-stretch rounded-xl border border-[var(--border-strong)] bg-white overflow-hidden focus-within:border-[var(--brand)] focus-within:ring-4 focus-within:ring-[var(--brand)]/10 transition">
+                        <div className="flex items-center gap-1.5 px-3 bg-[var(--bg-muted)] border-r border-[var(--border)]">
+                          <span className="text-base leading-none">🇰🇬</span>
+                          <span className="text-sm font-bold text-[var(--fg)]">+996</span>
+                        </div>
                         <input
                           id="phone"
                           name="phone"
                           type="tel"
-                          value={formData.phone}
+                          inputMode="numeric"
+                          value={formatPhoneDisplay(formData.phone)}
                           onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, "").slice(0, 9);
-                            setFormData({ ...formData, phone: value });
+                            const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                            setFormData({ ...formData, phone: digits });
                           }}
-                          className="input pl-14"
+                          className="flex-1 px-3 py-3 text-sm font-semibold text-[var(--fg)] placeholder-[var(--fg-subtle)] focus:outline-none bg-transparent font-mono tracking-wider"
                           placeholder="555 123 456"
-                          maxLength={9}
+                          maxLength={11}
+                          autoComplete="tel"
                         />
                       </div>
+                      <p className="mt-1.5 text-[11px] text-[var(--fg-subtle)]">
+                        Введите 9 цифр без кода страны
+                      </p>
                     </div>
                   )}
 
@@ -361,7 +371,6 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       Пароль
                     </label>
                     <div className="relative">
-                      <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
                       <input
                         id="password"
                         name="password"
@@ -372,7 +381,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                         onChange={(e) =>
                           setFormData({ ...formData, password: e.target.value })
                         }
-                        className="input pl-9 pr-10"
+                        className="input pr-10"
                         placeholder="••••••••"
                       />
                       <button

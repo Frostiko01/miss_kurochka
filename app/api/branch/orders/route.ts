@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
                 nameI18n: true,
               },
             },
+            comboOffer: true,
             modifiers: {
               include: {
                 modifierOption: {

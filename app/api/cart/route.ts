@@ -2,44 +2,81 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
+// Единый include для возврата корзины — чтобы фронт всегда получал одинаковую структуру
+const CART_INCLUDE = {
+  items: {
+    include: {
+      menuItem: {
+        include: {
+          images: true,
+          category: true,
+          sizes: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
+          spices: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
+        },
+      },
+      comboOffer: true,
+      modifiers: {
+        include: {
+          modifierOption: {
+            include: {
+              group: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  branch: true,
+} as const;
+function normalizeCart(cart: any) {
+  if (!cart) return cart;
+  return {
+    ...cart,
+    items: cart.items.map((item: any) => {
+      if (item.menuItem) {
+        const sizes = (item.menuItem.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) }));
+        // Выбранный размер — из sizeId позиции корзины, иначе первый
+        const selectedSize = item.sizeId
+          ? sizes.find((s: any) => s.id === item.sizeId) ?? sizes[0]
+          : sizes[0];
+        return {
+          ...item,
+          menuItem: {
+            ...item.menuItem,
+            price: selectedSize ? Number(selectedSize.price) : 0,
+            weightGrams: selectedSize?.weightGrams ?? null,
+            sizes,
+            spices: (item.menuItem.spices || []).map((sp: any) => ({ ...sp, price: Number(sp.price) })),
+          },
+        };
+      }
+      if (item.comboOffer) {
+        return {
+          ...item,
+          comboOffer: {
+            ...item.comboOffer,
+            price: Number(item.comboOffer.price),
+            oldPrice: item.comboOffer.oldPrice ? Number(item.comboOffer.oldPrice) : null,
+          },
+        };
+      }
+      return item;
+    }),
+  };
+}
+
 // GET - Получить корзину пользователя
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
 
-    console.log('🛒 Cart GET - Session:', session);
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
     }
 
-    console.log('🛒 Cart GET - User ID:', session.user.id, 'Type:', typeof session.user.id);
-
-    // Получаем или создаем корзину
     let cart = await prisma.cart.findUnique({
       where: { userId: session.user.id },
-      include: {
-        items: {
-          include: {
-            menuItem: {
-              include: {
-                images: true,
-                category: true,
-              },
-            },
-            modifiers: {
-              include: {
-                modifierOption: {
-                  include: {
-                    group: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        branch: true,
-      },
+      include: CART_INCLUDE,
     });
 
     if (!cart) {
@@ -47,32 +84,11 @@ export async function GET(request: NextRequest) {
         data: {
           userId: session.user.id,
         },
-        include: {
-          items: {
-            include: {
-              menuItem: {
-                include: {
-                  images: true,
-                  category: true,
-                },
-              },
-              modifiers: {
-                include: {
-                  modifierOption: {
-                    include: {
-                      group: true,
-                    },
-                  },
-                },
-              },
-            },
-          },
-          branch: true,
-        },
+        include: CART_INCLUDE,
       });
     }
 
-    return NextResponse.json({ cart });
+    return NextResponse.json({ cart: normalizeCart(cart) });
   } catch (error) {
     console.error("Cart GET error:", error);
     return NextResponse.json(
@@ -82,7 +98,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Добавить товар в корзину
+// POST - Добавить товар или комбо в корзину
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -92,11 +108,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { menuItemId, quantity, modifiers, itemComment, branchId } = body;
+    const { menuItemId, comboOfferId, quantity, modifiers, itemComment, branchId, sizeId } = body;
 
-    if (!menuItemId || !quantity) {
+    // Должен быть указан либо menuItemId, либо comboOfferId
+    if ((!menuItemId && !comboOfferId) || !quantity) {
       return NextResponse.json(
-        { error: "Не указан товар или количество" },
+        { error: "Не указан товар/комбо или количество" },
         { status: 400 }
       );
     }
@@ -114,86 +131,86 @@ export async function POST(request: NextRequest) {
         },
       });
     } else if (branchId && cart.branchId !== branchId) {
-      // Если филиал изменился, очищаем корзину
-      await prisma.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
-      
+      // Если филиал изменился — очищаем корзину
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
       await prisma.cart.update({
         where: { id: cart.id },
         data: { branchId },
       });
     }
 
-    // Проверяем, есть ли уже такой товар в корзине
-    const existingItem = await prisma.cartItem.findFirst({
-      where: {
-        cartId: cart.id,
-        menuItemId,
-      },
-      include: {
-        modifiers: true,
-      },
-    });
-
-    if (existingItem) {
-      // Обновляем количество
-      await prisma.cartItem.update({
-        where: { id: existingItem.id },
-        data: {
-          quantity: existingItem.quantity + quantity,
-        },
+    if (comboOfferId) {
+      // Добавляем комбо как отдельную позицию
+      const existingCombo = await prisma.cartItem.findFirst({
+        where: { cartId: cart.id, comboOfferId },
       });
+
+      if (existingCombo) {
+        await prisma.cartItem.update({
+          where: { id: existingCombo.id },
+          data: { quantity: existingCombo.quantity + quantity },
+        });
+      } else {
+        await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            comboOfferId,
+            quantity,
+            itemComment: itemComment || null,
+          },
+        });
+      }
     } else {
-      // Создаем новую позицию
-      const cartItem = await prisma.cartItem.create({
-        data: {
+      // Обычное блюдо: ищем по menuItemId + sizeId + одинаковым модификаторам
+      const candidateItems = await prisma.cartItem.findMany({
+        where: {
           cartId: cart.id,
           menuItemId,
-          quantity,
-          itemComment: itemComment || null,
+          sizeId: sizeId ?? null,
         },
+        include: { modifiers: true },
       });
 
-      // Добавляем модификаторы если есть
-      if (modifiers && modifiers.length > 0) {
-        await prisma.cartItemModifier.createMany({
-          data: modifiers.map((modifierId: string) => ({
-            cartItemId: cartItem.id,
-            modifierOptionId: modifierId,
-          })),
+      const sortedNewMods = [...(modifiers || [])].sort();
+      const existingItem = candidateItems.find((it) => {
+        const existingMods = it.modifiers.map((m) => m.modifierOptionId).sort();
+        if (existingMods.length !== sortedNewMods.length) return false;
+        return existingMods.every((m, i) => m === sortedNewMods[i]);
+      });
+
+      if (existingItem) {
+        await prisma.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: existingItem.quantity + quantity },
         });
+      } else {
+        const cartItem = await prisma.cartItem.create({
+          data: {
+            cartId: cart.id,
+            menuItemId,
+            sizeId: sizeId ?? null,
+            quantity,
+            itemComment: itemComment || null,
+          },
+        });
+
+        if (modifiers && modifiers.length > 0) {
+          await prisma.cartItemModifier.createMany({
+            data: modifiers.map((modifierId: string) => ({
+              cartItemId: cartItem.id,
+              modifierOptionId: modifierId,
+            })),
+          });
+        }
       }
     }
 
-    // Возвращаем обновленную корзину
     const updatedCart = await prisma.cart.findUnique({
       where: { id: cart.id },
-      include: {
-        items: {
-          include: {
-            menuItem: {
-              include: {
-                images: true,
-                category: true,
-              },
-            },
-            modifiers: {
-              include: {
-                modifierOption: {
-                  include: {
-                    group: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-        branch: true,
-      },
+      include: CART_INCLUDE,
     });
 
-    return NextResponse.json({ cart: updatedCart });
+    return NextResponse.json({ cart: normalizeCart(updatedCart) });
   } catch (error) {
     console.error("Cart POST error:", error);
     return NextResponse.json(
@@ -217,12 +234,10 @@ export async function DELETE(request: NextRequest) {
     });
 
     if (cart) {
-      await prisma.cartItem.deleteMany({
-        where: { cartId: cart.id },
-      });
+      await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
     }
 
-    return NextResponse.json({ message: "Корзина очищена" });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Cart DELETE error:", error);
     return NextResponse.json(

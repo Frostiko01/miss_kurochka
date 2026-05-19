@@ -238,12 +238,7 @@ export default function BranchAdditionalOffersPage() {
             <button
               onClick={() => setShowFiltersMenu(!showFiltersMenu)}
               className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center lg:justify-start"
-              style={{
-                backgroundColor:
-                  categoryFilter !== "all" || statusFilter !== "all"
-                    ? "#4047ee"
-                    : "#242b47",
-              }}
+              style={{ backgroundColor: "#d62300" }}
             >
               <svg
                 className="w-5 h-5"
@@ -275,7 +270,7 @@ export default function BranchAdditionalOffersPage() {
                 });
               }}
               className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
-              style={{ backgroundColor: "#4047ee" }}
+              style={{ backgroundColor: "#d62300" }}
             >
               <svg
                 className="w-5 h-5"
@@ -403,7 +398,7 @@ export default function BranchAdditionalOffersPage() {
           <div className="flex items-center justify-center py-12">
             <div
               className="animate-spin rounded-full h-12 w-12 border-b-2"
-              style={{ borderColor: "#4047ee" }}
+              style={{ borderColor: "#d62300" }}
             ></div>
           </div>
         ) : !offers || offers.length === 0 ? (
@@ -447,8 +442,8 @@ export default function BranchAdditionalOffersPage() {
                     <span
                       className="px-2 py-1 rounded text-xs font-bold"
                       style={{
-                        backgroundColor: "rgba(64, 71, 238, 0.1)",
-                        color: "#4047ee",
+                        backgroundColor: "rgba(214, 35, 0, 0.1)",
+                        color: "#d62300",
                       }}
                     >
                       Глобальное
@@ -473,14 +468,14 @@ export default function BranchAdditionalOffersPage() {
 
                 {/* Price and Category */}
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-2xl font-black text-[#4047ee]">
+                  <span className="text-2xl font-black text-[#d62300]">
                     {offer.price} сом
                   </span>
                   <span
                     className="px-2 py-1 rounded text-xs font-bold"
                     style={{
-                      backgroundColor: "rgba(64, 71, 238, 0.1)",
-                      color: "#4047ee",
+                      backgroundColor: "rgba(214, 35, 0, 0.1)",
+                      color: "#d62300",
                     }}
                   >
                     {getCategoryText(offer.category)}
@@ -519,7 +514,7 @@ export default function BranchAdditionalOffersPage() {
                         setShowEditModal(true);
                       }}
                       className="flex-1 px-3 py-2 rounded-lg text-sm font-bold text-white transition-all"
-                      style={{ backgroundColor: "#4047ee" }}
+                      style={{ backgroundColor: "#d62300" }}
                     >
                       Редактировать
                     </button>
@@ -685,7 +680,7 @@ export default function BranchAdditionalOffersPage() {
                 <button
                   type="submit"
                   className="flex-1 px-6 py-3 rounded-xl font-bold text-white transition-all"
-                  style={{ backgroundColor: "#4047ee" }}
+                  style={{ backgroundColor: "#d62300" }}
                 >
                   {editingOffer ? "Сохранить" : "Создать"}
                 </button>

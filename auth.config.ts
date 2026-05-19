@@ -119,13 +119,13 @@ export const authConfig = {
       // ============ LANDING ============
       if (pathname === "/") {
         if (isLoggedIn) {
-          if (role === "admin") {
-            return Response.redirect(new URL("/admin/dashboard", nextUrl));
-          }
           if (role === "branch") {
             return Response.redirect(new URL("/branch/dashboard", nextUrl));
           }
-          return Response.redirect(new URL("/home", nextUrl));
+          if (role === "customer") {
+            return Response.redirect(new URL("/home", nextUrl));
+          }
+          // admin может видеть лендинг
         }
         return true;
       }

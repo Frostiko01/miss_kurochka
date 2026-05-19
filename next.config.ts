@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Разрешаем ngrok-хост для HMR в dev-режиме
+  allowedDevOrigins: ['balcony-puppy-carless.ngrok-free.dev'],
+
   // Настройки для работы с внешними модулями
   serverExternalPackages: [
     "pg",

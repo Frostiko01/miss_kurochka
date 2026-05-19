@@ -26,16 +26,8 @@ interface MenuItem {
   id: string;
   name: string;
   description: string | null;
-  price: number;
-  weightGrams: number | null;
-  volumeMl: number | null;
   cookingTimeMinutes: number | null;
-  calories: number | null;
-  proteins: number | null;
-  fats: number | null;
-  carbohydrates: number | null;
   ingredients: string | null;
-  allergens: string | null;
   spicyLevel: number;
   isVegetarian: boolean;
   isVegan: boolean;
@@ -47,21 +39,12 @@ interface MenuItem {
   category: {
     name: string;
     branchId: string | null;
-    branch?: {
-      name: string;
-    } | null;
+    branch?: { name: string } | null;
   };
-  images: {
-    imageUrl: string;
-    isPrimary: boolean;
-  }[];
-  stopList: {
-    id: string;
-    branchId: string;
-    branch: {
-      name: string;
-    };
-  }[];
+  images: { imageUrl: string; isPrimary: boolean }[];
+  sizes: { id: string; name: string; price: number; weightGrams: number | null; sortOrder: number }[];
+  spices: { id: string; name: string; price: number; sortOrder: number }[];
+  stopList: { id: string; branchId: string; branch: { name: string } }[];
 }
 
 export default function AdminMenuPage() {
@@ -110,16 +93,22 @@ export default function AdminMenuPage() {
   const [showAddDishModal, setShowAddDishModal] = useState(false);
   const [showEditDishModal, setShowEditDishModal] = useState(false);
   const [editingDish, setEditingDish] = useState<MenuItem | null>(null);
-  const [dishFormData, setDishFormData] = useState({
+  const [newlyCreatedDishId, setNewlyCreatedDishId] = useState<string | null>(null);
+
+  const defaultDishForm = {
     categoryId: "",
     name: "",
     description: "",
-    price: "",
-    weightGrams: "",
     cookingTimeMinutes: "",
     imageUrl: "",
     isActive: true,
-  });
+  };
+  const [dishFormData, setDishFormData] = useState(defaultDishForm);
+  // Размеры и специи хранятся отдельно
+  const [dishSizes, setDishSizes] = useState<{ name: string; price: string; weightGrams: string }[]>([
+    { name: "Стандарт", price: "", weightGrams: "" },
+  ]);
+  const [dishSpices, setDishSpices] = useState<{ name: string; price: string }[]>([]);
 
   // Загрузка филиалов при монтировании
   useEffect(() => {
@@ -229,8 +218,8 @@ export default function AdminMenuPage() {
               bValue = b.name.toLowerCase();
               break;
             case "price":
-              aValue = a.price;
-              bValue = b.price;
+              aValue = a.sizes?.[0]?.price ?? 0;
+              bValue = b.sizes?.[0]?.price ?? 0;
               break;
             case "category":
               aValue = a.category.name.toLowerCase();
@@ -377,16 +366,9 @@ export default function AdminMenuPage() {
                   });
                 } else {
                   setShowAddDishModal(true);
-                  setDishFormData({
-                    categoryId: "",
-                    name: "",
-                    description: "",
-                    price: "",
-                    weightGrams: "",
-                    cookingTimeMinutes: "",
-                    imageUrl: "",
-                    isActive: true,
-                  });
+                  setDishFormData(defaultDishForm);
+                  setDishSizes([{ name: "Стандарт", price: "", weightGrams: "" }]);
+                  setDishSpices([]);
                 }
               }}
               className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
@@ -759,9 +741,19 @@ export default function AdminMenuPage() {
                         {item.description}
                       </p>
                     )}
-                    <p className="text-xl font-black" style={{ color: '#4047ee' }}>
-                      {item.price} ₽
-                    </p>
+                    {/* Размеры */}
+                    {item.sizes && item.sizes.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {item.sizes.map((s) => (
+                          <span key={s.id} className="text-xs px-2 py-0.5 rounded font-bold"
+                            style={{ backgroundColor: 'rgba(64,71,238,0.15)', color: '#4047ee' }}>
+                            {s.name} — {Number(s.price)} сом
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-bold" style={{ color: '#ef4444' }}>Нет размеров</p>
+                    )}
                   </div>
 
                   {/* Dish Meta */}
@@ -830,14 +822,26 @@ export default function AdminMenuPage() {
                           categoryId: item.categoryId,
                           name: item.name,
                           description: item.description || "",
-                          price: item.price.toString(),
-                          weightGrams: item.weightGrams?.toString() || "",
                           cookingTimeMinutes: item.cookingTimeMinutes?.toString() || "",
-                          imageUrl: (item.images && item.images.length > 0) 
+                          imageUrl: (item.images && item.images.length > 0)
                             ? (item.images.find(img => img.isPrimary)?.imageUrl || item.images[0]?.imageUrl || "")
                             : "",
                           isActive: item.isActive,
                         });
+                        setDishSizes(
+                          item.sizes && item.sizes.length > 0
+                            ? item.sizes.map(s => ({
+                                name: s.name,
+                                price: String(s.price),
+                                weightGrams: s.weightGrams ? String(s.weightGrams) : "",
+                              }))
+                            : [{ name: "Стандарт", price: "", weightGrams: "" }]
+                        );
+                        setDishSpices(
+                          item.spices && item.spices.length > 0
+                            ? item.spices.map(sp => ({ name: sp.name, price: String(sp.price) }))
+                            : []
+                        );
                         setShowEditDishModal(true);
                       }}
                       className="flex-1 px-3 py-2 rounded-lg text-sm font-bold text-white transition-all"
@@ -1124,37 +1128,42 @@ export default function AdminMenuPage() {
             </h2>
             <form onSubmit={async (e) => {
               e.preventDefault();
+              const validSizes = dishSizes.filter(s => s.name.trim() && s.price);
+              if (validSizes.length === 0) {
+                setToast({ message: "Добавьте хотя бы один размер с ценой", type: "error" });
+                return;
+              }
               try {
                 const response = await fetch('/api/admin/menu-items', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     ...dishFormData,
-                    price: parseFloat(dishFormData.price),
-                    weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : null,
                     cookingTimeMinutes: dishFormData.cookingTimeMinutes ? parseInt(dishFormData.cookingTimeMinutes) : null,
+                    sizes: validSizes.map(s => ({
+                      name: s.name.trim(),
+                      price: parseFloat(s.price),
+                      weightGrams: s.weightGrams ? parseInt(s.weightGrams) : null,
+                    })),
+                    spices: dishSpices
+                      .filter(sp => sp.name.trim())
+                      .map(sp => ({ name: sp.name.trim(), price: sp.price ? parseFloat(sp.price) : 0 })),
                   }),
                 });
 
                 if (response.ok) {
-                  setToast({
-                    message: "Блюдо успешно добавлено",
-                    type: "success"
-                  });
+                  setToast({ message: "Блюдо успешно добавлено", type: "success" });
                   setShowAddDishModal(false);
+                  setDishFormData(defaultDishForm);
+                  setDishSizes([{ name: "Стандарт", price: "", weightGrams: "" }]);
+                  setDishSpices([]);
                   fetchMenuItems();
                 } else {
                   const data = await response.json();
-                  setToast({
-                    message: data.error || "Ошибка при добавлении блюда",
-                    type: "error"
-                  });
+                  setToast({ message: data.error || "Ошибка при добавлении блюда", type: "error" });
                 }
               } catch (error) {
-                setToast({
-                  message: "Ошибка при добавлении блюда",
-                  type: "error"
-                });
+                setToast({ message: "Ошибка при добавлении блюда", type: "error" });
               }
             }}>
               <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-2">
@@ -1207,38 +1216,6 @@ export default function AdminMenuPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-white">
-                      Цена (₽) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      value={dishFormData.price}
-                      onChange={(e) => setDishFormData({ ...dishFormData, price: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                      style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-white">
-                      Вес (г)
-                    </label>
-                    <input
-                      type="number"
-                      value={dishFormData.weightGrams}
-                      onChange={(e) => setDishFormData({ ...dishFormData, weightGrams: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                      style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block text-sm font-bold mb-2 text-white">
                     Время приготовления (мин)
@@ -1275,12 +1252,73 @@ export default function AdminMenuPage() {
                     <span className="text-sm font-bold text-white">Активно</span>
                   </label>
                 </div>
+
+                {/* Размеры и цены */}
+                <div className="border-t pt-4" style={{ borderColor: '#242b47' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-bold text-white">Размеры и цены *</label>
+                    <button type="button" onClick={() => setDishSizes([...dishSizes, { name: "", price: "", weightGrams: "" }])}
+                      className="text-xs px-3 py-1 rounded-lg font-bold" style={{ backgroundColor: '#4047ee', color: 'white' }}>
+                      + Добавить
+                    </button>
+                  </div>
+                  {dishSizes.map((s, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input type="text" placeholder="Название (напр. 250г)" value={s.name}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].name = e.target.value; setDishSizes(n); }}
+                        className="flex-1 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="Цена" value={s.price}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].price = e.target.value; setDishSizes(n); }}
+                        className="w-24 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="Вес г" value={s.weightGrams}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].weightGrams = e.target.value; setDishSizes(n); }}
+                        className="w-20 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      {dishSizes.length > 1 && (
+                        <button type="button" onClick={() => setDishSizes(dishSizes.filter((_, j) => j !== i))}
+                          className="px-2 py-2 rounded-lg text-sm font-bold" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Специи / соусы */}
+                <div className="border-t pt-4" style={{ borderColor: '#242b47' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-bold text-white">Специи / соусы</label>
+                    <button type="button" onClick={() => setDishSpices([...dishSpices, { name: "", price: "" }])}
+                      className="text-xs px-3 py-1 rounded-lg font-bold" style={{ backgroundColor: '#242b47', color: 'white' }}>
+                      + Добавить
+                    </button>
+                  </div>
+                  {dishSpices.map((sp, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input type="text" placeholder="Название (напр. Острый)" value={sp.name}
+                        onChange={(e) => { const n = [...dishSpices]; n[i].name = e.target.value; setDishSpices(n); }}
+                        className="flex-1 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="+цена" value={sp.price}
+                        onChange={(e) => { const n = [...dishSpices]; n[i].price = e.target.value; setDishSpices(n); }}
+                        className="w-24 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <button type="button" onClick={() => setDishSpices(dishSpices.filter((_, j) => j !== i))}
+                        className="px-2 py-2 rounded-lg text-sm font-bold" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✕</button>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowAddDishModal(false)}
+                  onClick={() => {
+                    setShowAddDishModal(false);
+                    setDishFormData(defaultDishForm);
+                    setDishSizes([{ name: "Стандарт", price: "", weightGrams: "" }]);
+                    setDishSpices([]);
+                  }}
                   className="flex-1 px-4 py-3 rounded-xl font-bold transition-all"
                   style={{ backgroundColor: '#242b47', color: 'white' }}
                 >
@@ -1308,6 +1346,11 @@ export default function AdminMenuPage() {
             </h2>
             <form onSubmit={async (e) => {
               e.preventDefault();
+              const validSizes = dishSizes.filter(s => s.name.trim() && s.price);
+              if (validSizes.length === 0) {
+                setToast({ message: "Добавьте хотя бы один размер с ценой", type: "error" });
+                return;
+              }
               try {
                 const response = await fetch('/api/admin/menu-items', {
                   method: 'PUT',
@@ -1315,32 +1358,29 @@ export default function AdminMenuPage() {
                   body: JSON.stringify({
                     id: editingDish.id,
                     ...dishFormData,
-                    price: parseFloat(dishFormData.price),
-                    weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : null,
                     cookingTimeMinutes: dishFormData.cookingTimeMinutes ? parseInt(dishFormData.cookingTimeMinutes) : null,
+                    sizes: validSizes.map(s => ({
+                      name: s.name.trim(),
+                      price: parseFloat(s.price),
+                      weightGrams: s.weightGrams ? parseInt(s.weightGrams) : null,
+                    })),
+                    spices: dishSpices
+                      .filter(sp => sp.name.trim())
+                      .map(sp => ({ name: sp.name.trim(), price: sp.price ? parseFloat(sp.price) : 0 })),
                   }),
                 });
 
                 if (response.ok) {
-                  setToast({
-                    message: "Блюдо успешно обновлено",
-                    type: "success"
-                  });
+                  setToast({ message: "Блюдо успешно обновлено", type: "success" });
                   setShowEditDishModal(false);
                   setEditingDish(null);
                   fetchMenuItems();
                 } else {
                   const data = await response.json();
-                  setToast({
-                    message: data.error || "Ошибка при обновлении блюда",
-                    type: "error"
-                  });
+                  setToast({ message: data.error || "Ошибка при обновлении блюда", type: "error" });
                 }
               } catch (error) {
-                setToast({
-                  message: "Ошибка при обновлении блюда",
-                  type: "error"
-                });
+                setToast({ message: "Ошибка при обновлении блюда", type: "error" });
               }
             }}>
               <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-2">
@@ -1393,38 +1433,6 @@ export default function AdminMenuPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-white">
-                      Цена (₽) *
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      step="0.01"
-                      value={dishFormData.price}
-                      onChange={(e) => setDishFormData({ ...dishFormData, price: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                      style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-                      placeholder="0.00"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-bold mb-2 text-white">
-                      Вес (г)
-                    </label>
-                    <input
-                      type="number"
-                      value={dishFormData.weightGrams}
-                      onChange={(e) => setDishFormData({ ...dishFormData, weightGrams: e.target.value })}
-                      className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                      style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
                 <div>
                   <label className="block text-sm font-bold mb-2 text-white">
                     Время приготовления (мин)
@@ -1460,6 +1468,62 @@ export default function AdminMenuPage() {
                     />
                     <span className="text-sm font-bold text-white">Активно</span>
                   </label>
+                </div>
+
+                {/* Размеры и цены */}
+                <div className="border-t pt-4" style={{ borderColor: '#242b47' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-bold text-white">Размеры и цены *</label>
+                    <button type="button" onClick={() => setDishSizes([...dishSizes, { name: "", price: "", weightGrams: "" }])}
+                      className="text-xs px-3 py-1 rounded-lg font-bold" style={{ backgroundColor: '#4047ee', color: 'white' }}>
+                      + Добавить
+                    </button>
+                  </div>
+                  {dishSizes.map((s, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input type="text" placeholder="Название (напр. 250г)" value={s.name}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].name = e.target.value; setDishSizes(n); }}
+                        className="flex-1 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="Цена" value={s.price}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].price = e.target.value; setDishSizes(n); }}
+                        className="w-24 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="Вес г" value={s.weightGrams}
+                        onChange={(e) => { const n = [...dishSizes]; n[i].weightGrams = e.target.value; setDishSizes(n); }}
+                        className="w-20 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      {dishSizes.length > 1 && (
+                        <button type="button" onClick={() => setDishSizes(dishSizes.filter((_, j) => j !== i))}
+                          className="px-2 py-2 rounded-lg text-sm font-bold" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✕</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Специи / соусы */}
+                <div className="border-t pt-4" style={{ borderColor: '#242b47' }}>
+                  <div className="flex items-center justify-between mb-3">
+                    <label className="text-sm font-bold text-white">Специи / соусы</label>
+                    <button type="button" onClick={() => setDishSpices([...dishSpices, { name: "", price: "" }])}
+                      className="text-xs px-3 py-1 rounded-lg font-bold" style={{ backgroundColor: '#242b47', color: 'white' }}>
+                      + Добавить
+                    </button>
+                  </div>
+                  {dishSpices.map((sp, i) => (
+                    <div key={i} className="flex gap-2 mb-2">
+                      <input type="text" placeholder="Название (напр. Острый)" value={sp.name}
+                        onChange={(e) => { const n = [...dishSpices]; n[i].name = e.target.value; setDishSpices(n); }}
+                        className="flex-1 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <input type="number" placeholder="+цена" value={sp.price}
+                        onChange={(e) => { const n = [...dishSpices]; n[i].price = e.target.value; setDishSpices(n); }}
+                        className="w-24 px-3 py-2 rounded-lg text-white text-sm focus:outline-none border"
+                        style={{ backgroundColor: '#050c26', borderColor: '#242b47' }} />
+                      <button type="button" onClick={() => setDishSpices(dishSpices.filter((_, j) => j !== i))}
+                        className="px-2 py-2 rounded-lg text-sm font-bold" style={{ backgroundColor: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>✕</button>
+                    </div>
+                  ))}
                 </div>
               </div>
 

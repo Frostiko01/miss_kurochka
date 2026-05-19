@@ -23,10 +23,15 @@ import {
   Store,
   ChefHat,
   Menu as MenuIcon,
+  X,
+  Heart,
 } from 'lucide-react'
-import MenuItemModal from '@/components/MenuItemModal'
+import MenuItemDetailModal from '@/components/MenuItemDetailModal'
 import AuthModal from '@/components/AuthModal'
+import MenuCard from '@/components/MenuCard'
+import MenuItemCard from '@/components/MenuItemCard'
 import SideMenu from '@/components/SideMenu'
+import { useFavorites } from '@/hooks/useFavorites'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Ожидает',
@@ -61,17 +66,29 @@ export default function HomePage() {
   const router = useRouter()
 
   const [popularItems, setPopularItems] = useState<any[]>([])
+  const [allMenuItems, setAllMenuItems] = useState<any[]>([])
+  const [menuCategories, setMenuCategories] = useState<any[]>([])
+  const [activeCategoryId, setActiveCategoryId] = useState<string>('all')
   const [combos, setCombos] = useState<any[]>([])
   const [recentOrders, setRecentOrders] = useState<any[]>([])
   const [cartCount, setCartCount] = useState(0)
   const [cartTotal, setCartTotal] = useState(0)
   const [cartItems, setCartItems] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
+  // Cart indexed by `${menuItemId}__${optionId}` for size variants
+  const [cartByOption, setCartByOption] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
+  // Комбо в корзине: comboOfferId → { quantity, cartItemId }
+  const [comboCartItems, setComboCartItems] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
+  // Новая схема: sizeId → { quantity, cartItemId }
+  const [cartBySizeId, setCartBySizeId] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
   const [branches, setBranches] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMenuItem, setSelectedMenuItem] = useState<any>(null)
   const [showItemModal, setShowItemModal] = useState(false)
+  const [detailItem, setDetailItem] = useState<any>(null)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [sideMenuOpen, setSideMenuOpen] = useState(false)
+  const [selectedCombo, setSelectedCombo] = useState<any>(null)
+  const { toggle: toggleFavorite, isFavorite, mounted: favMounted } = useFavorites()
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -96,11 +113,19 @@ export default function HomePage() {
       const res = await fetch('/api/menu')
       const data = await res.json()
       if (res.ok) {
-        const all = [
+        // Все категории с блюдами
+        const cats = [
           ...(data.grouped?.regular ?? []),
           ...(data.grouped?.combo ?? []),
           ...(data.grouped?.mini_combo ?? []),
-        ].flatMap((cat: any) => cat.items ?? [])
+        ].filter((cat: any) => cat.items && cat.items.length > 0)
+        setMenuCategories(cats)
+
+        // Все блюда
+        const all = cats.flatMap((cat: any) => cat.items ?? [])
+        setAllMenuItems(all)
+
+        // Популярные (isFeatured) — до 8
         const featured = all.filter((i: any) => i.isFeatured).slice(0, 8)
         const result =
           featured.length >= 8
@@ -141,16 +166,44 @@ export default function HomePage() {
         const count = data.cart.items.reduce((s: number, i: any) => s + i.quantity, 0)
         setCartCount(count)
         const total = data.cart.items.reduce((s: number, i: any) => {
-          let t = Number(i.menuItem.price) * i.quantity
+          if (i.comboOffer) {
+            return s + Number(i.comboOffer.price) * i.quantity
+          }
+          if (!i.menuItem) return s
+          let t = Number(i.menuItem.price ?? 0) * i.quantity
           i.modifiers?.forEach((m: any) => { t += Number(m.modifierOption.priceDelta) * i.quantity })
           return s + t
         }, 0)
         setCartTotal(total)
         const map: Record<string, { quantity: number; cartItemId: string }> = {}
+        const optMap: Record<string, { quantity: number; cartItemId: string }> = {}
+        const comboMap: Record<string, { quantity: number; cartItemId: string }> = {}
+        const sizeMap: Record<string, { quantity: number; cartItemId: string }> = {}
         data.cart.items.forEach((i: any) => {
-          map[i.menuItem.id] = { quantity: i.quantity, cartItemId: i.id }
+          // Комбо-позиции
+          if (i.comboOffer) {
+            comboMap[i.comboOffer.id] = { quantity: i.quantity, cartItemId: i.id }
+            return
+          }
+          // Обычные блюда
+          if (!i.menuItem) return
+          if (!map[i.menuItem.id]) {
+            map[i.menuItem.id] = { quantity: i.quantity, cartItemId: i.id }
+          }
+          // Новая схема: sizeId → CartRef
+          if (i.sizeId) {
+            sizeMap[i.sizeId] = { quantity: i.quantity, cartItemId: i.id }
+          }
+          // Старая схема: optionId для блюд с размерами через modifiers
+          i.modifiers?.forEach((m: any) => {
+            const key = `${i.menuItem.id}__${m.modifierOption.id}`
+            optMap[key] = { quantity: i.quantity, cartItemId: i.id }
+          })
         })
         setCartItems(map)
+        setCartByOption(optMap)
+        setComboCartItems(comboMap)
+        setCartBySizeId(sizeMap)
       }
     } catch (e) {
       console.error(e)
@@ -182,18 +235,59 @@ export default function HomePage() {
     }
   }
 
+  // Новая функция: добавить блюдо с размером и специями
+  const addToCartWithSize = async (menuItemId: string, sizeId: string | null, spiceIds: string[]) => {
+    if (!session) { setShowAuthModal(true); return }
+    try {
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          menuItemId,
+          sizeId: sizeId ?? undefined,
+          quantity: 1,
+          modifiers: spiceIds,
+        }),
+      })
+      if (res.ok) fetchCart()
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const addComboToCart = async (comboOfferId: string) => {
+    if (!session) { setShowAuthModal(true); return }
+    try {
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comboOfferId, quantity: 1 }),
+      })
+      if (res.ok) {
+        fetchCart()
+        setSelectedCombo(null)
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const updateCartItem = async (menuItemId: string, newQuantity: number) => {
     const cartItem = cartItems[menuItemId]
     if (!cartItem) return
+    await updateCartItemById(cartItem.cartItemId, newQuantity)
+  }
+
+  const updateCartItemById = async (cartItemId: string, newQuantity: number) => {
     try {
       if (newQuantity <= 0) {
-        const res = await fetch(`/api/cart/items?id=${cartItem.cartItemId}`, { method: 'DELETE' })
+        const res = await fetch(`/api/cart/items?id=${cartItemId}`, { method: 'DELETE' })
         if (res.ok) fetchCart()
       } else {
         const res = await fetch('/api/cart/items', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cartItemId: cartItem.cartItemId, quantity: newQuantity }),
+          body: JSON.stringify({ cartItemId, quantity: newQuantity }),
         })
         if (res.ok) fetchCart()
       }
@@ -202,13 +296,38 @@ export default function HomePage() {
     }
   }
 
-  const handleItemClick = (item: any) => {
-    if (item.modifiers?.length > 0) {
-      setSelectedMenuItem(item)
-      setShowItemModal(true)
-    } else {
-      addToCart(item.id)
+  /**
+   * Возвращает первую обязательную single-группу модификаторов («Размер»).
+   * Если она есть и в ней >= 2 опций — блюдо считается мультиразмерным.
+   */
+  const getSizeGroup = (item: any) => {
+    if (!item?.modifiers) return null
+    const sizeMod = item.modifiers.find(
+      (m: any) =>
+        m?.group?.isRequired &&
+        m?.group?.selectionType === 'single' &&
+        Array.isArray(m?.group?.options) &&
+        m.group.options.length >= 2
+    )
+    return sizeMod ?? null
+  }
+
+  const addSize = async (menuItemId: string, optionId: string) => {
+    if (!session) { setShowAuthModal(true); return }
+    try {
+      const res = await fetch('/api/cart', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ menuItemId, quantity: 1, modifiers: [optionId] }),
+      })
+      if (res.ok) fetchCart()
+    } catch (e) {
+      console.error(e)
     }
+  }
+
+  const handleItemClick = (item: any) => {
+    setDetailItem(item)
   }
 
   if (status === 'loading' || loading) {
@@ -343,7 +462,24 @@ export default function HomePage() {
             <SectionHeader title="Комбо-наборы" icon={<Flame className="w-4 h-4" />} />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {combos.map(combo => (
-                <div key={combo.id} className="card card-hover overflow-hidden flex">
+                <div key={combo.id} className="card card-hover overflow-hidden flex relative">
+                  {/* Сердечко */}
+                  {favMounted && (
+                    <button
+                      onClick={e => { e.stopPropagation(); toggleFavorite(`combo_${combo.id}`) }}
+                      className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-sm transition hover:scale-110"
+                      aria-label={isFavorite(`combo_${combo.id}`) ? 'Убрать из избранного' : 'В избранное'}
+                    >
+                      <Heart
+                        className={`w-3.5 h-3.5 transition ${
+                          isFavorite(`combo_${combo.id}`)
+                            ? 'fill-[var(--brand)] text-[var(--brand)]'
+                            : 'text-[var(--fg-muted)]'
+                        }`}
+                      />
+                    </button>
+                  )}
+
                   <div className="w-28 sm:w-36 shrink-0 bg-[var(--bg-muted)]">
                     {combo.imageUrl ? (
                       <img src={combo.imageUrl} alt={combo.name} className="w-full h-full object-cover" />
@@ -352,7 +488,7 @@ export default function HomePage() {
                     )}
                   </div>
                   <div className="p-4 flex flex-col flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="flex items-start justify-between gap-2 mb-2 pr-6">
                       <h3 className="text-sm font-extrabold leading-tight">{combo.name}</h3>
                       <span className="badge badge-brand shrink-0">
                         <Flame className="w-3 h-3" />
@@ -376,13 +512,37 @@ export default function HomePage() {
                         )}
                         <p className="text-base font-extrabold text-[var(--brand)]">{combo.price} сом</p>
                       </div>
-                      <button
-                        onClick={() => addToCart(combo.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
-                        aria-label="Добавить"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                      {(() => {
+                        const cartRef = comboCartItems[combo.id]
+                        const qty = cartRef?.quantity ?? 0
+                        return qty > 0 ? (
+                          <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
+                            <button
+                              onClick={e => { e.stopPropagation(); updateCartItemById(cartRef.cartItemId, qty - 1) }}
+                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                              aria-label="Уменьшить"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="font-bold text-xs text-white min-w-[16px] text-center">{qty}</span>
+                            <button
+                              onClick={e => { e.stopPropagation(); addComboToCart(combo.id) }}
+                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                              aria-label="Увеличить"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addComboToCart(combo.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
+                            aria-label="Добавить в корзину"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -392,72 +552,68 @@ export default function HomePage() {
         )}
 
         {/* ── POPULAR ITEMS ── */}
-        {popularItems.length > 0 && (
+        {(popularItems.length > 0 || menuCategories.length > 0) && (
           <section>
-            <SectionHeader title="Популярное" icon={<Star className="w-4 h-4" />} />
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              {popularItems.map((item, idx) => (
-                <article
+            <SectionHeader title="Меню" icon={<Star className="w-4 h-4" />} />
+
+            {/* Категории-таблетки */}
+            {menuCategories.length > 0 && (
+              <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide -mx-1 px-1">
+                <button
+                  onClick={() => setActiveCategoryId('all')}
+                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                    activeCategoryId === 'all'
+                      ? 'bg-[var(--brand)] text-white border-[var(--brand)]'
+                      : 'bg-white text-[var(--fg-muted)] border-[var(--border)] hover:border-[var(--brand)] hover:text-[var(--brand)]'
+                  }`}
+                >
+                  Все
+                </button>
+                {menuCategories.map((cat: any) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategoryId(cat.id)}
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-bold transition-all border ${
+                      activeCategoryId === cat.id
+                        ? 'bg-[var(--brand)] text-white border-[var(--brand)]'
+                        : 'bg-white text-[var(--fg-muted)] border-[var(--border)] hover:border-[var(--brand)] hover:text-[var(--brand)]'
+                    }`}
+                  >
+                    {cat.imageUrl && (
+                      <img src={cat.imageUrl} alt="" className="w-4 h-4 rounded-full object-cover" />
+                    )}
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Блюда */}
+            {(() => {
+              const displayItems = activeCategoryId === 'all'
+                ? popularItems
+                : (menuCategories.find((c: any) => c.id === activeCategoryId)?.items ?? [])
+
+              return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+              {displayItems.map((item: any, idx: number) => (
+                <div
                   key={item.id}
-                  onClick={() => handleItemClick(item)}
-                  className="card card-hover overflow-hidden flex flex-col cursor-pointer group animate-fade-in"
+                  className="animate-fade-in"
                   style={{ animationDelay: `${idx * 40}ms` }}
                 >
-                  <div className="aspect-[4/3] relative overflow-hidden bg-[var(--bg-muted)]">
-                    {item.images?.[0]?.imageUrl ? (
-                      <img
-                        src={item.images[0].imageUrl}
-                        alt={item.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl">🍗</div>
-                    )}
-                    <div className="absolute top-2 left-2 flex flex-col gap-1">
-                      {item.isNew && <span className="badge badge-success text-[10px]">Новинка</span>}
-                      {item.isFeatured && <span className="badge badge-brand text-[10px]">Хит</span>}
-                    </div>
-                  </div>
-                  <div className="p-3 flex flex-col flex-1">
-                    <h3 className="text-xs sm:text-sm font-extrabold leading-tight mb-1 line-clamp-2">{item.name}</h3>
-                    <div className="mt-auto flex items-center justify-between gap-1">
-                      <span className="text-sm font-extrabold">
-                        {item.price} <span className="text-[10px] font-bold text-[var(--fg-muted)]">сом</span>
-                      </span>
-                      {cartItems[item.id] ? (
-                        <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-lg p-0.5" onClick={e => e.stopPropagation()}>
-                          <button
-                            onClick={e => { e.stopPropagation(); updateCartItem(item.id, cartItems[item.id].quantity - 1) }}
-                            className="w-6 h-6 flex items-center justify-center text-white hover:bg-white/15 rounded-md transition"
-                            aria-label="Уменьшить"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="font-bold text-xs text-white min-w-[16px] text-center">
-                            {cartItems[item.id].quantity}
-                          </span>
-                          <button
-                            onClick={e => { e.stopPropagation(); updateCartItem(item.id, cartItems[item.id].quantity + 1) }}
-                            className="w-6 h-6 flex items-center justify-center text-white hover:bg-white/15 rounded-md transition"
-                            aria-label="Увеличить"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={e => { e.stopPropagation(); handleItemClick(item) }}
-                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
-                          aria-label="Добавить"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </article>
+                  <MenuItemCard
+                    item={item}
+                    cartBySizeId={cartBySizeId}
+                    cartByItemId={cartItems}
+                    onAddToCart={addToCartWithSize}
+                    onUpdateCart={updateCartItemById}
+                  />
+                </div>
               ))}
             </div>
+              )
+            })()}
           </section>
         )}
 
@@ -486,15 +642,18 @@ export default function HomePage() {
                         })}
                       </p>
                       <div className="flex -space-x-1.5 mt-2">
-                        {order.items?.slice(0, 4).map((item: any) => (
-                          <div key={item.id} className="w-8 h-8 rounded-lg overflow-hidden border-2 border-white bg-[var(--bg-muted)]">
-                            {item.menuItem?.images?.[0]?.imageUrl ? (
-                              <img src={item.menuItem.images[0].imageUrl} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-sm">🍗</div>
-                            )}
-                          </div>
-                        ))}
+                        {order.items?.slice(0, 4).map((item: any) => {
+                          const img = item.menuItem?.images?.[0]?.imageUrl ?? item.comboOffer?.imageUrl ?? null
+                          return (
+                            <div key={item.id} className="w-8 h-8 rounded-lg overflow-hidden border-2 border-white bg-[var(--bg-muted)]">
+                              {img ? (
+                                <img src={img} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-sm">🍗</div>
+                              )}
+                            </div>
+                          )
+                        })}
                         {order.items?.length > 4 && (
                           <div className="w-8 h-8 rounded-lg bg-[var(--bg-muted)] border-2 border-white flex items-center justify-center text-[10px] font-bold text-[var(--fg-muted)]">
                             +{order.items.length - 4}
@@ -526,14 +685,146 @@ export default function HomePage() {
       </main>
 
       {/* Modals */}
-      <MenuItemModal
-        item={selectedMenuItem}
-        isOpen={showItemModal}
-        onClose={() => { setShowItemModal(false); setSelectedMenuItem(null) }}
-        onAddToCart={addToCart}
+      <MenuItemDetailModal
+        item={detailItem}
+        isOpen={!!detailItem}
+        onClose={() => setDetailItem(null)}
+        // Для обычных блюд
+        cartItem={detailItem && !getSizeGroup(detailItem) ? (cartItems[detailItem.id] ? { id: cartItems[detailItem.id].cartItemId, quantity: cartItems[detailItem.id].quantity } : null) : null}
+        onAdd={(id) => addToCart(id)}
+        onUpdate={(cartItemId, qty) => updateCartItemById(cartItemId, qty)}
+        // Для блюд с размерами
+        sizeGroup={detailItem ? getSizeGroup(detailItem) : null}
+        cartByOption={detailItem ? (() => {
+          const sg = getSizeGroup(detailItem)
+          if (!sg) return {}
+          const optMap: Record<string, { id: string; quantity: number; cartItemId: string }> = {}
+          sg.group.options.forEach((opt: any) => {
+            const key = `${detailItem.id}__${opt.id}`
+            const ref = cartByOption[key]
+            if (ref) optMap[opt.id] = { id: ref.cartItemId, quantity: ref.quantity, cartItemId: ref.cartItemId }
+          })
+          return optMap
+        })() : {}}
+        onAddSize={addSize}
+        onUpdateSize={updateCartItemById}
+        // Избранное
+        showFavorite={favMounted}
+        isFavorite={detailItem ? isFavorite(detailItem.id) : false}
+        onToggleFavorite={() => detailItem && toggleFavorite(detailItem.id)}
       />
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-      <SideMenu isOpen={sideMenuOpen} onClose={() => setSideMenuOpen(false)} />
+      <SideMenu
+        isOpen={sideMenuOpen}
+        onClose={() => setSideMenuOpen(false)}
+        onAddToCart={(id) => addToCart(id)}
+      />
+
+      {/* ── COMBO MODAL ── */}
+      {selectedCombo && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fadeIn"
+          onClick={() => setSelectedCombo(null)}
+        >
+          <div
+            className="surface shadow-lg w-full max-w-md animate-scaleIn overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Image */}
+            {selectedCombo.imageUrl && (
+              <div className="relative h-48 bg-[var(--bg-muted)]">
+                <img
+                  src={selectedCombo.imageUrl}
+                  alt={selectedCombo.name}
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  onClick={() => setSelectedCombo(null)}
+                  className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 flex items-center justify-center hover:bg-white transition"
+                  aria-label="Закрыть"
+                >
+                  <X className="w-4 h-4 text-[var(--fg)]" />
+                </button>
+              </div>
+            )}
+
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <h2 className="text-lg font-extrabold tracking-tight">{selectedCombo.name}</h2>
+                {!selectedCombo.imageUrl && (
+                  <button
+                    onClick={() => setSelectedCombo(null)}
+                    className="p-1.5 rounded-lg hover:bg-[var(--bg-muted)] text-[var(--fg-muted)]"
+                    aria-label="Закрыть"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Состав */}
+              {selectedCombo.items && Array.isArray(selectedCombo.items) && (
+                <div className="mb-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-2">Состав</p>
+                  <ul className="space-y-1.5">
+                    {selectedCombo.items.map((item: string, i: number) => (
+                      <li key={i} className="flex items-center gap-2 text-sm text-[var(--fg-muted)]">
+                        <span className="w-1.5 h-1.5 bg-[var(--brand)] rounded-full shrink-0" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Цена */}
+              <div className="flex items-baseline gap-2 mb-5">
+                {selectedCombo.oldPrice && (
+                  <span className="text-sm text-[var(--fg-subtle)] line-through">
+                    {Number(selectedCombo.oldPrice)} сом
+                  </span>
+                )}
+                <span className="text-2xl font-extrabold text-[var(--brand)]">
+                  {Number(selectedCombo.price)} сом
+                </span>
+              </div>
+
+              {/* Кнопки */}
+              <div className="flex gap-2.5">
+                <button
+                  onClick={() => setSelectedCombo(null)}
+                  className="btn btn-secondary flex-1"
+                >
+                  Закрыть
+                </button>
+                <button
+                  onClick={() => addComboToCart(selectedCombo.id)}
+                  className="btn btn-primary flex-1"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  В корзину
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FLOATING CART WIDGET ── */}
+      {cartCount > 0 && (
+        <div className="fixed bottom-5 right-4 z-30">
+          <button
+            onClick={() => router.push('/cart')}
+            className="flex items-center gap-2.5 bg-[var(--brand)] hover:bg-[var(--brand-dark)] text-white rounded-2xl px-4 py-2.5 shadow-[var(--shadow-brand)] transition-all hover:scale-105 active:scale-95"
+          >
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center font-bold text-xs shrink-0">
+              {cartCount}
+            </div>
+            <span className="font-extrabold text-sm">{cartTotal} сом</span>
+            <ChevronRight className="w-4 h-4 opacity-80" />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -53,21 +53,23 @@ export async function GET(request: NextRequest) {
           },
         },
         images: {
-          orderBy: {
-            isPrimary: "desc",
-          },
+          orderBy: { isPrimary: "desc" },
+        },
+        sizes: {
+          where: { isActive: true },
+          orderBy: { sortOrder: "asc" },
+        },
+        spices: {
+          where: { isActive: true },
+          orderBy: { sortOrder: "asc" },
         },
         modifiers: {
           include: {
             modifierGroup: {
               include: {
                 options: {
-                  where: {
-                    isActive: true,
-                  },
-                  orderBy: {
-                    createdAt: "asc",
-                  },
+                  where: { isActive: true },
+                  orderBy: { createdAt: "asc" },
                 },
               },
             },
@@ -75,15 +77,8 @@ export async function GET(request: NextRequest) {
         },
         stopList: branchId
           ? {
-              where: {
-                branchId,
-                restoredAt: null, // Только активные записи стоп-листа
-              },
-              select: {
-                id: true,
-                reason: true,
-                expectedReturnAt: true,
-              },
+              where: { branchId, restoredAt: null },
+              select: { id: true, reason: true, expectedReturnAt: true },
             }
           : undefined,
       },
@@ -105,16 +100,8 @@ export async function GET(request: NextRequest) {
           nameI18n: item.nameI18n,
           description: item.description,
           descriptionI18n: item.descriptionI18n,
-          price: item.price,
-          weightGrams: item.weightGrams,
-          volumeMl: item.volumeMl,
           cookingTimeMinutes: item.cookingTimeMinutes,
-          calories: item.calories,
-          proteins: item.proteins,
-          fats: item.fats,
-          carbohydrates: item.carbohydrates,
           ingredients: item.ingredients,
-          allergens: item.allergens,
           spicyLevel: item.spicyLevel,
           isVegetarian: item.isVegetarian,
           isVegan: item.isVegan,
@@ -125,6 +112,22 @@ export async function GET(request: NextRequest) {
             imageUrl: img.imageUrl,
             isPrimary: img.isPrimary,
           })),
+          sizes: item.sizes.map((s) => ({
+            id: s.id,
+            name: s.name,
+            price: Number(s.price),
+            weightGrams: s.weightGrams,
+            sortOrder: s.sortOrder,
+          })),
+          spices: item.spices.map((sp) => ({
+            id: sp.id,
+            name: sp.name,
+            price: Number(sp.price),
+            sortOrder: sp.sortOrder,
+          })),
+          // Базовая цена для совместимости — берём первый размер
+          price: item.sizes.length > 0 ? Number(item.sizes[0].price) : 0,
+          weightGrams: item.sizes[0]?.weightGrams ?? null,
           modifiers: item.modifiers.map((mod) => ({
             id: mod.id,
             sortOrder: mod.sortOrder,

@@ -53,11 +53,18 @@ interface MenuItem {
   price: number
   images: Array<{ imageUrl: string; isPrimary: boolean }>
 }
+interface ComboOffer {
+  id: string
+  name: string
+  price: number
+  imageUrl: string
+}
 interface CartItem {
   id: string
   quantity: number
   itemComment: string | null
-  menuItem: MenuItem
+  menuItem: MenuItem | null
+  comboOffer: ComboOffer | null
   modifiers: CartItemModifier[]
 }
 interface Cart {
@@ -249,6 +256,11 @@ export default function CartPage() {
 
   // ============ CALC ============
   const calculateItemTotal = (item: CartItem): number => {
+    // Комбо — фиксированная цена без модификаторов
+    if (item.comboOffer) {
+      return Number(item.comboOffer.price) * item.quantity
+    }
+    if (!item.menuItem) return 0
     let t = Number(item.menuItem.price)
     item.modifiers.forEach(m => {
       t += Number(m.modifierOption.priceDelta)
@@ -377,6 +389,16 @@ export default function CartPage() {
             onUpdate={updateQuantity}
             onRemove={removeItem}
             calc={calculateItemTotal}
+            onAddToCart={async (menuItemId: string) => {
+              try {
+                const res = await fetch('/api/cart', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ menuItemId, quantity: 1, modifiers: [] }),
+                })
+                if (res.ok) fetchCart()
+              } catch (e) { console.error(e) }
+            }}
           />
         )}
         {step === 2 && (
@@ -513,78 +535,200 @@ function Step1Items({
   onUpdate,
   onRemove,
   calc,
+  onAddToCart,
 }: {
   cart: Cart
   updating: string | null
   onUpdate: (id: string, q: number) => void
   onRemove: (id: string) => void
   calc: (item: CartItem) => number
+  onAddToCart: (menuItemId: string) => void
 }) {
+  const [extras, setExtras] = useState<{ offers: any[]; grouped: Record<string, any[]>; categories: string[] }>({
+    offers: [],
+    grouped: {},
+    categories: [],
+  })
+
+  useEffect(() => {
+    fetchExtras()
+  }, [])
+
+  const fetchExtras = async () => {
+    try {
+      const res = await fetch('/api/additional-offers')
+      const data = await res.json()
+      if (res.ok) {
+        setExtras({
+          offers: data.offers ?? [],
+          grouped: data.grouped ?? {},
+          categories: data.categories ?? [],
+        })
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const CATEGORY_LABELS: Record<string, { label: string; emoji: string }> = {
+    sauce: { label: 'Соусы', emoji: '🫙' },
+    drink: { label: 'Напитки', emoji: '🥤' },
+    side: { label: 'Гарниры', emoji: '🍟' },
+    dessert: { label: 'Десерты', emoji: '🍰' },
+    bread: { label: 'Хлеб', emoji: '🍞' },
+    snack: { label: 'Закуски', emoji: '🥟' },
+  }
+
+  // ID товаров уже в корзине (для подсветки)
+  const cartMenuItemIds = new Set(
+    cart.items
+      .map(i => i.menuItem?.id)
+      .filter((id): id is string => !!id)
+  )
+
   return (
-    <div className="space-y-3">
-      <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] px-1">
-        Ваш заказ
-      </h2>
-      <div className="surface divide-y divide-[var(--border)]">
-        {cart.items.map(item => {
-          const isUpdating = updating === item.id
-          return (
-            <div key={item.id} className="flex items-start gap-3 p-4">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-[var(--bg-muted)] shrink-0">
-                {item.menuItem.images?.[0]?.imageUrl ? (
-                  <img
-                    src={item.menuItem.images[0].imageUrl}
-                    alt={item.menuItem.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-2xl">🍗</div>
-                )}
-              </div>
+    <div className="space-y-5">
+      {/* Основные товары */}
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] px-1 mb-2">
+          Ваш заказ
+        </h2>
+        <div className="surface divide-y divide-[var(--border)]">
+          {cart.items.map(item => {
+            const isUpdating = updating === item.id
+            // Объединяем данные из menuItem или comboOffer для единообразного отображения
+            const displayName = item.menuItem?.name ?? item.comboOffer?.name ?? ''
+            const displayImage = item.menuItem?.images?.[0]?.imageUrl ?? item.comboOffer?.imageUrl ?? null
+            const isCombo = !!item.comboOffer
 
-              <div className="flex-1 min-w-0">
-                <h3 className="text-sm font-bold leading-tight">{item.menuItem.name}</h3>
-                {item.modifiers.length > 0 && (
-                  <p className="text-xs text-[var(--fg-subtle)] mt-0.5 line-clamp-1">
-                    {item.modifiers.map(m => m.modifierOption.name).join(', ')}
-                  </p>
-                )}
-                <p className="text-sm font-extrabold mt-1.5">{calc(item)} сом</p>
-              </div>
+            return (
+              <div key={item.id} className="flex items-start gap-3 p-4">
+                <div className="w-16 h-16 rounded-xl overflow-hidden bg-[var(--bg-muted)] shrink-0">
+                  {displayImage ? (
+                    <img
+                      src={displayImage}
+                      alt={displayName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-2xl">🍗</div>
+                  )}
+                </div>
 
-              <div className="flex flex-col items-end gap-2 shrink-0">
-                <div className="flex items-center gap-0.5 bg-[var(--bg-muted)] rounded-lg p-0.5">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold leading-tight">{displayName}</h3>
+                    {isCombo && (
+                      <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
+                        Комбо
+                      </span>
+                    )}
+                  </div>
+                  {item.modifiers.length > 0 && (
+                    <p className="text-xs text-[var(--fg-subtle)] mt-0.5 line-clamp-1">
+                      {item.modifiers.map(m => m.modifierOption.name).join(', ')}
+                    </p>
+                  )}
+                  <p className="text-sm font-extrabold mt-1.5">{calc(item)} сом</p>
+                </div>
+
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="flex items-center gap-0.5 bg-[var(--bg-muted)] rounded-lg p-0.5">
+                    <button
+                      onClick={() => onUpdate(item.id, item.quantity - 1)}
+                      disabled={isUpdating}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition disabled:opacity-50"
+                      aria-label="Уменьшить"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => onUpdate(item.id, item.quantity + 1)}
+                      disabled={isUpdating}
+                      className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition disabled:opacity-50"
+                      aria-label="Увеличить"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <button
-                    onClick={() => onUpdate(item.id, item.quantity - 1)}
+                    onClick={() => onRemove(item.id)}
                     disabled={isUpdating}
-                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition disabled:opacity-50"
-                    aria-label="Уменьшить"
+                    className="text-[var(--fg-subtle)] hover:text-[var(--brand)] transition disabled:opacity-50 p-1"
+                    aria-label="Удалить"
                   >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="font-bold text-sm w-6 text-center">{item.quantity}</span>
-                  <button
-                    onClick={() => onUpdate(item.id, item.quantity + 1)}
-                    disabled={isUpdating}
-                    className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-white transition disabled:opacity-50"
-                    aria-label="Увеличить"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-                <button
-                  onClick={() => onRemove(item.id)}
-                  disabled={isUpdating}
-                  className="text-[var(--fg-subtle)] hover:text-[var(--brand)] transition disabled:opacity-50 p-1"
-                  aria-label="Удалить"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
               </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
+
+      {/* Дополнительные предложения */}
+      {extras.categories.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] px-1">
+            Добавить к заказу
+          </h2>
+
+          {extras.categories.map(cat => {
+            const items = extras.grouped[cat] ?? []
+            if (items.length === 0) return null
+            const meta = CATEGORY_LABELS[cat] || { label: cat, emoji: '➕' }
+
+            return (
+              <div key={cat}>
+                <div className="flex items-center gap-1.5 mb-2 px-1">
+                  <span className="text-base">{meta.emoji}</span>
+                  <h3 className="text-xs font-bold text-[var(--fg-muted)] uppercase tracking-wider">
+                    {meta.label}
+                  </h3>
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-hide -mx-1 px-1">
+                  {items.map((offer: any) => (
+                    <div
+                      key={offer.id}
+                      className="flex-shrink-0 w-32 surface overflow-hidden flex flex-col"
+                    >
+                      {offer.imageUrl ? (
+                        <div className="aspect-square bg-[var(--bg-muted)]">
+                          <img
+                            src={offer.imageUrl}
+                            alt={offer.name}
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      ) : (
+                        <div className="aspect-square bg-[var(--bg-muted)] flex items-center justify-center text-3xl">
+                          {meta.emoji}
+                        </div>
+                      )}
+                      <div className="p-2.5 flex flex-col flex-1">
+                        <p className="text-xs font-bold leading-tight line-clamp-2 mb-1.5 flex-1">
+                          {offer.name}
+                        </p>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-extrabold">{Number(offer.price)} сом</span>
+                          <button
+                            onClick={() => onAddToCart(offer.id)}
+                            className="w-6 h-6 flex items-center justify-center rounded-md bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
+                            aria-label="Добавить"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
@@ -887,26 +1031,30 @@ function Step3Confirm({
           onEdit={() => onEditStep(1)}
         />
         <div className="divide-y divide-[var(--border)]">
-          {cart.items.map(item => (
-            <div key={item.id} className="flex items-center gap-3 px-4 py-3">
-              <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--bg-muted)] shrink-0">
-                {item.menuItem.images?.[0]?.imageUrl ? (
-                  <img
-                    src={item.menuItem.images[0].imageUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-xl">🍗</div>
-                )}
+          {cart.items.map(item => {
+            const displayName = item.menuItem?.name ?? item.comboOffer?.name ?? ''
+            const displayImage = item.menuItem?.images?.[0]?.imageUrl ?? item.comboOffer?.imageUrl ?? null
+            return (
+              <div key={item.id} className="flex items-center gap-3 px-4 py-3">
+                <div className="w-12 h-12 rounded-lg overflow-hidden bg-[var(--bg-muted)] shrink-0">
+                  {displayImage ? (
+                    <img
+                      src={displayImage}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xl">🍗</div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold truncate">{displayName}</p>
+                  <p className="text-xs text-[var(--fg-muted)]">× {item.quantity}</p>
+                </div>
+                <p className="text-sm font-extrabold shrink-0">{calc(item)} сом</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold truncate">{item.menuItem.name}</p>
-                <p className="text-xs text-[var(--fg-muted)]">× {item.quantity}</p>
-              </div>
-              <p className="text-sm font-extrabold shrink-0">{calc(item)} сом</p>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
 

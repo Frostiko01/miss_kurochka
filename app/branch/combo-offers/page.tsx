@@ -313,7 +313,7 @@ export default function BranchComboOffersPage() {
             <button
               onClick={() => setSortOrder("asc")}
               className={`px-6 py-3 rounded-xl font-bold transition-all ${
-                sortOrder === "asc" ? "bg-[#4047ee] text-white" : "bg-[#242b47] text-[#78819d]"
+                sortOrder === "asc" ? "bg-[#d62300] text-white" : "bg-[#242b47] text-[#78819d]"
               }`}
             >
               ↑
@@ -321,7 +321,7 @@ export default function BranchComboOffersPage() {
             <button
               onClick={() => setSortOrder("desc")}
               className={`px-6 py-3 rounded-xl font-bold transition-all ${
-                sortOrder === "desc" ? "bg-[#4047ee] text-white" : "bg-[#242b47] text-[#78819d]"
+                sortOrder === "desc" ? "bg-[#d62300] text-white" : "bg-[#242b47] text-[#78819d]"
               }`}
             >
               ↓
@@ -344,7 +344,7 @@ export default function BranchComboOffersPage() {
               });
             }}
             className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2"
-            style={{ backgroundColor: '#4047ee' }}
+            style={{ backgroundColor: '#d62300' }}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -358,7 +358,7 @@ export default function BranchComboOffersPage() {
       <div className="rounded-2xl p-6" style={{ backgroundColor: '#181f38' }}>
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#4047ee' }}></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#d62300' }}></div>
           </div>
         ) : combos.length === 0 ? (
           <div className="text-center py-12">
@@ -371,7 +371,7 @@ export default function BranchComboOffersPage() {
             {combos.map((combo) => (
               <div
                 key={combo.id}
-                className="rounded-2xl overflow-hidden border-2 transition-all hover:border-[#4047ee]"
+                className="rounded-2xl overflow-hidden border-2 transition-all hover:border-[#d62300]"
                 style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
               >
                 {/* Image */}
@@ -383,7 +383,7 @@ export default function BranchComboOffersPage() {
                   />
                   {combo.branchId === null && (
                     <div className="absolute top-3 left-3">
-                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#4047ee] text-white">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#d62300] text-white">
                         Глобальное
                       </span>
                     </div>
@@ -414,7 +414,7 @@ export default function BranchComboOffersPage() {
                     <ul className="space-y-1">
                       {combo.items.map((item, idx) => (
                         <li key={idx} className="text-sm text-white flex items-start">
-                          <span className="text-[#4047ee] mr-2">•</span>
+                          <span className="text-[#d62300] mr-2">•</span>
                           {item}
                         </li>
                       ))}
@@ -428,7 +428,7 @@ export default function BranchComboOffersPage() {
                         {combo.oldPrice} сом
                       </span>
                     )}
-                    <span className="text-3xl font-black text-[#4047ee]">
+                    <span className="text-3xl font-black text-[#d62300]">
                       {combo.price} сом
                     </span>
                   </div>
@@ -465,7 +465,7 @@ export default function BranchComboOffersPage() {
                           setShowEditModal(true);
                         }}
                         className="flex-1 px-4 py-2 rounded-xl font-bold text-white transition-all"
-                        style={{ backgroundColor: '#4047ee' }}
+                        style={{ backgroundColor: '#d62300' }}
                       >
                         Редактировать
                       </button>
@@ -646,7 +646,7 @@ export default function BranchComboOffersPage() {
                 <button
                   onClick={editingCombo ? handleEditCombo : handleAddCombo}
                   className="flex-1 px-6 py-3 rounded-xl font-bold text-white transition-all"
-                  style={{ backgroundColor: '#4047ee' }}
+                  style={{ backgroundColor: '#d62300' }}
                 >
                   {editingCombo ? "Сохранить" : "Создать"}
                 </button>

@@ -42,6 +42,7 @@ export async function GET(request: NextRequest) {
               },
               take: 1,
             },
+            sizes: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
           },
         },
         stopper: {
@@ -55,7 +56,19 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ stopList });
+    // Добавляем виртуальное поле price (цена первого размера) для совместимости
+    const normalized = stopList.map((entry: any) => ({
+      ...entry,
+      menuItem: entry.menuItem
+        ? {
+            ...entry.menuItem,
+            price: entry.menuItem.sizes?.[0] ? Number(entry.menuItem.sizes[0].price) : 0,
+            sizes: (entry.menuItem.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) })),
+          }
+        : entry.menuItem,
+    }));
+
+    return NextResponse.json({ stopList: normalized });
   } catch (error) {
     console.error("Error fetching stop list:", error);
     return NextResponse.json(

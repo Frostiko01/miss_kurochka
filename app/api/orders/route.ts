@@ -27,7 +27,12 @@ export async function POST(request: NextRequest) {
       include: {
         items: {
           include: {
-            menuItem: true,
+            menuItem: {
+              include: {
+                sizes: { where: { isActive: true }, orderBy: { sortOrder: "asc" } },
+              },
+            },
+            comboOffer: true,
             modifiers: {
               include: {
                 modifierOption: true,
@@ -65,38 +70,37 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Проверяем стоп-лист филиала перед созданием заказа
-    const menuItemIds = cart.items.map(item => item.menuItemId)
-    const stopListItems = await prisma.stopList.findMany({
-      where: {
-        branchId,
-        restoredAt: null,
-        menuItemId: {
-          in: menuItemIds,
-        },
-      },
-      include: {
-        menuItem: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    })
+    // Проверяем стоп-лист филиала только для обычных блюд
+    const menuItemIds = cart.items
+      .map(item => item.menuItemId)
+      .filter((id): id is string => !!id)
 
-    if (stopListItems.length > 0) {
-      const unavailableItems = stopListItems.map(item => item.menuItem.name).join(', ')
-      return NextResponse.json(
-        {
-          error: `Следующие блюда временно недоступны: ${unavailableItems}`,
-          unavailableItems: stopListItems.map(item => ({
-            menuItemId: item.menuItemId,
-            name: item.menuItem.name,
-            reason: item.reason,
-          })),
+    if (menuItemIds.length > 0) {
+      const stopListItems = await prisma.stopList.findMany({
+        where: {
+          branchId,
+          restoredAt: null,
+          menuItemId: { in: menuItemIds },
         },
-        { status: 400 }
-      )
+        include: {
+          menuItem: { select: { name: true } },
+        },
+      })
+
+      if (stopListItems.length > 0) {
+        const unavailableItems = stopListItems.map(item => item.menuItem.name).join(', ')
+        return NextResponse.json(
+          {
+            error: `Следующие блюда временно недоступны: ${unavailableItems}`,
+            unavailableItems: stopListItems.map(item => ({
+              menuItemId: item.menuItemId,
+              name: item.menuItem.name,
+              reason: item.reason,
+            })),
+          },
+          { status: 400 }
+        )
+      }
     }
 
     // Генерируем номер заказа
@@ -104,10 +108,35 @@ export async function POST(request: NextRequest) {
 
     // Рассчитываем общую сумму из корзины
     let totalAmount = 0
-    const orderItemsData = []
+    const orderItemsData: any[] = []
 
     for (const cartItem of cart.items) {
+      // Комбо-позиция
+      if (cartItem.comboOffer) {
+        const combo = cartItem.comboOffer
+        if (!combo.isActive) {
+          return NextResponse.json(
+            { error: `Комбо "${combo.name}" неактивно` },
+            { status: 400 }
+          )
+        }
+        const unitPrice = Number(combo.price)
+        const itemTotal = unitPrice * cartItem.quantity
+        totalAmount += itemTotal
+        orderItemsData.push({
+          comboOfferId: combo.id,
+          itemName: combo.name,
+          quantity: cartItem.quantity,
+          unitPrice,
+          totalPrice: itemTotal,
+          itemComment: cartItem.itemComment,
+        })
+        continue
+      }
+
+      // Обычное блюдо
       const menuItem = cartItem.menuItem
+      if (!menuItem) continue
 
       if (!menuItem.isActive) {
         return NextResponse.json(
@@ -116,25 +145,32 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      let itemTotal = menuItem.price.toNumber() * cartItem.quantity
+      let unitPrice = 0
+      // Берём цену первого размера (дефолтного)
+      const firstSize = (menuItem as any).sizes?.[0]
+      if (firstSize) {
+        unitPrice = Number(firstSize.price)
+      }
       const modifiersData = []
 
       // Добавляем стоимость модификаторов
       for (const mod of cartItem.modifiers) {
         const modPrice = mod.modifierOption.priceDelta.toNumber()
-        itemTotal += modPrice * cartItem.quantity
+        unitPrice += modPrice
         modifiersData.push({
           modifierOptionId: mod.modifierOptionId,
           priceDelta: modPrice,
         })
       }
 
+      const itemTotal = unitPrice * cartItem.quantity
       totalAmount += itemTotal
 
       orderItemsData.push({
         menuItemId: cartItem.menuItemId,
+        itemName: menuItem.name,
         quantity: cartItem.quantity,
-        unitPrice: menuItem.price,
+        unitPrice,
         totalPrice: itemTotal,
         itemComment: cartItem.itemComment,
         modifiers: {
@@ -177,6 +213,7 @@ export async function POST(request: NextRequest) {
                 images: true,
               },
             },
+            comboOffer: true,
             modifiers: {
               include: {
                 modifierOption: true,

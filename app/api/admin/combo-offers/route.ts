@@ -14,29 +14,37 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
 
     const where: any = {};
-
-    if (status === "active") {
-      where.isActive = true;
-    } else if (status === "inactive") {
-      where.isActive = false;
-    }
+    if (status === "active") where.isActive = true;
+    else if (status === "inactive") where.isActive = false;
 
     const combos = await prisma.comboOffer.findMany({
       where,
       orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      include: {
+        comboItems: {
+          orderBy: { sortOrder: "asc" },
+          include: {
+            menuItem: { select: { id: true, name: true } },
+          },
+        },
+      },
     });
 
-    return NextResponse.json({ combos });
+    // Нормализуем: items — массив названий для совместимости с UI
+    const normalized = combos.map((combo) => ({
+      ...combo,
+      items: combo.comboItems.map((ci) => ci.menuItem.name),
+    }));
+
+    return NextResponse.json({ combos: normalized });
   } catch (error) {
     console.error("Error fetching combo offers:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch combo offers" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch combo offers" }, { status: 500 });
   }
 }
 
 // POST - Создать комбо
+// body: { name, description, menuItemIds: string[], price, oldPrice, imageUrl, isActive, sortOrder }
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -45,50 +53,52 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, items, price, oldPrice, imageUrl, isActive, sortOrder } = body;
-
-    console.log("📝 Creating combo offer:", { name, price });
+    const { name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder } = body;
 
     if (!name || !price || !imageUrl) {
-      return NextResponse.json(
-        { error: "Name, price, and image are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Name, price, and image are required" }, { status: 400 });
     }
 
-    // Проверяем items - должен быть массив строк
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: "Items must be a non-empty array" },
-        { status: 400 }
-      );
+    if (!Array.isArray(menuItemIds) || menuItemIds.length === 0) {
+      return NextResponse.json({ error: "menuItemIds must be a non-empty array" }, { status: 400 });
     }
 
     const combo = await prisma.comboOffer.create({
       data: {
         name,
         description: description || null,
-        items,
         price: parseFloat(price),
         oldPrice: oldPrice ? parseFloat(oldPrice) : null,
         imageUrl: imageUrl.trim(),
         isActive: isActive !== undefined ? isActive : true,
         sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : 0,
+        comboItems: {
+          create: menuItemIds.map((menuItemId: string, index: number) => ({
+            menuItemId,
+            quantity: 1,
+            sortOrder: index,
+          })),
+        },
+      },
+      include: {
+        comboItems: {
+          orderBy: { sortOrder: "asc" },
+          include: { menuItem: { select: { id: true, name: true } } },
+        },
       },
     });
 
-    console.log("✅ Combo offer created:", combo.id);
-    return NextResponse.json({ combo }, { status: 201 });
+    return NextResponse.json({
+      combo: { ...combo, items: combo.comboItems.map((ci) => ci.menuItem.name) },
+    }, { status: 201 });
   } catch (error) {
     console.error("❌ Error creating combo offer:", error);
-    return NextResponse.json(
-      { error: "Failed to create combo offer" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create combo offer" }, { status: 500 });
   }
 }
 
 // PUT - Обновить комбо
+// body: { id, name, description, menuItemIds?: string[], price, oldPrice, imageUrl, isActive, sortOrder }
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
@@ -97,47 +107,55 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description, items, price, oldPrice, imageUrl, isActive, sortOrder } = body;
-
-    console.log("🔄 Updating combo offer:", { id, name });
+    const { id, name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder } = body;
 
     if (!id) {
-      return NextResponse.json(
-        { error: "Combo ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Combo ID is required" }, { status: 400 });
     }
 
-    // Проверяем items - должен быть массив строк
-    if (items && (!Array.isArray(items) || items.length === 0)) {
-      return NextResponse.json(
-        { error: "Items must be a non-empty array" },
-        { status: 400 }
-      );
-    }
-
+    // Обновляем основные поля
     const combo = await prisma.comboOffer.update({
       where: { id },
       data: {
         name,
         description: description || null,
-        items,
         price: parseFloat(price),
         oldPrice: oldPrice ? parseFloat(oldPrice) : null,
-        imageUrl: imageUrl && imageUrl.trim() !== '' ? imageUrl.trim() : undefined,
+        imageUrl: imageUrl && imageUrl.trim() !== "" ? imageUrl.trim() : undefined,
         isActive,
         sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : undefined,
       },
     });
 
-    console.log("✅ Combo offer updated:", combo.id);
-    return NextResponse.json({ combo });
+    // Если переданы новые блюда — пересоздаём состав
+    if (Array.isArray(menuItemIds)) {
+      await prisma.comboOfferItem.deleteMany({ where: { comboOfferId: id } });
+      await prisma.comboOfferItem.createMany({
+        data: menuItemIds.map((menuItemId: string, index: number) => ({
+          comboOfferId: id,
+          menuItemId,
+          quantity: 1,
+          sortOrder: index,
+        })),
+      });
+    }
+
+    const updated = await prisma.comboOffer.findUnique({
+      where: { id },
+      include: {
+        comboItems: {
+          orderBy: { sortOrder: "asc" },
+          include: { menuItem: { select: { id: true, name: true } } },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      combo: { ...updated, items: updated!.comboItems.map((ci) => ci.menuItem.name) },
+    });
   } catch (error) {
     console.error("❌ Error updating combo offer:", error);
-    return NextResponse.json(
-      { error: "Failed to update combo offer" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to update combo offer" }, { status: 500 });
   }
 }
 
@@ -152,26 +170,15 @@ export async function DELETE(request: NextRequest) {
     const body = await request.json();
     const { id } = body;
 
-    console.log("🗑️ Deleting combo offer:", { id });
-
     if (!id) {
-      return NextResponse.json(
-        { error: "Combo ID is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Combo ID is required" }, { status: 400 });
     }
 
-    await prisma.comboOffer.delete({
-      where: { id },
-    });
+    await prisma.comboOffer.delete({ where: { id } });
 
-    console.log("✅ Combo offer deleted:", id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("❌ Error deleting combo offer:", error);
-    return NextResponse.json(
-      { error: "Failed to delete combo offer" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to delete combo offer" }, { status: 500 });
   }
 }
