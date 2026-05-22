@@ -47,6 +47,8 @@ export async function POST(request: NextRequest) {
       floor,
       intercom,
       comment,
+      latitude,
+      longitude,
     } = body;
 
     if (!addressLine) {
@@ -55,6 +57,20 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Парсим координаты, если они переданы
+    const lat =
+      typeof latitude === "number"
+        ? latitude
+        : typeof latitude === "string" && latitude !== ""
+          ? Number(latitude)
+          : null;
+    const lng =
+      typeof longitude === "number"
+        ? longitude
+        : typeof longitude === "string" && longitude !== ""
+          ? Number(longitude)
+          : null;
 
     const address = await prisma.deliveryAddress.create({
       data: {
@@ -65,6 +81,8 @@ export async function POST(request: NextRequest) {
         floor: floor || null,
         intercom: intercom || null,
         comment: comment || null,
+        latitude: lat !== null && !isNaN(lat) ? lat : null,
+        longitude: lng !== null && !isNaN(lng) ? lng : null,
       },
     });
 

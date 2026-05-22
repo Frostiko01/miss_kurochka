@@ -24,6 +24,11 @@ const CART_INCLUDE = {
           },
         },
       },
+      spices: {
+        include: {
+          spice: true,
+        },
+      },
     },
   },
   branch: true,
@@ -35,19 +40,30 @@ function normalizeCart(cart: any) {
     items: cart.items.map((item: any) => {
       if (item.menuItem) {
         const sizes = (item.menuItem.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) }));
-        // Выбранный размер — из sizeId позиции корзины, иначе первый
         const selectedSize = item.sizeId
           ? sizes.find((s: any) => s.id === item.sizeId) ?? sizes[0]
           : sizes[0];
+        // Цена специй выбранных для этой позиции
+        const spicesPrice = (item.spices || []).reduce((sum: number, cs: any) => {
+          return sum + Number(cs.spice?.price ?? 0);
+        }, 0);
+        const itemBasePrice = selectedSize ? Number(selectedSize.price) : 0;
         return {
           ...item,
           menuItem: {
             ...item.menuItem,
-            price: selectedSize ? Number(selectedSize.price) : 0,
+            price: itemBasePrice + spicesPrice, // итоговая цена = размер + специи
             weightGrams: selectedSize?.weightGrams ?? null,
             sizes,
             spices: (item.menuItem.spices || []).map((sp: any) => ({ ...sp, price: Number(sp.price) })),
           },
+          // Выбранные специи для этой позиции корзины
+          selectedSpices: (item.spices || []).map((cs: any) => ({
+            id: cs.spice?.id,
+            name: cs.spice?.name,
+            price: Number(cs.spice?.price ?? 0),
+          })),
+          spicesPrice,
         };
       }
       if (item.comboOffer) {
@@ -108,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { menuItemId, comboOfferId, quantity, modifiers, itemComment, branchId, sizeId } = body;
+    const { menuItemId, comboOfferId, quantity, modifiers, spices, itemComment, branchId, sizeId } = body;
 
     // Должен быть указан либо menuItemId, либо comboOfferId
     if ((!menuItemId && !comboOfferId) || !quantity) {
@@ -161,21 +177,27 @@ export async function POST(request: NextRequest) {
         });
       }
     } else {
-      // Обычное блюдо: ищем по menuItemId + sizeId + одинаковым модификаторам
+      // Обычное блюдо: ищем по menuItemId + sizeId + одинаковым модификаторам + специям
       const candidateItems = await prisma.cartItem.findMany({
         where: {
           cartId: cart.id,
           menuItemId,
           sizeId: sizeId ?? null,
         },
-        include: { modifiers: true },
+        include: { modifiers: true, spices: true },
       });
 
       const sortedNewMods = [...(modifiers || [])].sort();
+      const sortedNewSpices = [...(spices || [])].sort();
       const existingItem = candidateItems.find((it) => {
         const existingMods = it.modifiers.map((m) => m.modifierOptionId).sort();
+        const existingSpices = it.spices.map((s) => s.spiceId).sort();
         if (existingMods.length !== sortedNewMods.length) return false;
-        return existingMods.every((m, i) => m === sortedNewMods[i]);
+        if (existingSpices.length !== sortedNewSpices.length) return false;
+        return (
+          existingMods.every((m, i) => m === sortedNewMods[i]) &&
+          existingSpices.every((s, i) => s === sortedNewSpices[i])
+        );
       });
 
       if (existingItem) {
@@ -199,6 +221,15 @@ export async function POST(request: NextRequest) {
             data: modifiers.map((modifierId: string) => ({
               cartItemId: cartItem.id,
               modifierOptionId: modifierId,
+            })),
+          });
+        }
+
+        if (spices && spices.length > 0) {
+          await prisma.cartItemSpice.createMany({
+            data: spices.map((spiceId: string) => ({
+              cartItemId: cartItem.id,
+              spiceId,
             })),
           });
         }

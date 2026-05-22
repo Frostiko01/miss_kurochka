@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Toast from "@/components/admin/Toast";
 
 interface OrderItem {
@@ -8,9 +8,17 @@ interface OrderItem {
   quantity: number;
   unitPrice: number;
   totalPrice: number;
-  menuItem: {
+  itemName?: string;
+  menuItem?: {
     name: string;
-  };
+  } | null;
+  comboOffer?: {
+    name: string;
+  } | null;
+  modifiers?: Array<{
+    id: string;
+    modifierOption: { name: string; priceDelta: number };
+  }>;
 }
 
 interface Order {
@@ -19,38 +27,148 @@ interface Order {
   customerName: string;
   customerPhone: string;
   customerComment: string | null;
-  orderType: string;
+  orderType: "pickup" | "delivery";
   status: string;
   paymentMethod: string;
   totalAmount: number;
   createdAt: string;
-  branch: {
-    name: string;
-  };
+  readyAt: string | null;
+  deliveredAt: string | null;
+  cancelledAt: string | null;
   items: OrderItem[];
 }
 
+const STATUS_META: Record<
+  string,
+  { label: string; bg: string; text: string; icon: string }
+> = {
+  pending: { label: "Новый", bg: "rgba(251, 191, 36, 0.2)", text: "#fbbf24", icon: "🟡" },
+  confirmed: { label: "Подтверждён", bg: "rgba(59, 130, 246, 0.2)", text: "#60a5fa", icon: "🔵" },
+  preparing: { label: "Готовится", bg: "rgba(249, 115, 22, 0.2)", text: "#fb923c", icon: "🟠" },
+  ready: { label: "Готов", bg: "rgba(34, 197, 94, 0.2)", text: "#4ade80", icon: "🟢" },
+  delivering: { label: "У курьера", bg: "rgba(168, 85, 247, 0.2)", text: "#c084fc", icon: "🚚" },
+  completed: { label: "Завершён", bg: "rgba(16, 185, 129, 0.2)", text: "#34d399", icon: "✅" },
+  cancelled: { label: "Отменён", bg: "rgba(239, 68, 68, 0.2)", text: "#f87171", icon: "❌" },
+};
+
+// Возвращает следующее действие для заказа в зависимости от статуса и типа
+interface NextAction {
+  label: string;
+  toStatus: string;
+  color: string;
+  icon: string;
+}
+
+function getNextActions(order: Order): NextAction[] {
+  const actions: NextAction[] = [];
+  switch (order.status) {
+    case "pending":
+      actions.push({
+        label: "Принять",
+        toStatus: "confirmed",
+        color: "#3b82f6",
+        icon: "M5 13l4 4L19 7",
+      });
+      break;
+    case "confirmed":
+      actions.push({
+        label: "Готовится",
+        toStatus: "preparing",
+        color: "#f97316",
+        icon: "M3 12a9 9 0 0118 0 9 9 0 01-18 0zm9-5v5l3 3",
+      });
+      break;
+    case "preparing":
+      if (order.orderType === "delivery") {
+        actions.push({
+          label: "Передан курьеру",
+          toStatus: "delivering",
+          color: "#a855f7",
+          icon: "M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2",
+        });
+      } else {
+        actions.push({
+          label: "Готов",
+          toStatus: "ready",
+          color: "#22c55e",
+          icon: "M5 13l4 4L19 7",
+        });
+      }
+      break;
+    case "delivering":
+      actions.push({
+        label: "Завершить",
+        toStatus: "completed",
+        color: "#10b981",
+        icon: "M5 13l4 4L19 7",
+      });
+      break;
+    case "ready":
+      actions.push({
+        label: "Выдан клиенту",
+        toStatus: "completed",
+        color: "#10b981",
+        icon: "M5 13l4 4L19 7",
+      });
+      break;
+  }
+  return actions;
+}
+
+function canCancel(order: Order): boolean {
+  return ["pending", "confirmed", "preparing"].includes(order.status);
+}
+
+const fmtTime = (iso: string) => {
+  const date = new Date(iso);
+  return date.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const fmtRelative = (iso: string) => {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return "только что";
+  if (diff < 3600) return `${Math.floor(diff / 60)} мин назад`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} ч назад`;
+  return fmtTime(iso);
+};
+
+const getPaymentMethodText = (method: string) => {
+  const m: Record<string, string> = {
+    card: "💳 Карта",
+    online: "🌐 Онлайн",
+    finik: "📱 Finik",
+  };
+  return m[method] || method;
+};
+
+const POLL_INTERVAL = 15_000;
+
 export default function BranchOrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [newCount, setNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
   } | null>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, [search, statusFilter]);
+  // Звуковой сигнал при появлении нового заказа
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const lastNewOrderIdRef = useRef<string | null>(null);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
@@ -59,32 +177,66 @@ export default function BranchOrdersPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setOrders(data.orders);
+        const list: Order[] = data.orders || [];
+        setOrders(list);
+        setNewCount(data.newCount ?? 0);
+
+        // Проверяем появление нового pending заказа
+        const newest = list.find((o) => o.status === "pending");
+        if (
+          newest &&
+          lastNewOrderIdRef.current !== null &&
+          lastNewOrderIdRef.current !== newest.id
+        ) {
+          // Появился новый заказ — играем звук + показываем тост
+          try {
+            audioRef.current?.play().catch(() => {});
+          } catch {}
+          setToast({
+            message: `Поступил новый заказ ${newest.orderNumber}!`,
+            type: "info",
+          });
+        }
+        if (newest) {
+          lastNewOrderIdRef.current = newest.id;
+        } else if (lastNewOrderIdRef.current === null) {
+          // первый запуск — фиксируем чтобы не звенело
+          lastNewOrderIdRef.current = list[0]?.id ?? "";
+        }
       }
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchOrders(true);
+    const interval = setInterval(() => fetchOrders(false), POLL_INTERVAL);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, statusFilter]);
+
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
+      setUpdatingId(orderId);
       const response = await fetch("/api/branch/orders", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: orderId, status: newStatus }),
       });
-
+      const data = await response.json();
       if (response.ok) {
+        const meta = STATUS_META[newStatus];
         setToast({
-          message: "Статус заказа обновлён!",
+          message: `Статус: ${meta?.label ?? newStatus}`,
           type: "success",
         });
-        fetchOrders();
+        await fetchOrders(false);
       } else {
         setToast({
-          message: "Ошибка при обновлении статуса",
+          message: data.error || "Ошибка при обновлении статуса",
           type: "error",
         });
       }
@@ -94,42 +246,14 @@ export default function BranchOrdersPage() {
         message: "Ошибка сети. Попробуйте позже.",
         type: "error",
       });
+    } finally {
+      setUpdatingId(null);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, { bg: string; text: string; icon: string }> = {
-      pending: { bg: 'rgba(251, 191, 36, 0.2)', text: '#fbbf24', icon: '🟡' },
-      confirmed: { bg: 'rgba(59, 130, 246, 0.2)', text: '#3b82f6', icon: '🔵' },
-      preparing: { bg: 'rgba(249, 115, 22, 0.2)', text: '#f97316', icon: '🟠' },
-      ready: { bg: 'rgba(34, 197, 94, 0.2)', text: '#22c55e', icon: '🟢' },
-      delivering: { bg: 'rgba(168, 85, 247, 0.2)', text: '#a855f7', icon: '🚚' },
-      completed: { bg: 'rgba(16, 185, 129, 0.2)', text: '#10b981', icon: '✅' },
-      cancelled: { bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444', icon: '❌' },
-    };
-    return colors[status] || colors.pending;
-  };
-
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      pending: 'Новый',
-      confirmed: 'Подтверждён',
-      preparing: 'Готовится',
-      ready: 'Готов',
-      delivering: 'Доставляется',
-      completed: 'Завершён',
-      cancelled: 'Отменён',
-    };
-    return texts[status] || status;
-  };
-
-  const getPaymentMethodText = (method: string) => {
-    const methods: Record<string, string> = {
-      card: '💳 Карта',
-      online: '🌐 Онлайн',
-      finik: '📱 Finik',
-    };
-    return methods[method] || method;
+  const handleCancel = async (orderId: string) => {
+    if (!confirm("Отменить заказ?")) return;
+    await handleStatusChange(orderId, "cancelled");
   };
 
   const openDetailsModal = (order: Order) => {
@@ -143,238 +267,392 @@ export default function BranchOrdersPage() {
   };
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: '#0B0F14' }}>
+    <div className="p-8 min-h-screen" style={{ backgroundColor: "#0B0F14" }}>
+      <audio
+        ref={audioRef}
+        preload="auto"
+        src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+      />
+
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold tracking-tight" style={{ color: '#F3F5F7' }}>
-          Заказы
-        </h1>
-        <p className="font-medium mt-2" style={{ color: '#98A2B3' }}>
-          Управление заказами филиала
-        </p>
-      </div>
-
-      {/* Search and Filters - NEW STRUCTURE */}
-      <div className="rounded-2xl p-6 mb-6" style={{ backgroundColor: '#1A212B', border: '1px solid rgba(255,255,255,0.05)' }}>
-        <div className="flex flex-col gap-4">
-          {/* Row 1: Search + Filters Button */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Search */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg
-                  className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  style={{ color: '#98A2B3' }}
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Поиск по номеру, имени или телефону..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border"
-                  style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}
-                />
-              </div>
-            </div>
-
-            {/* Filters Button */}
-            <button
-              onClick={() => setShowFiltersMenu(!showFiltersMenu)}
-              className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center lg:justify-start"
-              style={{ 
-                backgroundColor: statusFilter !== "all" ? '#7C8CA5' : '#2A3442' 
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              Фильтры
-              <svg 
-                className="w-4 h-4 transition-transform duration-300" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-                style={{ transform: showFiltersMenu ? 'rotate(180deg)' : 'rotate(0deg)' }}
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Row 2: Expandable Filters Container */}
-          <div 
-            className="overflow-hidden transition-all duration-300 ease-in-out"
-            style={{ 
-              maxHeight: showFiltersMenu ? '1000px' : '0',
-              opacity: showFiltersMenu ? 1 : 0
+      <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
+        <div>
+          <h1
+            className="text-4xl font-bold tracking-tight"
+            style={{ color: "#F3F5F7" }}
+          >
+            Заказы
+          </h1>
+          <p className="font-medium mt-2" style={{ color: "#98A2B3" }}>
+            Управление заказами филиала
+          </p>
+        </div>
+        {newCount > 0 && (
+          <div
+            className="flex items-center gap-3 px-5 py-3 rounded-xl"
+            style={{
+              backgroundColor: "rgba(251, 191, 36, 0.15)",
+              border: "1px solid rgba(251, 191, 36, 0.3)",
             }}
           >
-            <div className="pt-4 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)' }}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold uppercase" style={{ color: '#98A2B3' }}>
-                  Фильтры
-                </h3>
-                {statusFilter !== "all" && (
-                  <button
-                    onClick={() => setStatusFilter("all")}
-                    className="text-xs font-bold px-3 py-1.5 rounded-lg transition-all"
-                    style={{ color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
-                  >
-                    Сбросить все
-                  </button>
-                )}
+            <div
+              className="w-3 h-3 rounded-full animate-pulse"
+              style={{ backgroundColor: "#fbbf24" }}
+            />
+            <div>
+              <div className="text-xs font-bold" style={{ color: "#98A2B3" }}>
+                Новых заказов
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* Status Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
-                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
-                    Статус заказа
-                  </label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
-                    style={{ backgroundColor: '#1A212B', borderColor: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <option value="all" style={{ backgroundColor: '#1A212B' }}>Все статусы</option>
-                    <option value="pending" style={{ backgroundColor: '#1A212B' }}>🟡 Новые</option>
-                    <option value="confirmed" style={{ backgroundColor: '#1A212B' }}>🔵 Подтверждённые</option>
-                    <option value="preparing" style={{ backgroundColor: '#1A212B' }}>🟠 Готовятся</option>
-                    <option value="ready" style={{ backgroundColor: '#1A212B' }}>🟢 Готовы</option>
-                    <option value="delivering" style={{ backgroundColor: '#1A212B' }}>🚚 Доставляются</option>
-                    <option value="completed" style={{ backgroundColor: '#1A212B' }}>✅ Завершённые</option>
-                    <option value="cancelled" style={{ backgroundColor: '#1A212B' }}>❌ Отменённые</option>
-                  </select>
-                </div>
+              <div className="text-2xl font-black" style={{ color: "#fbbf24" }}>
+                {newCount}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Orders List */}
-      <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: '#1A212B', border: '1px solid #202937' }}>
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 mx-auto" style={{ borderColor: '#202937', borderTopColor: '#7C8CA5' }}></div>
-            <p className="mt-4 font-semibold" style={{ color: '#98A2B3' }}>Загрузка...</p>
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="p-12 text-center">
-            <div className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6" style={{ backgroundColor: '#202937' }}>
-              <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#98A2B3' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-bold mb-2" style={{ color: '#F3F5F7' }}>Заказы не найдены</h3>
-            <p style={{ color: '#98A2B3' }}>Попробуйте изменить параметры поиска</p>
-          </div>
-        ) : (
-          <div className="p-6">
-            <div className="grid gap-4">
-              {orders.map((order) => {
-                const statusColor = getStatusColor(order.status);
-                return (
-                  <div
-                    key={order.id}
-                    className="rounded-xl p-6 transition-all cursor-pointer border"
-                    style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#7C8CA5';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#202937';
-                    }}
-                    onClick={() => openDetailsModal(order)}
-                  >
-                    <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                      {/* Order Number */}
-                      <div className="flex-shrink-0">
-                        <div className="text-2xl font-black" style={{ color: '#7C8CA5' }}>
-                          {order.orderNumber}
-                        </div>
-                        <div className="text-xs font-bold mt-1" style={{ color: '#98A2B3' }}>
-                          {new Date(order.createdAt).toLocaleString('ru-RU')}
-                        </div>
-                      </div>
-
-                      {/* Customer Info */}
-                      <div className="flex-1">
-                        <div className="font-bold text-white mb-1">{order.customerName}</div>
-                        <div className="text-sm font-bold" style={{ color: '#98A2B3' }}>{order.customerPhone}</div>
-                        <div className="text-sm mt-2" style={{ color: '#98A2B3' }}>
-                          {order.items.length} {order.items.length === 1 ? 'блюдо' : 'блюд'}
-                        </div>
-                      </div>
-
-                      {/* Amount */}
-                      <div className="flex-shrink-0">
-                        <div className="text-2xl font-black" style={{ color: '#F3F5F7' }}>
-                          {order.totalAmount} <span className="text-lg" style={{ color: '#98A2B3' }}>сом</span>
-                        </div>
-                        <div className="text-xs font-bold mt-1" style={{ color: '#98A2B3' }}>
-                          {getPaymentMethodText(order.paymentMethod)}
-                        </div>
-                      </div>
-
-                      {/* Status */}
-                      <div className="flex-shrink-0">
-                        <span 
-                          className="px-4 py-2 rounded-full text-sm font-bold inline-flex items-center gap-2"
-                          style={{ backgroundColor: statusColor.bg, color: statusColor.text }}
-                        >
-                          <span>{statusColor.icon}</span>
-                          {getStatusText(order.status)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
             </div>
           </div>
         )}
       </div>
 
+      {/* Search and Status Tabs */}
+      <div
+        className="rounded-2xl p-6 mb-6"
+        style={{
+          backgroundColor: "#1A212B",
+          border: "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        <div className="flex flex-col gap-4">
+          {/* Search */}
+          <div className="relative">
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              style={{ color: "#98A2B3" }}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              placeholder="Поиск по номеру, имени или телефону..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border"
+              style={{
+                backgroundColor: "#0B0F14",
+                borderColor: "rgba(255,255,255,0.05)",
+              }}
+            />
+          </div>
+
+          {/* Status tabs */}
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { value: "all", label: "Все" },
+                { value: "pending", label: "🟡 Новые" },
+                { value: "confirmed", label: "🔵 Подтверждённые" },
+                { value: "preparing", label: "🟠 Готовятся" },
+                { value: "ready", label: "🟢 Готовы" },
+                { value: "delivering", label: "🚚 У курьера" },
+                { value: "completed", label: "✅ Завершённые" },
+                { value: "cancelled", label: "❌ Отменённые" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatusFilter(tab.value)}
+                className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                style={{
+                  backgroundColor:
+                    statusFilter === tab.value ? "#7C8CA5" : "#0B0F14",
+                  color: statusFilter === tab.value ? "#fff" : "#98A2B3",
+                  border: `1px solid ${statusFilter === tab.value ? "#7C8CA5" : "#2A3442"}`,
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Orders List */}
+      {loading ? (
+        <div
+          className="p-12 text-center rounded-2xl"
+          style={{ backgroundColor: "#1A212B", border: "1px solid #202937" }}
+        >
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-4 mx-auto"
+            style={{ borderColor: "#202937", borderTopColor: "#7C8CA5" }}
+          ></div>
+          <p className="mt-4 font-semibold" style={{ color: "#98A2B3" }}>
+            Загрузка...
+          </p>
+        </div>
+      ) : orders.length === 0 ? (
+        <div
+          className="p-12 text-center rounded-2xl"
+          style={{ backgroundColor: "#1A212B", border: "1px solid #202937" }}
+        >
+          <div
+            className="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6"
+            style={{ backgroundColor: "#202937" }}
+          >
+            <svg
+              className="w-10 h-10"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              style={{ color: "#98A2B3" }}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+              />
+            </svg>
+          </div>
+          <h3
+            className="text-xl font-bold mb-2"
+            style={{ color: "#F3F5F7" }}
+          >
+            Заказы не найдены
+          </h3>
+          <p style={{ color: "#98A2B3" }}>
+            Попробуйте изменить параметры поиска
+          </p>
+        </div>
+      ) : (
+        <div className="grid gap-4">
+          {orders.map((order) => {
+            const statusMeta = STATUS_META[order.status] ?? STATUS_META.pending;
+            const actions = getNextActions(order);
+            const isUpdating = updatingId === order.id;
+            const isNew = order.status === "pending";
+            return (
+              <div
+                key={order.id}
+                className="rounded-2xl p-6 transition-all"
+                style={{
+                  backgroundColor: "#1A212B",
+                  border: `1px solid ${isNew ? "rgba(251, 191, 36, 0.4)" : "#202937"}`,
+                  boxShadow: isNew
+                    ? "0 0 0 3px rgba(251, 191, 36, 0.08)"
+                    : undefined,
+                }}
+              >
+                <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+                  {/* Order Number / Time */}
+                  <div className="flex-shrink-0 lg:w-44">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div
+                        className="text-xl font-black"
+                        style={{ color: "#7C8CA5" }}
+                      >
+                        {order.orderNumber}
+                      </div>
+                      {isNew && (
+                        <span
+                          className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded animate-pulse"
+                          style={{
+                            backgroundColor: "#fbbf24",
+                            color: "#000",
+                          }}
+                        >
+                          NEW
+                        </span>
+                      )}
+                    </div>
+                    <div
+                      className="text-xs font-bold"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {fmtRelative(order.createdAt)}
+                    </div>
+                    <div
+                      className="text-xs mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md"
+                      style={{
+                        backgroundColor: "#0B0F14",
+                        color: "#98A2B3",
+                      }}
+                    >
+                      {order.orderType === "delivery" ? "🚚 Доставка" : "🏪 Самовывоз"}
+                    </div>
+                  </div>
+
+                  {/* Customer Info */}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-bold text-white mb-1 truncate">
+                      {order.customerName}
+                    </div>
+                    <div
+                      className="text-sm font-bold"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {order.customerPhone}
+                    </div>
+                    <div className="text-sm mt-2" style={{ color: "#98A2B3" }}>
+                      {order.items.length}{" "}
+                      {order.items.length === 1 ? "блюдо" : "блюд"} · {" "}
+                      {order.items.reduce((s, i) => s + i.quantity, 0)} шт.
+                    </div>
+                    {order.customerComment && (
+                      <div
+                        className="text-xs mt-2 italic line-clamp-2"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        💬 {order.customerComment.split("\n")[0]}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Amount + payment */}
+                  <div className="flex-shrink-0 text-right">
+                    <div
+                      className="text-2xl font-black"
+                      style={{ color: "#F3F5F7" }}
+                    >
+                      {order.totalAmount}
+                      <span
+                        className="text-base ml-1"
+                        style={{ color: "#98A2B3" }}
+                      >
+                        сом
+                      </span>
+                    </div>
+                    <div
+                      className="text-xs font-bold mt-1"
+                      style={{ color: "#98A2B3" }}
+                    >
+                      {getPaymentMethodText(order.paymentMethod)}
+                    </div>
+                  </div>
+
+                  {/* Status badge */}
+                  <div className="flex-shrink-0">
+                    <span
+                      className="px-3 py-1.5 rounded-full text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap"
+                      style={{
+                        backgroundColor: statusMeta.bg,
+                        color: statusMeta.text,
+                      }}
+                    >
+                      <span>{statusMeta.icon}</span>
+                      {statusMeta.label}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div
+                  className="flex flex-wrap items-center gap-2 mt-4 pt-4"
+                  style={{ borderTop: "1px solid #202937" }}
+                >
+                  {actions.map((action) => (
+                    <button
+                      key={action.toStatus}
+                      onClick={() => handleStatusChange(order.id, action.toStatus)}
+                      disabled={isUpdating}
+                      className="flex-1 lg:flex-initial px-5 py-2.5 rounded-lg font-bold text-sm transition-all disabled:opacity-50 inline-flex items-center justify-center gap-2 text-white"
+                      style={{
+                        backgroundColor: action.color,
+                      }}
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d={action.icon}
+                        />
+                      </svg>
+                      {action.label}
+                    </button>
+                  ))}
+
+                  {canCancel(order) && (
+                    <button
+                      onClick={() => handleCancel(order.id)}
+                      disabled={isUpdating}
+                      className="px-4 py-2.5 rounded-lg font-bold text-sm transition-all disabled:opacity-50"
+                      style={{
+                        backgroundColor: "rgba(239, 68, 68, 0.1)",
+                        color: "#ef4444",
+                        border: "1px solid rgba(239, 68, 68, 0.3)",
+                      }}
+                    >
+                      Отменить
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => openDetailsModal(order)}
+                    className="px-4 py-2.5 rounded-lg font-bold text-sm transition-all"
+                    style={{
+                      backgroundColor: "#0B0F14",
+                      color: "#98A2B3",
+                      border: "1px solid #2A3442",
+                      marginLeft: "auto",
+                    }}
+                  >
+                    Подробнее
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* Order Details Modal */}
       {showDetailsModal && selectedOrder && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#1A212B' }}>
-            <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
+          <div
+            className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: "#1A212B" }}
+          >
+            <div className="p-6 border-b" style={{ borderColor: "#202937" }}>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-2xl font-bold" style={{ color: '#7C8CA5' }}>
+                  <h3
+                    className="text-2xl font-bold"
+                    style={{ color: "#7C8CA5" }}
+                  >
                     Заказ {selectedOrder.orderNumber}
                   </h3>
-                  <p className="text-sm mt-1" style={{ color: '#98A2B3' }}>
-                    {new Date(selectedOrder.createdAt).toLocaleString('ru-RU')}
+                  <p className="text-sm mt-1" style={{ color: "#98A2B3" }}>
+                    {fmtTime(selectedOrder.createdAt)}
                   </p>
                 </div>
-                <button onClick={closeDetailsModal} className="p-2 rounded-lg transition-all" style={{ color: '#98A2B3' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#202937';
-                    e.currentTarget.style.color = 'white';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = '#98A2B3';
-                  }}
+                <button
+                  onClick={closeDetailsModal}
+                  className="p-2 rounded-lg transition-all"
+                  style={{ color: "#98A2B3" }}
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
@@ -383,20 +661,48 @@ export default function BranchOrdersPage() {
             <div className="p-6 space-y-6">
               {/* Customer Info */}
               <div>
-                <h4 className="text-sm font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>Информация о клиенте</h4>
-                <div className="rounded-xl p-4 space-y-2" style={{ backgroundColor: '#0B0F14', border: '1px solid #202937' }}>
+                <h4
+                  className="text-sm font-bold uppercase mb-3"
+                  style={{ color: "#98A2B3" }}
+                >
+                  Информация о клиенте
+                </h4>
+                <div
+                  className="rounded-xl p-4 space-y-2"
+                  style={{
+                    backgroundColor: "#0B0F14",
+                    border: "1px solid #202937",
+                  }}
+                >
                   <div className="flex justify-between">
-                    <span style={{ color: '#98A2B3' }}>Имя:</span>
-                    <span className="font-bold text-white">{selectedOrder.customerName}</span>
+                    <span style={{ color: "#98A2B3" }}>Имя:</span>
+                    <span className="font-bold text-white">
+                      {selectedOrder.customerName}
+                    </span>
                   </div>
                   <div className="flex justify-between">
-                    <span style={{ color: '#98A2B3' }}>Телефон:</span>
-                    <span className="font-bold text-white">{selectedOrder.customerPhone}</span>
+                    <span style={{ color: "#98A2B3" }}>Телефон:</span>
+                    <span className="font-bold text-white">
+                      {selectedOrder.customerPhone}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span style={{ color: "#98A2B3" }}>Тип:</span>
+                    <span className="font-bold text-white">
+                      {selectedOrder.orderType === "delivery"
+                        ? "🚚 Доставка"
+                        : "🏪 Самовывоз"}
+                    </span>
                   </div>
                   {selectedOrder.customerComment && (
-                    <div className="pt-2 border-t" style={{ borderColor: '#202937' }}>
-                      <span style={{ color: '#98A2B3' }}>Комментарий:</span>
-                      <p className="font-bold text-white mt-1">{selectedOrder.customerComment}</p>
+                    <div
+                      className="pt-2 border-t"
+                      style={{ borderColor: "#202937" }}
+                    >
+                      <span style={{ color: "#98A2B3" }}>Комментарий:</span>
+                      <p className="font-bold text-white mt-1 whitespace-pre-line">
+                        {selectedOrder.customerComment}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -404,18 +710,53 @@ export default function BranchOrdersPage() {
 
               {/* Order Items */}
               <div>
-                <h4 className="text-sm font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>Состав заказа</h4>
+                <h4
+                  className="text-sm font-bold uppercase mb-3"
+                  style={{ color: "#98A2B3" }}
+                >
+                  Состав заказа
+                </h4>
                 <div className="space-y-2">
                   {selectedOrder.items.map((item) => (
-                    <div key={item.id} className="rounded-xl p-4 flex justify-between items-center" style={{ backgroundColor: '#0B0F14', border: '1px solid #202937' }}>
-                      <div>
-                        <div className="font-bold text-white">{item.itemName ?? item.menuItem?.name ?? item.comboOffer?.name ?? ''}</div>
-                        <div className="text-sm" style={{ color: '#98A2B3' }}>
-                          {item.quantity} x {item.unitPrice} сом
+                    <div
+                      key={item.id}
+                      className="rounded-xl p-4"
+                      style={{
+                        backgroundColor: "#0B0F14",
+                        border: "1px solid #202937",
+                      }}
+                    >
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-bold text-white">
+                            {item.itemName ??
+                              item.menuItem?.name ??
+                              item.comboOffer?.name ??
+                              ""}
+                          </div>
+                          <div
+                            className="text-sm mt-0.5"
+                            style={{ color: "#98A2B3" }}
+                          >
+                            {item.quantity} × {item.unitPrice} сом
+                          </div>
+                          {item.modifiers && item.modifiers.length > 0 && (
+                            <div
+                              className="text-xs mt-2"
+                              style={{ color: "#98A2B3" }}
+                            >
+                              {item.modifiers
+                                .map((m) => m.modifierOption.name)
+                                .join(", ")}
+                            </div>
+                          )}
                         </div>
-                      </div>
-                      <div className="text-lg font-black" style={{ color: '#7C8CA5' }}>
-                        {item.totalPrice} сом
+                        <div
+                          className="text-lg font-black shrink-0"
+                          style={{ color: "#7C8CA5" }}
+                        >
+                          {item.totalPrice} сом
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -423,33 +764,53 @@ export default function BranchOrdersPage() {
               </div>
 
               {/* Total */}
-              <div className="rounded-xl p-4 flex justify-between items-center" style={{ backgroundColor: '#0B0F14', border: '1px solid #202937' }}>
+              <div
+                className="rounded-xl p-4 flex justify-between items-center"
+                style={{
+                  backgroundColor: "#0B0F14",
+                  border: "1px solid #202937",
+                }}
+              >
                 <span className="text-lg font-bold text-white">ИТОГО:</span>
-                <span className="text-2xl font-black" style={{ color: '#7C8CA5' }}>
+                <span
+                  className="text-2xl font-black"
+                  style={{ color: "#7C8CA5" }}
+                >
                   {selectedOrder.totalAmount} сом
                 </span>
               </div>
 
-              {/* Status Change */}
-              <div>
-                <h4 className="text-sm font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>Изменить статус</h4>
-                <select
-                  value={selectedOrder.status}
-                  onChange={(e) => {
-                    handleStatusChange(selectedOrder.id, e.target.value);
-                    closeDetailsModal();
-                  }}
-                  className="w-full px-4 py-3 rounded-xl text-white focus:outline-none transition-all border"
-                  style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }}
-                >
-                  <option value="pending" style={{ backgroundColor: '#1A212B' }}>🟡 Новый</option>
-                  <option value="confirmed" style={{ backgroundColor: '#1A212B' }}>🔵 Подтверждён</option>
-                  <option value="preparing" style={{ backgroundColor: '#1A212B' }}>🟠 Готовится</option>
-                  <option value="ready" style={{ backgroundColor: '#1A212B' }}>🟢 Готов</option>
-                  <option value="delivering" style={{ backgroundColor: '#1A212B' }}>🚚 Доставляется</option>
-                  <option value="completed" style={{ backgroundColor: '#1A212B' }}>✅ Завершён</option>
-                  <option value="cancelled" style={{ backgroundColor: '#1A212B' }}>❌ Отменён</option>
-                </select>
+              {/* Quick actions in modal */}
+              <div className="flex flex-wrap gap-2">
+                {getNextActions(selectedOrder).map((action) => (
+                  <button
+                    key={action.toStatus}
+                    onClick={() => {
+                      handleStatusChange(selectedOrder.id, action.toStatus);
+                      closeDetailsModal();
+                    }}
+                    className="flex-1 px-5 py-3 rounded-xl font-bold text-sm transition-all text-white"
+                    style={{ backgroundColor: action.color }}
+                  >
+                    {action.label}
+                  </button>
+                ))}
+                {canCancel(selectedOrder) && (
+                  <button
+                    onClick={() => {
+                      handleCancel(selectedOrder.id);
+                      closeDetailsModal();
+                    }}
+                    className="px-4 py-3 rounded-xl font-bold text-sm"
+                    style={{
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      color: "#ef4444",
+                      border: "1px solid rgba(239, 68, 68, 0.3)",
+                    }}
+                  >
+                    Отменить
+                  </button>
+                )}
               </div>
             </div>
           </div>

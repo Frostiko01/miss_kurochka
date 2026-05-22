@@ -25,6 +25,7 @@ export default function Home() {
   const [comboDeals, setComboDeals] = useState<any[]>([])
   const [branches, setBranches] = useState<any[]>([])
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null)
+  const [nearestBranchDetected, setNearestBranchDetected] = useState(false)
   const [menuData, setMenuData] = useState<any>({ regular: [], combo: [], mini_combo: [] })
   const [selectedMenuItem, setSelectedMenuItem] = useState<any>(null)
   const [showItemModal, setShowItemModal] = useState(false)
@@ -58,10 +59,60 @@ export default function Home() {
   }, [status])
 
   useEffect(() => {
+    // Восстанавливаем сохранённый филиал из localStorage (только на клиенте, после гидрации)
+    const saved = localStorage.getItem('selectedBranchId')
+    if (saved) {
+      setSelectedBranch(saved)
+    } else {
+      // Нет сохранённого — определяем по геолокации
+      detectNearestBranch()
+    }
     fetchCombos()
     fetchBranches()
-    fetchMenu()
   }, [])
+
+  // Сохраняем выбранный филиал в localStorage при каждом изменении
+  useEffect(() => {
+    if (selectedBranch) {
+      localStorage.setItem('selectedBranchId', selectedBranch)
+    }
+  }, [selectedBranch])
+
+  // Определяем ближайший филиал по геолокации браузера
+  const detectNearestBranch = () => {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch('/api/branches/nearest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+            }),
+          })
+          const data = await res.json()
+          if (res.ok && data.branch?.id) {
+            setSelectedBranch(data.branch.id)
+            setNearestBranchDetected(true)
+          }
+        } catch (e) {
+          console.error('Ошибка определения филиала:', e)
+        }
+      },
+      () => {
+        // Геолокация отклонена — меню загрузится без фильтра стоп-листа
+        // Стоп-лист применится при оформлении заказа
+      },
+      { timeout: 5000, maximumAge: 300000 }
+    )
+  }
+
+  // fetchMenu вызывается при монтировании и при смене филиала
+  useEffect(() => {
+    fetchMenu()
+  }, [selectedBranch])
 
   // Подгружаем корзину при логине
   useEffect(() => {
@@ -75,11 +126,6 @@ export default function Home() {
       .then(data => { if (data?.cart) syncCart(data.cart) })
       .catch(() => {})
   }, [session])
-
-  useEffect(() => {
-    if (selectedBranch) fetchMenu()
-  }, [selectedBranch])
-
   const fetchBranches = async () => {
     try {
       const response = await fetch('/api/branches')
@@ -93,11 +139,17 @@ export default function Home() {
   const fetchMenu = async () => {
     try {
       const params = new URLSearchParams()
-      if (selectedBranch) params.append('branchId', selectedBranch)
+      if (selectedBranch) {
+        params.append('branchId', selectedBranch)
+      }
       const response = await fetch(`/api/menu?${params}`)
       const data = await response.json()
       if (response.ok) {
         setMenuData(data.grouped)
+        // Если API вернул resolvedBranchId (определил ближайший по координатам) — запоминаем
+        if (data.resolvedBranchId && !selectedBranch) {
+          setSelectedBranch(data.resolvedBranchId)
+        }
         const allCats = [...data.grouped.regular, ...data.grouped.combo, ...data.grouped.mini_combo]
         if (allCats.length > 0) {
           const categoryWithItems = allCats.find((cat) => cat.items && cat.items.length > 0)
@@ -207,7 +259,7 @@ export default function Home() {
           .slice(0, FEATURED_LIMIT - featuredItems.length),
       ]
 
-  const addToCart = async (menuItemId?: string, modifiers?: string[], quantity?: number) => {
+  const addToCart = async (menuItemId?: string, modifiers?: string[], quantity?: number, sizeId?: string | null, spices?: string[]) => {
     if (!session) {
       setShowAuthModal(true)
       return
@@ -221,6 +273,8 @@ export default function Home() {
           menuItemId,
           quantity: quantity || 1,
           modifiers: modifiers || [],
+          spices: spices || [],
+          sizeId: sizeId ?? null,
           branchId: selectedBranch,
         }),
       })
@@ -264,7 +318,11 @@ export default function Home() {
       setShowAuthModal(true)
       return
     }
-    if (item.modifiers && item.modifiers.length > 0) {
+    // Открываем модальное окно если есть модификаторы, специи или несколько размеров
+    const hasModifiers = item.modifiers && item.modifiers.length > 0
+    const hasSpices = item.spices && item.spices.length > 0
+    const hasSizes = item.sizes && item.sizes.length > 0
+    if (hasModifiers || hasSpices || hasSizes) {
       setSelectedMenuItem(item)
       setShowItemModal(true)
     } else {
@@ -369,18 +427,26 @@ export default function Home() {
           {/* Right side */}
           <div className="flex items-center gap-2">
             {branches.length > 0 && (
-              <select
-                value={selectedBranch || ''}
-                onChange={(e) => setSelectedBranch(e.target.value || null)}
-                className="hidden md:block select max-w-[180px] py-2 text-sm"
-              >
-                <option value="">Все филиалы</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
+              <div className="relative flex items-center">
+                {nearestBranchDetected && selectedBranch && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 z-10" title="Ближайший филиал определён автоматически" />
+                )}
+                <select
+                  value={selectedBranch || ''}
+                  onChange={(e) => {
+                    setSelectedBranch(e.target.value || null)
+                    setNearestBranchDetected(false)
+                  }}
+                  className="select max-w-[160px] sm:max-w-[180px] py-2 text-sm"
+                >
+                  <option value="">Все филиалы</option>
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
 
             <LanguageSwitcher
@@ -705,33 +771,32 @@ export default function Home() {
 
               const scrollBy = (dir: 'left' | 'right') => {
                 menuScrollRef.current?.scrollBy({
-                  left: dir === 'right' ? 320 : -320,
+                  left: dir === 'right' ? 420 : -420,
                   behavior: 'smooth',
                 })
               }
 
               return (
-                <div className="relative group/menu">
+                <div className="relative">
                   {/* Стрелка влево */}
                   <button
                     onClick={() => scrollBy('left')}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition opacity-0 group-hover/menu:opacity-100 hidden sm:flex"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition hidden sm:flex"
                     aria-label="Назад"
                   >
-                    <ChevronRight className="w-5 h-5 rotate-180" />
+                    <ChevronRight className="w-4 h-4 rotate-180" />
                   </button>
 
-                  {/* Скролл-контейнер */}
+                  {/* Скролл-контейнер — 2 ряда горизонтально */}
                   <div
                     ref={menuScrollRef}
-                    className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 snap-x snap-mandatory"
-                    style={{ scrollBehavior: 'smooth' }}
+                    className="grid grid-rows-2 grid-flow-col gap-4 overflow-x-auto pb-3 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0"
+                    style={{ scrollBehavior: 'smooth', gridAutoColumns: 'max-content' }}
                   >
                     {displayItems.map((item: any, idx: number) => (
                       <article
                         key={item.id}
-                        className="card card-hover flex-shrink-0 w-[200px] sm:w-[220px] overflow-hidden flex flex-col animate-fade-in cursor-pointer group snap-start"
-                        style={{ animationDelay: `${idx * 40}ms` }}
+                        className="card card-hover w-[180px] sm:w-[200px] overflow-hidden flex flex-col cursor-pointer group"
                         onClick={() => handleItemClick(item)}
                       >
                         <div className="aspect-[4/3] relative overflow-hidden bg-[var(--bg-muted)]">
@@ -757,11 +822,11 @@ export default function Home() {
                             {item.name}
                           </h3>
                           {item.description && (
-                            <p className="text-[11px] text-[var(--fg-subtle)] mb-2 line-clamp-2">
+                            <p className="text-[11px] text-[var(--fg-subtle)] mb-2 line-clamp-1">
                               {item.description}
                             </p>
                           )}
-                          {/* Размеры — показываем кнопки если их больше одного */}
+                          {/* Размеры */}
                           {item.sizes && item.sizes.length > 1 ? (
                             <div className="flex flex-wrap gap-1 mb-2">
                               {item.sizes.map((size: any, si: number) => (
@@ -829,10 +894,10 @@ export default function Home() {
                   {/* Стрелка вправо */}
                   <button
                     onClick={() => scrollBy('right')}
-                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 z-10 w-10 h-10 rounded-full bg-white shadow-lg border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition opacity-0 group-hover/menu:opacity-100 hidden sm:flex"
+                    className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1 z-10 w-9 h-9 rounded-full bg-white shadow-md border border-[var(--border)] flex items-center justify-center text-[var(--fg)] hover:bg-[var(--brand)] hover:text-white hover:border-[var(--brand)] transition hidden sm:flex"
                     aria-label="Вперёд"
                   >
-                    <ChevronRight className="w-5 h-5" />
+                    <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
               )

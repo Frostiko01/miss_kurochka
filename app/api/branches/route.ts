@@ -1,42 +1,49 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = "force-dynamic";
+
 // GET /api/branches - Получить все активные филиалы
 export async function GET() {
   try {
     const branches = await prisma.branch.findMany({
-      where: {
-        status: 'active',
-      },
-      include: {
+      where: { status: 'active' },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        phone: true,
+        city: true,
+        averageCookingTime: true,
+        minOrderAmount: true,
         schedules: {
-          orderBy: {
-            dayOfWeek: 'asc',
+          orderBy: { dayOfWeek: 'asc' },
+          select: {
+            id: true,
+            dayOfWeek: true,
+            openTime: true,
+            closeTime: true,
           },
         },
         deliveryZones: {
-          where: {
-            isActive: true,
+          where: { isActive: true },
+          select: {
+            id: true,
+            name: true,
+            deliveryFee: true,
+            minOrderAmount: true,
+            estimatedMinutes: true,
           },
         },
       },
-      orderBy: {
-        name: 'asc',
-      },
+      orderBy: { name: 'asc' },
     })
 
-    return NextResponse.json({
-      success: true,
-      data: branches,
-    })
+    const response = NextResponse.json({ success: true, branches, data: branches })
+    response.headers.set('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600')
+    return response
   } catch (error) {
     console.error('Error fetching branches:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch branches',
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, error: 'Failed to fetch branches' }, { status: 500 })
   }
 }

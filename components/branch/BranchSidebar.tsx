@@ -10,6 +10,7 @@ interface MenuItem {
   icon: string;
   href: string;
   badge?: number;
+  badgeKey?: "newOrders";
 }
 
 const menuItems: MenuItem[] = [
@@ -24,6 +25,7 @@ const menuItems: MenuItem[] = [
     nameRu: "Заказы",
     icon: "M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z",
     href: "/branch/orders",
+    badgeKey: "newOrders",
   },
   {
     name: "Menu",
@@ -49,6 +51,12 @@ const menuItems: MenuItem[] = [
     icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636",
     href: "/branch/stop-list",
   },
+  {
+    name: "Reports",
+    nameRu: "Отчеты",
+    icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+    href: "/branch/reports",
+  },
 ];
 
 export default function BranchSidebar({ onCollapsedChange }: { onCollapsedChange?: (collapsed: boolean) => void }) {
@@ -56,12 +64,32 @@ export default function BranchSidebar({ onCollapsedChange }: { onCollapsedChange
   const router = useRouter();
   const { data: session } = useSession();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [newOrdersCount, setNewOrdersCount] = useState(0);
 
   useEffect(() => {
     if (onCollapsedChange) {
       onCollapsedChange(isCollapsed);
     }
   }, [isCollapsed, onCollapsedChange]);
+
+  // Polling количества новых заказов
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCount = async () => {
+      try {
+        const res = await fetch("/api/branch/orders?status=pending&limit=1");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setNewOrdersCount(data.newCount ?? 0);
+      } catch {}
+    };
+    fetchCount();
+    const interval = setInterval(fetchCount, 15_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/branch/signin" });
@@ -127,6 +155,9 @@ export default function BranchSidebar({ onCollapsedChange }: { onCollapsedChange
         <nav className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-track-transparent" style={{ marginTop: '56px' }}>
           {menuItems.map((item) => {
             const isActive = pathname === item.href;
+            const badgeValue =
+              item.badgeKey === "newOrders" ? newOrdersCount : item.badge;
+            const showBadge = !!badgeValue && badgeValue > 0;
             return (
               <button
                 key={item.href}
@@ -178,28 +209,30 @@ export default function BranchSidebar({ onCollapsedChange }: { onCollapsedChange
                     <span className="text-sm flex-1 text-left">
                       {item.nameRu}
                     </span>
-                    {item.badge && (
+                    {showBadge && (
                       <span 
-                        className="text-white text-xs font-bold px-2 py-1"
+                        className={`text-white text-xs font-bold px-2 py-1 ${item.badgeKey === "newOrders" ? "animate-pulse" : ""}`}
                         style={{ 
-                          background: '#7C8CA5',
+                          background: item.badgeKey === "newOrders" ? '#fbbf24' : '#7C8CA5',
+                          color: item.badgeKey === "newOrders" ? '#000' : '#fff',
                           borderRadius: '6px'
                         }}
                       >
-                        {item.badge}
+                        {badgeValue && badgeValue > 99 ? '99+' : badgeValue}
                       </span>
                     )}
                   </>
                 )}
-                {isCollapsed && item.badge && (
+                {isCollapsed && showBadge && (
                   <span 
-                    className="absolute -top-1 -right-1 text-white text-xs font-bold w-5 h-5 flex items-center justify-center"
+                    className={`absolute -top-1 -right-1 text-xs font-bold w-5 h-5 flex items-center justify-center ${item.badgeKey === "newOrders" ? "animate-pulse" : ""}`}
                     style={{ 
-                      background: '#7C8CA5',
+                      background: item.badgeKey === "newOrders" ? '#fbbf24' : '#7C8CA5',
+                      color: item.badgeKey === "newOrders" ? '#000' : '#fff',
                       borderRadius: '6px'
                     }}
                   >
-                    {item.badge}
+                    {badgeValue && badgeValue > 9 ? '9+' : badgeValue}
                   </span>
                 )}
               </button>

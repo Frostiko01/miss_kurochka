@@ -36,6 +36,8 @@ export default function CheckoutPage() {
     floor: '',
     intercom: '',
     comment: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
   })
 
   useEffect(() => {
@@ -144,7 +146,7 @@ export default function CheckoutPage() {
         setAddresses([...addresses, data.address])
         setSelectedAddress(data.address.id)
         setShowNewAddress(false)
-        setNewAddress({ addressLine: '', apartment: '', entrance: '', floor: '', intercom: '', comment: '' })
+        setNewAddress({ addressLine: '', apartment: '', entrance: '', floor: '', intercom: '', comment: '', latitude: null, longitude: null })
       } else {
         alert(data.error || 'Ошибка')
       }
@@ -343,8 +345,8 @@ export default function CheckoutPage() {
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">Оплата картой</p>
-                  <p className="text-xs text-[var(--fg-muted)]">Все виды банковских карт</p>
+                  <p className="text-sm font-bold">Оплата при получении</p>
+                  <p className="text-xs text-[var(--fg-muted)]">Наличными или картой курьеру</p>
                 </div>
               </div>
             </div>

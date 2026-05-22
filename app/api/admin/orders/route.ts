@@ -32,53 +32,59 @@ export async function GET(request: NextRequest) {
       where.branchId = branchId;
     }
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            phone: true,
-          },
-        },
-        deliveryAddress: true,
-        customer: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-          },
-        },
-        items: {
-          include: {
-            menuItem: {
-              select: {
-                name: true,
-              },
+    const [orders, newCount] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              address: true,
+              phone: true,
             },
-            comboOffer: true,
-            modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    name: true,
-                    priceDelta: true,
+          },
+          customer: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
+            },
+          },
+          items: {
+            include: {
+              menuItem: {
+                select: {
+                  name: true,
+                },
+              },
+              comboOffer: true,
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      name: true,
+                      priceDelta: true,
+                    },
                   },
                 },
               },
             },
           },
+          payments: true,
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 200,
+      }),
+      prisma.order.count({
+        where: { status: { in: ["pending", "confirmed"] } },
+      }),
+    ]);
 
-    return NextResponse.json({ orders });
+    return NextResponse.json({ orders, newCount });
   } catch (error) {
     console.error("Error fetching orders:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

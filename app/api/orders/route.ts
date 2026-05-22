@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
+import { notifyNewOrder } from '@/lib/notifications'
+import { pickBestBranch } from '@/lib/branchSelector'
 
 // POST /api/orders - Создать новый заказ
 export async function POST(request: NextRequest) {
@@ -19,7 +21,62 @@ export async function POST(request: NextRequest) {
       orderType,
       paymentMethod,
       deliveryAddressId,
+      pickupBranchId,
     } = body
+
+    // Если это доставка и указан адрес, получаем его (с координатами)
+    let deliveryAddressText = ''
+    let deliveryCoord: { lat: number; lng: number } | null = null
+    let rawAddressLine: string | null = null
+    if (orderType === 'delivery' && deliveryAddressId) {
+      const address = await prisma.deliveryAddress.findUnique({
+        where: { id: deliveryAddressId },
+        select: {
+          addressLine: true,
+          apartment: true,
+          entrance: true,
+          floor: true,
+          intercom: true,
+          comment: true,
+          latitude: true,
+          longitude: true,
+        },
+      })
+      if (address) {
+        rawAddressLine = address.addressLine
+        if (address.latitude !== null && address.longitude !== null) {
+          deliveryCoord = {
+            lat: Number(address.latitude),
+            lng: Number(address.longitude),
+          }
+        }
+        // Если у сохранённого адреса нет координат — геокодируем сразу
+        // и сохраняем координаты в БД для будущих заказов
+        if (!deliveryCoord && address.addressLine) {
+          const { geocodeAddress } = await import('@/lib/branchSelector')
+          const geocoded = await geocodeAddress(address.addressLine)
+          if (geocoded) {
+            deliveryCoord = geocoded
+            // Обновляем адрес с координатами чтобы следующий заказ был быстрее
+            await prisma.deliveryAddress.update({
+              where: { id: deliveryAddressId },
+              data: { latitude: geocoded.lat, longitude: geocoded.lng },
+            }).catch(() => {}) // best-effort
+          }
+        }
+        deliveryAddressText = `\n📍 Адрес доставки: ${address.addressLine}`
+        if (address.apartment) deliveryAddressText += `, кв. ${address.apartment}`
+        if (address.entrance) deliveryAddressText += `, под. ${address.entrance}`
+        if (address.floor) deliveryAddressText += `, эт. ${address.floor}`
+        if (address.intercom) deliveryAddressText += `, домофон: ${address.intercom}`
+        if (address.comment) deliveryAddressText += `\n💬 ${address.comment}`
+      }
+    }
+
+    // Объединяем комментарий пользователя с адресом
+    const finalComment = customerComment
+      ? `${customerComment}${deliveryAddressText}`
+      : deliveryAddressText || null
 
     // Получаем корзину пользователя
     const cart = await prisma.cart.findUnique({
@@ -38,6 +95,11 @@ export async function POST(request: NextRequest) {
                 modifierOption: true,
               },
             },
+            spices: {
+              include: {
+                spice: true,
+              },
+            },
           },
         },
         branch: true,
@@ -51,23 +113,67 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const branchId = cart.branchId
+    let branchId = cart.branchId
     const customerId = session.user.id
 
+    console.log('📦 Создание заказа:', {
+      cartBranchId: cart.branchId,
+      customerName,
+      customerPhone,
+      orderType,
+      pickupBranchId,
+      deliveryCoord,
+    })
+
+    // Подбор филиала:
+    // - pickup: используем филиал, выбранный пользователем
+    // - delivery: ближайший филиал по координатам адреса (или по геокодированию текста)
+    const picked = await pickBestBranch({
+      preferredBranchId: orderType === 'pickup' ? pickupBranchId ?? null : null,
+      customerCoord: orderType === 'delivery' ? deliveryCoord : null,
+      addressText: orderType === 'delivery' ? rawAddressLine : null,
+    })
+
+    if (picked) {
+      branchId = picked.branchId
+      console.log(
+        `✅ Выбран филиал ${picked.branchId} (${picked.reason}` +
+          (picked.distanceKm !== undefined
+            ? `, ${picked.distanceKm.toFixed(2)} км`
+            : '') +
+          ')',
+      )
+
+      // Обновляем корзину, чтобы стоп-лист и остальная логика были консистентны
+      if (cart.branchId !== branchId) {
+        await prisma.cart.update({
+          where: { id: cart.id },
+          data: { branchId },
+        })
+      }
+    }
+
     // Валидация
-    if (!branchId || !customerName || !customerPhone) {
+    if (!branchId) {
       return NextResponse.json(
-        { error: 'Не указаны обязательные поля' },
+        { error: 'Не удалось определить филиал. Пожалуйста, попробуйте снова.' },
+        { status: 400 }
+      )
+    }
+    
+    if (!customerName) {
+      return NextResponse.json(
+        { error: 'Не указано имя клиента' },
         { status: 400 }
       )
     }
 
-    // Проверяем адрес доставки если тип заказа - доставка
-    if (orderType === 'delivery' && !deliveryAddressId) {
-      return NextResponse.json(
-        { error: 'Не указан адрес доставки' },
-        { status: 400 }
-      )
+    // Если телефон не указан, используем значение по умолчанию
+    const phone = customerPhone || 'Не указан'
+
+    // Проверяем адрес доставки если тип заказа - доставка (необязательно, сохраняется в комментарии)
+    if (orderType === 'delivery' && !deliveryAddressId && !customerComment) {
+      console.log('⚠️ Заказ на доставку без указания адреса')
     }
 
     // Проверяем стоп-лист филиала только для обычных блюд
@@ -146,10 +252,13 @@ export async function POST(request: NextRequest) {
       }
 
       let unitPrice = 0
-      // Берём цену первого размера (дефолтного)
-      const firstSize = (menuItem as any).sizes?.[0]
-      if (firstSize) {
-        unitPrice = Number(firstSize.price)
+      // Берём цену выбранного размера (из sizeId позиции корзины)
+      const sizes = (menuItem as any).sizes ?? []
+      const selectedSize = cartItem.sizeId
+        ? sizes.find((s: any) => s.id === cartItem.sizeId) ?? sizes[0]
+        : sizes[0]
+      if (selectedSize) {
+        unitPrice = Number(selectedSize.price)
       }
       const modifiersData = []
 
@@ -163,12 +272,26 @@ export async function POST(request: NextRequest) {
         })
       }
 
+      // Добавляем стоимость специй (каждая специя — фиксированная цена, не дельта)
+      for (const cs of (cartItem as any).spices ?? []) {
+        const spicePrice = Number(cs.spice?.price ?? 0)
+        unitPrice += spicePrice
+      }
+
+      // Формируем название позиции с учётом вкуса
+      const spiceNames = ((cartItem as any).spices ?? [])
+        .map((cs: any) => cs.spice?.name)
+        .filter(Boolean)
+      const itemName = spiceNames.length > 0
+        ? `${menuItem.name} (${spiceNames.join(', ')})`
+        : menuItem.name
+
       const itemTotal = unitPrice * cartItem.quantity
       totalAmount += itemTotal
 
       orderItemsData.push({
         menuItemId: cartItem.menuItemId,
-        itemName: menuItem.name,
+        itemName,
         quantity: cartItem.quantity,
         unitPrice,
         totalPrice: itemTotal,
@@ -186,13 +309,12 @@ export async function POST(request: NextRequest) {
         branchId,
         customerId,
         customerName,
-        customerPhone,
-        customerComment,
+        customerPhone: phone,
+        customerComment: finalComment,
         orderType: orderType || 'pickup',
         paymentMethod: paymentMethod || 'card',
-        deliveryAddressId: orderType === 'delivery' ? deliveryAddressId : null,
         totalAmount,
-        status: 'pending',
+        status: 'pending', // Новый заказ ждёт подтверждения от филиала
         items: {
           create: orderItemsData,
         },
@@ -201,7 +323,8 @@ export async function POST(request: NextRequest) {
             paymentMethod: paymentMethod || 'card',
             amount: totalAmount,
             currency: 'KGS',
-            status: 'pending',
+            status: 'completed', // Тестовая оплата — автоматически считаем оплаченным
+            completedAt: new Date(),
           },
         },
       },
@@ -223,8 +346,21 @@ export async function POST(request: NextRequest) {
         },
         payments: true,
         branch: true,
-        deliveryAddress: true,
       },
+    })
+
+    // Уведомление филиалу и админу о новом заказе (best-effort)
+    const itemsCount = order.items.reduce((s, it) => s + it.quantity, 0)
+    await notifyNewOrder({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      branchId: order.branchId,
+      branchName: order.branch?.name,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      totalAmount: Number(order.totalAmount),
+      orderType: order.orderType as 'pickup' | 'delivery',
+      itemsCount,
     })
 
     return NextResponse.json({ order })
@@ -271,7 +407,6 @@ export async function GET(request: NextRequest) {
         },
         payments: true,
         branch: true,
-        deliveryAddress: true,
       },
       orderBy: {
         createdAt: 'desc',

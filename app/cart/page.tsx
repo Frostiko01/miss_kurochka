@@ -116,6 +116,13 @@ export default function CartPage() {
 
   // Step 3 state
   const [customerComment, setCustomerComment] = useState('')
+  const [nearestBranch, setNearestBranch] = useState<{
+    id: string
+    name: string
+    address: string
+    distanceKm: number | null
+  } | null>(null)
+  const [loadingNearest, setLoadingNearest] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin?callbackUrl=/cart')
@@ -125,6 +132,51 @@ export default function CartPage() {
       )
     }
   }, [status, router])
+
+  // Запрашиваем ближайший филиал при выборе доставки/адреса/шага 3
+  useEffect(() => {
+    if (step !== 3 || orderType !== 'delivery') {
+      setNearestBranch(null)
+      return
+    }
+
+    const selected = savedAddresses.find(a => a.id === selectedAddressId)
+    const lat =
+      (selected as any)?.latitude !== undefined
+        ? Number((selected as any).latitude)
+        : addressForm.coordinates?.lat
+    const lng =
+      (selected as any)?.longitude !== undefined
+        ? Number((selected as any).longitude)
+        : addressForm.coordinates?.lng
+    const addressLine = selected?.addressLine ?? addressForm.addressLine
+
+    if (!addressLine && !lat) return
+
+    setLoadingNearest(true)
+    fetch('/api/branches/nearest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        latitude: lat ?? null,
+        longitude: lng ?? null,
+        addressLine: addressLine ?? null,
+      }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.branch) {
+          setNearestBranch({
+            id: data.branch.id,
+            name: data.branch.name,
+            address: data.branch.address,
+            distanceKm: data.distanceKm,
+          })
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoadingNearest(false))
+  }, [step, orderType, selectedAddressId, savedAddresses, addressForm.coordinates, addressForm.addressLine])
 
   // ============ DATA ============
   const fetchCart = async () => {
@@ -241,6 +293,8 @@ export default function CartPage() {
           floor: addressForm.floor,
           intercom: addressForm.intercom,
           comment: addressForm.comment,
+          latitude: addressForm.coordinates?.lat ?? null,
+          longitude: addressForm.coordinates?.lng ?? null,
         }),
       })
       const data = await res.json()
@@ -307,6 +361,7 @@ export default function CartPage() {
           customerPhone: session?.user?.phone || '',
           customerComment: customerComment || null,
           deliveryAddressId: orderType === 'delivery' ? selectedAddressId : null,
+          pickupBranchId: orderType === 'pickup' ? selectedBranchId : null,
         }),
       })
       const data = await res.json()
@@ -348,9 +403,9 @@ export default function CartPage() {
   const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId)
   const selectedBranch = branches.find(b => b.id === selectedBranchId)
 
-  const stepLabels = ['Корзина', 'Доставка', 'Оплата']
+  const stepLabels = ['Корзина', 'Доставка', 'Подтверждение']
   const nextLabel =
-    step === 3 ? (submitting ? 'Оформление...' : `Оплатить ${totalAmount} сом`) : 'Продолжить'
+    step === 3 ? (submitting ? 'Оформление...' : `Оформить заказ · ${totalAmount} сом`) : 'Продолжить'
 
   return (
     <div className="min-h-screen bg-[var(--bg-muted)] flex flex-col">
@@ -428,6 +483,8 @@ export default function CartPage() {
             address={selectedAddress}
             newAddress={!selectedAddressId ? addressForm : null}
             branch={selectedBranch}
+            nearestBranch={nearestBranch}
+            loadingNearest={loadingNearest}
             user={session?.user}
             customerComment={customerComment}
             setCustomerComment={setCustomerComment}
@@ -1003,6 +1060,8 @@ function Step3Confirm({
   address,
   newAddress,
   branch,
+  nearestBranch,
+  loadingNearest,
   user,
   customerComment,
   setCustomerComment,
@@ -1014,6 +1073,8 @@ function Step3Confirm({
   address: SavedAddress | undefined
   newAddress: any | null
   branch: any | undefined
+  nearestBranch: { id: string; name: string; address: string; distanceKm: number | null } | null
+  loadingNearest: boolean
   user: any
   customerComment: string
   setCustomerComment: (s: string) => void
@@ -1098,6 +1159,37 @@ function Step3Confirm({
         </div>
       </section>
 
+      {/* Готовится в филиале — для доставки */}
+      {orderType === 'delivery' && (
+        <section className="surface p-4">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-3">
+            Готовится в филиале
+          </h2>
+          {loadingNearest ? (
+            <p className="text-sm text-[var(--fg-muted)]">Определяем ближайший филиал...</p>
+          ) : nearestBranch ? (
+            <div className="flex items-start gap-2.5">
+              <Store className="w-4 h-4 text-[var(--brand)] mt-0.5 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-bold">{nearestBranch.name}</p>
+                  {nearestBranch.distanceKm !== null && (
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-[var(--brand-soft)] text-[var(--brand)]">
+                      ~{nearestBranch.distanceKm.toFixed(1)} км
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[var(--fg-muted)] mt-0.5">{nearestBranch.address}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--fg-muted)]">
+              Не удалось определить филиал — будет назначен автоматически
+            </p>
+          )}
+        </section>
+      )}
+
       {/* Contacts */}
       <section className="surface p-4">
         <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-3">
@@ -1144,8 +1236,8 @@ function Step3Confirm({
             <CreditCard className="w-4 h-4" />
           </div>
           <div>
-            <p className="text-sm font-bold">Оплата картой</p>
-            <p className="text-xs text-[var(--fg-muted)]">Все банковские карты</p>
+            <p className="text-sm font-bold">Оплата при получении</p>
+            <p className="text-xs text-[var(--fg-muted)]">Наличными или картой курьеру</p>
           </div>
         </div>
       </section>

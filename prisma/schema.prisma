@@ -1,6 +1,3 @@
-// Miss Kurochka PWA - Database Schema
-// Архитектура: мягкое удаление, мультиязычность через JSONB, модификаторы блюд
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,104 +6,74 @@ datasource db {
   provider = "postgresql"
 }
 
-// ============================================
-// 👤 БЛОК: ПОЛЬЗОВАТЕЛИ И АВТОРИЗАЦИЯ
-// ============================================
-
-enum UserRole {
-  admin
-  branch
-  customer
-}
-
-enum UserStatus {
-  active
-  blocked
-}
-
 model User {
-  id            String   @id @default(uuid()) @db.Uuid
-  email         String?  @unique @db.VarChar(255)
-  username      String?  @unique @db.VarChar(100)
-  passwordHash  String?  @map("password_hash") @db.VarChar(255)
-  fullName      String     @map("full_name") @db.VarChar(100)
-  phone         String?    @db.VarChar(20)
-  avatarUrl     String?    @map("avatar_url") @db.VarChar(500)
-  role          UserRole   @default(customer)
-  status        UserStatus @default(active)
-  createdAt     DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
+  id                String            @id @default(uuid()) @db.Uuid
+  email             String?           @unique @db.VarChar(255)
+  username          String?           @unique @db.VarChar(100)
+  passwordHash      String?           @map("password_hash") @db.VarChar(255)
+  fullName          String            @map("full_name") @db.VarChar(100)
+  avatarUrl         String?           @map("avatar_url") @db.VarChar(500)
+  role              UserRole          @default(customer)
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status            UserStatus        @default(active)
+  phone             String?           @db.VarChar(20)
   accounts          Account[]
-  sessions          Session[]
-  branchUsers       BranchUser[]
-  deliveryAddresses DeliveryAddress[]
-  orders            Order[]
-  cart              Cart?
   bannersCreated    Banner[]
-  stopListEntries   StopList[]        @relation("StoppedBy")
-  stopListRestored  StopList[]        @relation("RestoredBy")
-  ordersCancelled   Order[]           @relation("CancelledBy")
   branchAssignments BranchUser[]      @relation("AssignedBy")
+  branchUsers       BranchUser[]
+  cart              Cart?
+  deliveryAddresses DeliveryAddress[]
+  ordersCancelled   Order[]           @relation("CancelledBy")
+  orders            Order[]
+  sessions          Session[]
+  stopListRestored  StopList[]        @relation("RestoredBy")
+  stopListEntries   StopList[]        @relation("StoppedBy")
 
   @@map("users")
 }
 
-// ============================================
-// 🏢 БЛОК: ФИЛИАЛЫ
-// ============================================
-
-enum BranchStatus {
-  active
-  inactive
-}
-
 model Branch {
-  id                       String        @id @default(uuid()) @db.Uuid
-  name                     String        @db.VarChar(200)
-  address                  String        @db.Text
-  phone                    String        @db.VarChar(20)
-  email                    String?       @db.VarChar(255)
-  description              String?       @db.Text
-  logoUrl                  String?       @map("logo_url") @db.VarChar(500)
-  coverUrl                 String?       @map("cover_url") @db.VarChar(500)
-  latitude                 Decimal?      @db.Decimal(10, 8)
-  longitude                Decimal?      @db.Decimal(11, 8)
-  city                     String        @default("Bishkek") @db.VarChar(100)
-  status                   BranchStatus  @default(active)
-  temporaryClosureReason   String?       @map("temporary_closure_reason") @db.Text
-  temporaryClosedUntil     DateTime?     @map("temporary_closed_until") @db.Timestamptz(6)
-  averageCookingTime       Int?          @map("average_cooking_time") @db.SmallInt
-  minOrderAmount           Decimal?      @map("min_order_amount") @db.Decimal(10, 2)
-  createdAt                DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt                DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  schedules         BranchSchedule[]
-  branchUsers       BranchUser[]
-  menuCategories    MenuCategory[]
-  stopList          StopList[]
-  orders            Order[]
-  carts             Cart[]
-  deliveryZones     DeliveryZone[]
-  popularItemsStats PopularItemsStats[]
-  modifierGroups    ModifierGroup[]
+  id                     String              @id @default(uuid()) @db.Uuid
+  name                   String              @db.VarChar(200)
+  address                String
+  phone                  String              @db.VarChar(20)
+  email                  String?             @db.VarChar(255)
+  description            String?
+  logoUrl                String?             @map("logo_url") @db.VarChar(500)
+  coverUrl               String?             @map("cover_url") @db.VarChar(500)
+  latitude               Decimal?            @db.Decimal(10, 8)
+  longitude              Decimal?            @db.Decimal(11, 8)
+  city                   String              @default("Bishkek") @db.VarChar(100)
+  status                 BranchStatus        @default(active)
+  temporaryClosureReason String?             @map("temporary_closure_reason")
+  temporaryClosedUntil   DateTime?           @map("temporary_closed_until") @db.Timestamptz(6)
+  averageCookingTime     Int?                @map("average_cooking_time") @db.SmallInt
+  minOrderAmount         Decimal?            @map("min_order_amount") @db.Decimal(10, 2)
+  createdAt              DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  schedules              BranchSchedule[]
+  branchUsers            BranchUser[]
+  carts                  Cart[]
+  deliveryZones          DeliveryZone[]
+  menuCategories         MenuCategory[]
+  modifierGroups         ModifierGroup[]
+  orders                 Order[]
+  popularItemsStats      PopularItemsStats[]
+  stopList               StopList[]
 
   @@map("branches")
 }
 
 model BranchSchedule {
-  id          String   @id @default(uuid()) @db.Uuid
-  branchId    String   @map("branch_id") @db.Uuid
-  dayOfWeek   Int      @map("day_of_week") @db.SmallInt // 0=Monday, 6=Sunday
-  openTime    DateTime @map("open_time") @db.Time(6)
-  closeTime   DateTime @map("close_time") @db.Time(6)
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid()) @db.Uuid
+  branchId  String   @map("branch_id") @db.Uuid
+  dayOfWeek Int      @map("day_of_week") @db.SmallInt
+  openTime  DateTime @map("open_time") @db.Time(6)
+  closeTime DateTime @map("close_time") @db.Time(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@map("branch_schedules")
 }
@@ -117,127 +84,91 @@ model BranchUser {
   userId     String   @map("user_id") @db.Uuid
   assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
   assignedBy String   @map("assigned_by") @db.Uuid
-
-  // Relations
-  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assigner User   @relation("AssignedBy", fields: [assignedBy], references: [id])
+  assigner   User     @relation("AssignedBy", fields: [assignedBy], references: [id])
+  branch     Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, userId])
   @@map("branch_users")
 }
 
-// ============================================
-// 🍔 БЛОК: МЕНЮ
-// ============================================
-
-enum CategoryStatus {
-  active
-  inactive
-  archived
-}
-
-enum CategoryType {
-  regular
-  combo
-  mini_combo
-}
-
 model MenuCategory {
-  id          String          @id @default(uuid()) @db.Uuid
-  branchId    String?         @map("branch_id") @db.Uuid
-  name        String          @db.VarChar(200)
-  nameI18n    Json?           @map("name_i18n") @db.JsonB
-  description String?         @db.Text
-  imageUrl    String?         @map("image_url") @db.Text
-  parentId    String?         @map("parent_id") @db.Uuid
-  type        CategoryType    @default(regular)
-  status      CategoryStatus  @default(active)
-  sortOrder   Int             @default(0) @map("sort_order")
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  branch       Branch?        @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  parent       MenuCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
-  children     MenuCategory[] @relation("CategoryHierarchy")
-  menuItems    MenuItem[]
+  id          String         @id @default(uuid()) @db.Uuid
+  branchId    String?        @map("branch_id") @db.Uuid
+  name        String         @db.VarChar(200)
+  nameI18n    Json?          @map("name_i18n")
+  description String?
+  imageUrl    String?        @map("image_url")
+  parentId    String?        @map("parent_id") @db.Uuid
+  status      CategoryStatus @default(active)
+  createdAt   DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  sortOrder   Int            @default(0) @map("sort_order")
+  type        CategoryType   @default(regular)
+  branch      Branch?        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  parent      MenuCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    MenuCategory[] @relation("CategoryHierarchy")
+  menuItems   MenuItem[]
 
   @@map("menu_categories")
 }
 
 model MenuItem {
-  id                 String   @id @default(uuid()) @db.Uuid
-  categoryId         String   @map("category_id") @db.Uuid
-  name               String   @db.VarChar(300)
-  nameI18n           Json?    @map("name_i18n") @db.JsonB
-  description        String?  @db.Text
-  descriptionI18n    Json?    @map("description_i18n") @db.JsonB
-  // Нутриенты — общие для блюда, не зависят от размера
-  cookingTimeMinutes Int?     @map("cooking_time_minutes") @db.SmallInt
-  ingredients        String?  @db.Text
-  spicyLevel         Int      @default(0) @map("spicy_level") @db.SmallInt
-  isVegetarian       Boolean  @default(false) @map("is_vegetarian")
-  isVegan            Boolean  @default(false) @map("is_vegan")
-  isActive           Boolean  @default(true) @map("is_active")
-  isFeatured         Boolean  @default(false) @map("is_featured")
-  isNew              Boolean  @default(false) @map("is_new")
-  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  category          MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  images            MenuItemImage[]
-  sizes             MenuItemSize[]
-  spices            MenuItemSpice[]
-  stopList          StopList[]
-  orderItems        OrderItem[]
-  cartItems         CartItem[]
-  modifiers         MenuItemModifier[]
-  popularItemsStats PopularItemsStats[]
-  comboItems        ComboOfferItem[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  categoryId         String              @map("category_id") @db.Uuid
+  name               String              @db.VarChar(300)
+  nameI18n           Json?               @map("name_i18n")
+  description        String?
+  descriptionI18n    Json?               @map("description_i18n")
+  cookingTimeMinutes Int?                @map("cooking_time_minutes") @db.SmallInt
+  ingredients        String?
+  spicyLevel         Int                 @default(0) @map("spicy_level") @db.SmallInt
+  isVegetarian       Boolean             @default(false) @map("is_vegetarian")
+  isVegan            Boolean             @default(false) @map("is_vegan")
+  isActive           Boolean             @default(true) @map("is_active")
+  isFeatured         Boolean             @default(false) @map("is_featured")
+  isNew              Boolean             @default(false) @map("is_new")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cartItems          CartItem[]
+  comboItems         ComboOfferItem[]
+  images             MenuItemImage[]
+  modifiers          MenuItemModifier[]
+  sizes              MenuItemSize[]
+  spices             MenuItemSpice[]
+  category           MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems         OrderItem[]
+  popularItemsStats  PopularItemsStats[]
+  stopList           StopList[]
 
   @@map("menu_items")
 }
 
-// ============================================
-// 📐 Размеры блюда (Маленький / Средний / Большой и т.д.)
-// Цена блюда определяется выбранным размером.
-// Первый по sortOrder размер считается дефолтным.
-// ============================================
-
 model MenuItemSize {
-  id          String   @id @default(uuid()) @db.Uuid
-  menuItemId  String   @map("menu_item_id") @db.Uuid
-  name        String   @db.VarChar(100)       // "Маленький", "Большой", "500мл"
-  price       Decimal  @db.Decimal(10, 2)     // Абсолютная цена этого размера
-  weightGrams Int?     @map("weight_grams") @db.SmallInt
-  isActive    Boolean  @default(true) @map("is_active")
-  sortOrder   Int      @default(0) @map("sort_order") @db.SmallInt
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  menuItem    MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  id          String     @id @default(uuid()) @db.Uuid
+  menuItemId  String     @map("menu_item_id") @db.Uuid
+  name        String     @db.VarChar(100)
+  price       Decimal    @db.Decimal(10, 2)
+  weightGrams Int?       @map("weight_grams") @db.SmallInt
+  isActive    Boolean    @default(true) @map("is_active")
+  sortOrder   Int        @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  menuItem    MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  cartItems   CartItem[]
 
   @@map("menu_item_sizes")
 }
 
-// ============================================
-// 🌶️ Специи / соусы блюда
-// Добавляются к итоговой цене (price = 0 если бесплатно).
-// ============================================
-
 model MenuItemSpice {
-  id         String   @id @default(uuid()) @db.Uuid
-  menuItemId String   @map("menu_item_id") @db.Uuid
-  name       String   @db.VarChar(100)        // "Острый соус", "Кетчуп", "Без специй"
-  price      Decimal  @default(0) @db.Decimal(8, 2)
-  isActive   Boolean  @default(true) @map("is_active")
-  sortOrder  Int      @default(0) @map("sort_order") @db.SmallInt
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  id         String          @id @default(uuid()) @db.Uuid
+  menuItemId String          @map("menu_item_id") @db.Uuid
+  name       String          @db.VarChar(100)
+  price      Decimal         @default(0) @db.Decimal(8, 2)
+  isActive   Boolean         @default(true) @map("is_active")
+  sortOrder  Int             @default(0) @map("sort_order") @db.SmallInt
+  createdAt  DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  menuItem   MenuItem        @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  cartSpices CartItemSpice[]
 
   @@map("menu_item_spices")
 }
@@ -245,12 +176,10 @@ model MenuItemSpice {
 model MenuItemImage {
   id         String   @id @default(uuid()) @db.Uuid
   menuItemId String   @map("menu_item_id") @db.Uuid
-  imageUrl   String   @map("image_url") @db.Text
+  imageUrl   String   @map("image_url")
   isPrimary  Boolean  @default(false) @map("is_primary")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@map("menu_item_images")
 }
@@ -259,159 +188,118 @@ model StopList {
   id               String    @id @default(uuid()) @db.Uuid
   branchId         String    @map("branch_id") @db.Uuid
   menuItemId       String    @map("menu_item_id") @db.Uuid
-  reason           String?   @db.Text
+  reason           String?
   stoppedBy        String    @map("stopped_by") @db.Uuid
   stoppedAt        DateTime  @default(now()) @map("stopped_at") @db.Timestamptz(6)
   expectedReturnAt DateTime? @map("expected_return_at") @db.Timestamptz(6)
   restoredAt       DateTime? @map("restored_at") @db.Timestamptz(6)
   restoredBy       String?   @map("restored_by") @db.Uuid
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  branch    Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  menuItem  MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  stopper   User      @relation("StoppedBy", fields: [stoppedBy], references: [id])
-  restorer  User?     @relation("RestoredBy", fields: [restoredBy], references: [id])
+  branch           Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem         MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  restorer         User?     @relation("RestoredBy", fields: [restoredBy], references: [id])
+  stopper          User      @relation("StoppedBy", fields: [stoppedBy], references: [id])
 
   @@map("stop_list")
 }
 
-// ============================================
-// ⚙️ БЛОК: МОДИФИКАТОРЫ
-// ============================================
-
-enum SelectionType {
-  single
-  multiple
-}
-
 model ModifierGroup {
-  id             String        @id @default(uuid()) @db.Uuid
-  branchId       String?       @map("branch_id") @db.Uuid
-  name           String        @db.VarChar(200)
-  nameI18n       Json?         @map("name_i18n") @db.JsonB
-  selectionType  SelectionType @map("selection_type")
-  isRequired     Boolean       @default(false) @map("is_required")
-  minSelections  Int           @default(0) @map("min_selections") @db.SmallInt
-  maxSelections  Int?          @map("max_selections") @db.SmallInt
-  isActive       Boolean       @default(true) @map("is_active")
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
+  id                String             @id @default(uuid()) @db.Uuid
+  branchId          String?            @map("branch_id") @db.Uuid
+  name              String             @db.VarChar(200)
+  nameI18n          Json?              @map("name_i18n")
+  selectionType     SelectionType      @map("selection_type")
+  isRequired        Boolean            @default(false) @map("is_required")
+  minSelections     Int                @default(0) @map("min_selections") @db.SmallInt
+  maxSelections     Int?               @map("max_selections") @db.SmallInt
+  isActive          Boolean            @default(true) @map("is_active")
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  menuItemModifiers MenuItemModifier[]
   branch            Branch?            @relation(fields: [branchId], references: [id], onDelete: Cascade)
   options           ModifierOption[]
-  menuItemModifiers MenuItemModifier[]
 
   @@map("modifier_groups")
 }
 
 model ModifierOption {
-  id         String   @id @default(uuid()) @db.Uuid
-  groupId    String   @map("group_id") @db.Uuid
-  name       String   @db.VarChar(200)
-  nameI18n   Json?    @map("name_i18n") @db.JsonB
-  priceDelta Decimal  @default(0) @map("price_delta") @db.Decimal(8, 2)
-  isActive   Boolean  @default(true) @map("is_active")
-  isDefault  Boolean  @default(false) @map("is_default")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  group              ModifierGroup        @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  orderItemModifiers OrderItemModifier[]
+  id                 String              @id @default(uuid()) @db.Uuid
+  groupId            String              @map("group_id") @db.Uuid
+  name               String              @db.VarChar(200)
+  nameI18n           Json?               @map("name_i18n")
+  priceDelta         Decimal             @default(0) @map("price_delta") @db.Decimal(8, 2)
+  isActive           Boolean             @default(true) @map("is_active")
+  isDefault          Boolean             @default(false) @map("is_default")
+  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   cartItemModifiers  CartItemModifier[]
+  group              ModifierGroup       @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  orderItemModifiers OrderItemModifier[]
 
   @@map("modifier_options")
 }
 
 model MenuItemModifier {
-  id              String   @id @default(uuid()) @db.Uuid
-  menuItemId      String   @map("menu_item_id") @db.Uuid
-  modifierGroupId String   @map("modifier_group_id") @db.Uuid
-  sortOrder       Int      @default(0) @map("sort_order") @db.SmallInt
-
-  // Relations
-  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  id              String        @id @default(uuid()) @db.Uuid
+  menuItemId      String        @map("menu_item_id") @db.Uuid
+  modifierGroupId String        @map("modifier_group_id") @db.Uuid
+  sortOrder       Int           @default(0) @map("sort_order") @db.SmallInt
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
 
   @@unique([menuItemId, modifierGroupId])
   @@map("menu_item_modifiers")
 }
 
-// ============================================
-// 🛒 БЛОК: КОРЗИНА
-// ============================================
-
 model Cart {
-  id         String   @id @default(uuid()) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  branchId   String?  @map("branch_id") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id        String     @id @default(uuid()) @db.Uuid
+  userId    String     @unique @map("user_id") @db.Uuid
+  branchId  String?    @map("branch_id") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+  items     CartItem[]
+  branch    Branch?    @relation(fields: [branchId], references: [id])
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Relations
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  branch Branch?    @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  items  CartItem[]
-
-  @@unique([userId])
   @@map("carts")
 }
 
 model CartItem {
-  id            String   @id @default(uuid()) @db.Uuid
-  cartId        String   @map("cart_id") @db.Uuid
-  menuItemId    String?  @map("menu_item_id") @db.Uuid
-  comboOfferId  String?  @map("combo_offer_id") @db.Uuid
-  sizeId        String?  @map("size_id") @db.Uuid  // Выбранный размер блюда
-  quantity      Int      @db.SmallInt
-  itemComment   String?  @map("item_comment") @db.Text
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  cart        Cart                @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  menuItem    MenuItem?           @relation(fields: [menuItemId], references: [id])
-  comboOffer  ComboOffer?         @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
-  modifiers   CartItemModifier[]
+  id           String             @id @default(uuid()) @db.Uuid
+  cartId       String             @map("cart_id") @db.Uuid
+  menuItemId   String?            @map("menu_item_id") @db.Uuid
+  sizeId       String?            @map("size_id") @db.Uuid
+  quantity     Int                @db.SmallInt
+  itemComment  String?            @map("item_comment")
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  comboOfferId String?            @map("combo_offer_id") @db.Uuid
+  modifiers    CartItemModifier[]
+  spices       CartItemSpice[]
+  cart         Cart               @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  comboOffer   ComboOffer?        @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem?          @relation(fields: [menuItemId], references: [id])
+  size         MenuItemSize?      @relation(fields: [sizeId], references: [id])
 
   @@map("cart_items")
 }
 
 model CartItemModifier {
-  id               String   @id @default(uuid()) @db.Uuid
-  cartItemId       String   @map("cart_item_id") @db.Uuid
-  modifierOptionId String   @map("modifier_option_id") @db.Uuid
-
-  // Relations
-  cartItem       CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
-  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  id               String         @id @default(uuid()) @db.Uuid
+  cartItemId       String         @map("cart_item_id") @db.Uuid
+  modifierOptionId String         @map("modifier_option_id") @db.Uuid
+  cartItem         CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
 
   @@map("cart_item_modifiers")
 }
 
-// ============================================
-// 🧾 БЛОК: ЗАКАЗЫ
-// ============================================
+model CartItemSpice {
+  id         String        @id @default(uuid()) @db.Uuid
+  cartItemId String        @map("cart_item_id") @db.Uuid
+  spiceId    String        @map("spice_id") @db.Uuid
+  cartItem   CartItem      @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
+  spice      MenuItemSpice @relation(fields: [spiceId], references: [id])
 
-enum OrderType {
-  pickup
-  delivery
-}
-
-enum OrderStatus {
-  pending
-  confirmed
-  preparing
-  ready
-  delivering
-  completed
-  cancelled
-}
-
-enum PaymentMethodType {
-  card
-  finik
-  online
+  @@map("cart_item_spices")
 }
 
 model Order {
@@ -421,110 +309,84 @@ model Order {
   customerId      String?           @map("customer_id") @db.Uuid
   customerName    String            @map("customer_name") @db.VarChar(200)
   customerPhone   String            @map("customer_phone") @db.VarChar(20)
-  customerComment String?           @map("customer_comment") @db.Text
+  customerComment String?           @map("customer_comment")
   orderType       OrderType         @map("order_type")
   status          OrderStatus       @default(pending)
-  paymentMethod   PaymentMethodType @map("payment_method")
   totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
   readyAt         DateTime?         @map("ready_at") @db.Timestamptz(6)
   deliveredAt     DateTime?         @map("delivered_at") @db.Timestamptz(6)
   cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
-  cancelReason    String?           @map("cancel_reason") @db.Text
+  cancelReason    String?           @map("cancel_reason")
   cancelledBy     String?           @map("cancelled_by") @db.Uuid
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  branch     Branch      @relation(fields: [branchId], references: [id])
-  customer   User?       @relation(fields: [customerId], references: [id])
-  canceller  User?       @relation("CancelledBy", fields: [cancelledBy], references: [id])
-  items      OrderItem[]
-  payments   Payment[]
+  paymentMethod   PaymentMethodType @map("payment_method")
+  items           OrderItem[]
+  branch          Branch            @relation(fields: [branchId], references: [id])
+  canceller       User?             @relation("CancelledBy", fields: [cancelledBy], references: [id])
+  customer        User?             @relation(fields: [customerId], references: [id])
+  payments        Payment[]
 
   @@map("orders")
 }
 
 model OrderItem {
-  id            String   @id @default(uuid()) @db.Uuid
-  orderId       String   @map("order_id") @db.Uuid
-  menuItemId    String?  @map("menu_item_id") @db.Uuid
-  comboOfferId  String?  @map("combo_offer_id") @db.Uuid
-  itemName      String   @map("item_name") @db.VarChar(300)
-  quantity      Int      @db.SmallInt
-  unitPrice     Decimal  @map("unit_price") @db.Decimal(10, 2)
-  totalPrice    Decimal  @map("total_price") @db.Decimal(10, 2)
-  itemComment   String?  @map("item_comment") @db.Text
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  order       Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem    MenuItem?            @relation(fields: [menuItemId], references: [id])
-  comboOffer  ComboOffer?          @relation(fields: [comboOfferId], references: [id])
-  modifiers   OrderItemModifier[]
+  id           String              @id @default(uuid()) @db.Uuid
+  orderId      String              @map("order_id") @db.Uuid
+  menuItemId   String?             @map("menu_item_id") @db.Uuid
+  quantity     Int                 @db.SmallInt
+  unitPrice    Decimal             @map("unit_price") @db.Decimal(10, 2)
+  totalPrice   Decimal             @map("total_price") @db.Decimal(10, 2)
+  itemComment  String?             @map("item_comment")
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  comboOfferId String?             @map("combo_offer_id") @db.Uuid
+  itemName     String              @map("item_name") @db.VarChar(300)
+  modifiers    OrderItemModifier[]
+  comboOffer   ComboOffer?         @relation(fields: [comboOfferId], references: [id])
+  menuItem     MenuItem?           @relation(fields: [menuItemId], references: [id])
+  order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("order_items")
 }
 
 model OrderItemModifier {
-  id               String   @id @default(uuid()) @db.Uuid
-  orderItemId      String   @map("order_item_id") @db.Uuid
-  modifierOptionId String   @map("modifier_option_id") @db.Uuid
-  priceDelta       Decimal  @map("price_delta") @db.Decimal(8, 2)
-
-  // Relations
-  orderItem      OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
-  modifierOption ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  id               String         @id @default(uuid()) @db.Uuid
+  orderItemId      String         @map("order_item_id") @db.Uuid
+  modifierOptionId String         @map("modifier_option_id") @db.Uuid
+  priceDelta       Decimal        @map("price_delta") @db.Decimal(8, 2)
+  modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
+  orderItem        OrderItem      @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 
   @@map("order_item_modifiers")
 }
 
-// ============================================
-// 💳 БЛОК: ПЛАТЕЖИ
-// ============================================
-
-enum PaymentStatus {
-  pending
-  processing
-  completed
-  failed
-  refunded
-}
-
 model Payment {
-  id                 String        @id @default(uuid()) @db.Uuid
-  orderId            String        @map("order_id") @db.Uuid
+  id                 String            @id @default(uuid()) @db.Uuid
+  orderId            String            @map("order_id") @db.Uuid
+  amount             Decimal           @db.Decimal(10, 2)
+  currency           String            @default("KGS") @db.VarChar(3)
+  status             PaymentStatus     @default(pending)
+  finikTransactionId String?           @map("finik_transaction_id") @db.VarChar(200)
+  completedAt        DateTime?         @map("completed_at") @db.Timestamptz(6)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
   paymentMethod      PaymentMethodType @map("payment_method")
-  amount             Decimal       @db.Decimal(10, 2)
-  currency           String        @default("KGS") @db.VarChar(3)
-  status             PaymentStatus @default(pending)
-  finikTransactionId String?       @map("finik_transaction_id") @db.VarChar(200)
-  completedAt        DateTime?     @map("completed_at") @db.Timestamptz(6)
-  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order              Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("payments")
 }
 
-// ============================================
-// 🚚 БЛОК: ДОСТАВКА
-// ============================================
-
 model DeliveryZone {
-  id                String   @id @default(uuid()) @db.Uuid
-  branchId          String   @map("branch_id") @db.Uuid
-  name              String   @db.VarChar(200)
-  polygonCoordinates Json    @map("polygon_coordinates") @db.JsonB
-  deliveryFee       Decimal  @map("delivery_fee") @db.Decimal(8, 2)
-  minOrderAmount    Decimal? @map("min_order_amount") @db.Decimal(10, 2)
-  estimatedMinutes  Int?     @map("estimated_minutes") @db.SmallInt
-  isActive          Boolean  @default(true) @map("is_active")
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  id                 String   @id @default(uuid()) @db.Uuid
+  branchId           String   @map("branch_id") @db.Uuid
+  name               String   @db.VarChar(200)
+  polygonCoordinates Json     @map("polygon_coordinates")
+  deliveryFee        Decimal  @map("delivery_fee") @db.Decimal(8, 2)
+  minOrderAmount     Decimal? @map("min_order_amount") @db.Decimal(10, 2)
+  estimatedMinutes   Int?     @map("estimated_minutes") @db.SmallInt
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  branch             Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@map("delivery_zones")
 }
@@ -533,31 +395,25 @@ model DeliveryAddress {
   id          String   @id @default(uuid()) @db.Uuid
   userId      String   @map("user_id") @db.Uuid
   label       String?  @db.VarChar(100)
-  addressLine String   @map("address_line") @db.Text
+  addressLine String   @map("address_line")
   apartment   String?  @db.VarChar(50)
   entrance    String?  @db.VarChar(20)
   floor       String?  @db.VarChar(10)
   intercom    String?  @db.VarChar(50)
   latitude    Decimal? @db.Decimal(10, 8)
   longitude   Decimal? @db.Decimal(11, 8)
-  comment     String?  @db.Text
+  comment     String?
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("delivery_addresses")
 }
 
-// ============================================
-// 🎯 БЛОК: МАРКЕТИНГ
-// ============================================
-
 model Banner {
   id         String    @id @default(uuid()) @db.Uuid
   title      String    @db.VarChar(300)
-  subtitle   String?   @db.Text
+  subtitle   String?
   imageUrl   String    @map("image_url") @db.VarChar(500)
   linkTarget String?   @map("link_target") @db.VarChar(500)
   sortOrder  Int       @default(0) @map("sort_order") @db.SmallInt
@@ -566,16 +422,10 @@ model Banner {
   expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
   createdBy  String    @map("created_by") @db.Uuid
   createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  creator User @relation(fields: [createdBy], references: [id])
+  creator    User      @relation(fields: [createdBy], references: [id])
 
   @@map("banners")
 }
-
-// ============================================
-// 📊 БЛОК: АНАЛИТИКА
-// ============================================
 
 model PopularItemsStats {
   id           String   @id @default(uuid()) @db.Uuid
@@ -586,30 +436,20 @@ model PopularItemsStats {
   quantitySold Int      @default(0) @map("quantity_sold")
   revenue      Decimal  @default(0) @map("revenue") @db.Decimal(12, 2)
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  branch       Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([branchId, menuItemId, date])
   @@map("popular_items_stats")
 }
 
-// ============================================
-// ⚙️ БЛОК: НАСТРОЙКИ СИСТЕМЫ
-// ============================================
-
 model SystemSetting {
   id    String @id @default(uuid()) @db.Uuid
   key   String @unique @db.VarChar(200)
-  value String @db.Text
+  value String
 
   @@map("system_settings")
 }
-
-// ============================================
-// 🔐 БЛОК: NEXTAUTH МОДЕЛИ
-// ============================================
 
 model Account {
   id                String  @id @default(uuid()) @db.Uuid
@@ -617,15 +457,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String  @map("provider_account_id")
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
@@ -650,10 +489,165 @@ model VerificationToken {
   @@map("verification_tokens")
 }
 
+model VerificationCode {
+  id        String               @id @default(uuid()) @db.Uuid
+  email     String               @db.VarChar(255)
+  code      String               @db.VarChar(6)
+  type      VerificationCodeType
+  expiresAt DateTime             @map("expires_at") @db.Timestamptz(6)
+  used      Boolean              @default(false)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
 
-// ============================================
-// 🔐 БЛОК: EMAIL ВЕРИФИКАЦИЯ
-// ============================================
+  @@index([email, type, used])
+  @@map("verification_codes")
+}
+
+model ComboOffer {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @db.VarChar(300)
+  nameI18n    Json?            @map("name_i18n")
+  description String?
+  price       Decimal          @db.Decimal(10, 2)
+  oldPrice    Decimal?         @map("old_price") @db.Decimal(10, 2)
+  imageUrl    String           @map("image_url")
+  isActive    Boolean          @default(true) @map("is_active")
+  sortOrder   Int              @default(0) @map("sort_order")
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cartItems   CartItem[]
+  comboItems  ComboOfferItem[]
+  orderItems  OrderItem[]
+
+  @@map("combo_offers")
+}
+
+model ComboOfferItem {
+  id           String     @id @default(uuid()) @db.Uuid
+  comboOfferId String     @map("combo_offer_id") @db.Uuid
+  menuItemId   String     @map("menu_item_id") @db.Uuid
+  quantity     Int        @default(1) @db.SmallInt
+  sortOrder    Int        @default(0) @map("sort_order") @db.SmallInt
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  comboOffer   ComboOffer @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
+  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("combo_offer_items")
+}
+
+model AdditionalOffer {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @db.VarChar(200)
+  nameI18n    Json?    @map("name_i18n")
+  description String?
+  price       Decimal  @db.Decimal(10, 2)
+  imageUrl    String?  @map("image_url")
+  category    String   @db.VarChar(100)
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("additional_offers")
+}
+
+model ReportDownload {
+  id          String       @id @default(uuid()) @db.Uuid
+  userId      String       @map("user_id") @db.Uuid
+  branchId    String?      @map("branch_id") @db.Uuid
+  reportType  ReportType   @map("report_type")
+  format      ReportFormat
+  periodStart DateTime     @map("period_start") @db.Timestamptz(6)
+  periodEnd   DateTime     @map("period_end") @db.Timestamptz(6)
+  fileName    String       @map("file_name") @db.VarChar(300)
+  fileSize    Int?         @map("file_size")
+  parameters  Json?
+  scope       ReportScope  @default(branch)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([userId, createdAt])
+  @@index([branchId, createdAt])
+  @@map("report_downloads")
+}
+
+model Notification {
+  id        String               @id @default(uuid()) @db.Uuid
+  audience  NotificationAudience
+  branchId  String?              @map("branch_id") @db.Uuid
+  type      NotificationType
+  title     String               @db.VarChar(300)
+  message   String
+  orderId   String?              @map("order_id") @db.Uuid
+  data      Json?
+  isRead    Boolean              @default(false) @map("is_read")
+  readAt    DateTime?            @map("read_at") @db.Timestamptz(6)
+  createdAt DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([audience, branchId, isRead, createdAt])
+  @@index([orderId])
+  @@map("notifications")
+}
+
+enum UserRole {
+  admin
+  branch
+  customer
+}
+
+enum UserStatus {
+  active
+  blocked
+}
+
+enum BranchStatus {
+  active
+  inactive
+}
+
+enum CategoryStatus {
+  active
+  inactive
+  archived
+}
+
+enum CategoryType {
+  regular
+  combo
+  mini_combo
+}
+
+enum SelectionType {
+  single
+  multiple
+}
+
+enum OrderType {
+  pickup
+  delivery
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  preparing
+  ready
+  delivering
+  completed
+  cancelled
+}
+
+enum PaymentMethodType {
+  card
+  finik
+  online
+}
+
+enum PaymentStatus {
+  pending
+  processing
+  completed
+  failed
+  refunded
+}
 
 enum VerificationCodeType {
   email_verification
@@ -661,79 +655,34 @@ enum VerificationCodeType {
   admin_2fa
 }
 
-model VerificationCode {
-  id        String                @id @default(uuid()) @db.Uuid
-  email     String                @db.VarChar(255)
-  code      String                @db.VarChar(6)
-  type      VerificationCodeType
-  expiresAt DateTime              @map("expires_at") @db.Timestamptz(6)
-  used      Boolean               @default(false)
-  createdAt DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  @@index([email, type, used])
-  @@map("verification_codes")
+enum ReportType {
+  sales
+  orders
+  menu_items
+  customers
+  popular_items
+  full
 }
 
-// ============================================
-// 🎁 БЛОК: КОМБО-НАБОРЫ
-// ============================================
-
-model ComboOffer {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(300)
-  nameI18n    Json?    @map("name_i18n") @db.JsonB
-  description String?  @db.Text
-  price       Decimal  @db.Decimal(10, 2)
-  oldPrice    Decimal? @map("old_price") @db.Decimal(10, 2)
-  imageUrl    String   @map("image_url") @db.Text
-  isActive    Boolean  @default(true) @map("is_active")
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  // Relations
-  comboItems  ComboOfferItem[]
-  cartItems   CartItem[]
-  orderItems  OrderItem[]
-
-  @@map("combo_offers")
+enum ReportFormat {
+  pdf
+  excel
 }
 
-// ============================================
-// 🔗 Состав комбо-набора (связь комбо ↔ блюда)
-// ============================================
-
-model ComboOfferItem {
-  id           String   @id @default(uuid()) @db.Uuid
-  comboOfferId String   @map("combo_offer_id") @db.Uuid
-  menuItemId   String   @map("menu_item_id") @db.Uuid
-  quantity     Int      @default(1) @db.SmallInt
-  sortOrder    Int      @default(0) @map("sort_order") @db.SmallInt
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  // Relations
-  comboOffer   ComboOffer @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
-  menuItem     MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-
-  @@map("combo_offer_items")
+enum ReportScope {
+  branch
+  all_branches
 }
 
-// ============================================
-// 🍟 БЛОК: ДОПОЛНИТЕЛЬНЫЕ ПРЕДЛОЖЕНИЯ
-// ============================================
+enum NotificationAudience {
+  branch
+  admin
+}
 
-model AdditionalOffer {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String   @db.VarChar(200)
-  nameI18n    Json?    @map("name_i18n") @db.JsonB
-  description String?  @db.Text
-  price       Decimal  @db.Decimal(10, 2)
-  imageUrl    String?  @map("image_url") @db.Text
-  category    String   @db.VarChar(100) // sauce, drink, side, etc.
-  isActive    Boolean  @default(true) @map("is_active")
-  sortOrder   Int      @default(0) @map("sort_order")
-  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-
-  @@map("additional_offers")
+enum NotificationType {
+  new_order
+  order_cancelled
+  order_status
+  payment
+  system
 }

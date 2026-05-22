@@ -182,7 +182,7 @@ export default function BranchAdditionalOffersPage() {
   };
 
   return (
-    <div className="p-8 min-h-screen" style={{ backgroundColor: "#050c26" }}>
+    <div className="p-8 min-h-screen" style={{ backgroundColor: "#0B0F14" }}>
       {/* Header */}
       <div className="mb-8">
         <h1
@@ -191,7 +191,7 @@ export default function BranchAdditionalOffersPage() {
         >
           Дополнительные предложения
         </h1>
-        <p className="font-semibold mt-2" style={{ color: "#78819d" }}>
+        <p className="font-semibold mt-2" style={{ color: "#98A2B3" }}>
           Управление соусами, напитками и гарнирами вашего филиала
         </p>
       </div>
@@ -199,7 +199,7 @@ export default function BranchAdditionalOffersPage() {
       {/* Filters and Search */}
       <div
         className="rounded-2xl p-6 mb-6"
-        style={{ backgroundColor: "#181f38" }}
+        style={{ backgroundColor: "#1A212B" }}
       >
         <div className="flex flex-col gap-4">
           <div className="flex flex-col lg:flex-row gap-4">
@@ -211,7 +211,7 @@ export default function BranchAdditionalOffersPage() {
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
-                  style={{ color: "#78819d" }}
+                  style={{ color: "#98A2B3" }}
                 >
                   <path
                     strokeLinecap="round"
@@ -227,8 +227,8 @@ export default function BranchAdditionalOffersPage() {
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none transition-all border"
                   style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
+                    backgroundColor: "#0B0F14",
+                    borderColor: "#202937",
                   }}
                 />
               </div>
@@ -238,7 +238,11 @@ export default function BranchAdditionalOffersPage() {
             <button
               onClick={() => setShowFiltersMenu(!showFiltersMenu)}
               className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center lg:justify-start"
-              style={{ backgroundColor: "#d62300" }}
+              style={{
+                backgroundColor: (categoryFilter !== "all" || statusFilter !== "all") ? '#7C8CA5' : '#2A3442',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.9')}
+              onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
             >
               <svg
                 className="w-5 h-5"
@@ -270,7 +274,9 @@ export default function BranchAdditionalOffersPage() {
                 });
               }}
               className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center"
-              style={{ backgroundColor: "#d62300" }}
+              style={{ backgroundColor: "#7C8CA5" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#93A4BF")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#7C8CA5")}
             >
               <svg
                 className="w-5 h-5"
@@ -297,19 +303,19 @@ export default function BranchAdditionalOffersPage() {
               opacity: showFiltersMenu ? 1 : 0,
             }}
           >
-            <div className="pt-4 border-t" style={{ borderColor: "#242b47" }}>
+            <div className="pt-4 border-t" style={{ borderColor: "#202937" }}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Category Filter */}
                 <div
                   className="rounded-xl p-4 border"
                   style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
+                    backgroundColor: "#0B0F14",
+                    borderColor: "#202937",
                   }}
                 >
                   <label
                     className="block text-xs font-bold uppercase mb-3"
-                    style={{ color: "#78819d" }}
+                    style={{ color: "#98A2B3" }}
                   >
                     Категория
                   </label>
@@ -318,26 +324,26 @@ export default function BranchAdditionalOffersPage() {
                     onChange={(e) => setCategoryFilter(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
                     style={{
-                      backgroundColor: "#181f38",
-                      borderColor: "#242b47",
+                      backgroundColor: "#1A212B",
+                      borderColor: "#202937",
                     }}
                   >
-                    <option value="all" style={{ backgroundColor: "#181f38" }}>
+                    <option value="all" style={{ backgroundColor: "#1A212B" }}>
                       Все категории
                     </option>
                     <option
                       value="sauce"
-                      style={{ backgroundColor: "#181f38" }}
+                      style={{ backgroundColor: "#1A212B" }}
                     >
                       🥫 Соусы
                     </option>
                     <option
                       value="drink"
-                      style={{ backgroundColor: "#181f38" }}
+                      style={{ backgroundColor: "#1A212B" }}
                     >
                       🥤 Напитки
                     </option>
-                    <option value="side" style={{ backgroundColor: "#181f38" }}>
+                    <option value="side" style={{ backgroundColor: "#1A212B" }}>
                       🍟 Гарниры
                     </option>
                   </select>
@@ -347,13 +353,13 @@ export default function BranchAdditionalOffersPage() {
                 <div
                   className="rounded-xl p-4 border"
                   style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
+                    backgroundColor: "#0B0F14",
+                    borderColor: "#202937",
                   }}
                 >
                   <label
                     className="block text-xs font-bold uppercase mb-3"
-                    style={{ color: "#78819d" }}
+                    style={{ color: "#98A2B3" }}
                   >
                     Статус
                   </label>
@@ -362,22 +368,22 @@ export default function BranchAdditionalOffersPage() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
                     style={{
-                      backgroundColor: "#181f38",
-                      borderColor: "#242b47",
+                      backgroundColor: "#1A212B",
+                      borderColor: "#202937",
                     }}
                   >
-                    <option value="all" style={{ backgroundColor: "#181f38" }}>
+                    <option value="all" style={{ backgroundColor: "#1A212B" }}>
                       Все статусы
                     </option>
                     <option
                       value="active"
-                      style={{ backgroundColor: "#181f38" }}
+                      style={{ backgroundColor: "#1A212B" }}
                     >
                       Активные
                     </option>
                     <option
                       value="inactive"
-                      style={{ backgroundColor: "#181f38" }}
+                      style={{ backgroundColor: "#1A212B" }}
                     >
                       Неактивные
                     </option>
@@ -392,7 +398,7 @@ export default function BranchAdditionalOffersPage() {
       {/* Content */}
       <div
         className="rounded-2xl p-6"
-        style={{ backgroundColor: "#181f38" }}
+        style={{ backgroundColor: "#1A212B" }}
       >
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -403,7 +409,7 @@ export default function BranchAdditionalOffersPage() {
           </div>
         ) : !offers || offers.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-lg font-semibold" style={{ color: "#78819d" }}>
+            <p className="text-lg font-semibold" style={{ color: "#98A2B3" }}>
               Предложения не найдены
             </p>
           </div>
@@ -414,8 +420,8 @@ export default function BranchAdditionalOffersPage() {
                 key={offer.id}
                 className="rounded-xl p-4 border transition-all hover:border-opacity-100"
                 style={{
-                  backgroundColor: "#050c26",
-                  borderColor: "#242b47",
+                  backgroundColor: "#0B0F14",
+                  borderColor: "#202937",
                 }}
               >
                 {/* Image */}
@@ -430,7 +436,7 @@ export default function BranchAdditionalOffersPage() {
                 ) : (
                   <div
                     className="w-full h-40 rounded-lg mb-3 flex items-center justify-center text-6xl"
-                    style={{ backgroundColor: "#181f38" }}
+                    style={{ backgroundColor: "#1A212B" }}
                   >
                     {getCategoryIcon(offer.category)}
                   </div>
@@ -459,7 +465,7 @@ export default function BranchAdditionalOffersPage() {
                   {offer.description && (
                     <p
                       className="text-sm line-clamp-2"
-                      style={{ color: "#78819d" }}
+                      style={{ color: "#98A2B3" }}
                     >
                       {offer.description}
                     </p>
@@ -546,7 +552,7 @@ export default function BranchAdditionalOffersPage() {
                   </div>
                 ) : (
                   <div className="text-center py-2">
-                    <p className="text-xs font-semibold" style={{ color: "#78819d" }}>
+                    <p className="text-xs font-semibold" style={{ color: "#98A2B3" }}>
                       Глобальное предложение (только просмотр)
                     </p>
                   </div>
@@ -562,7 +568,7 @@ export default function BranchAdditionalOffersPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div
             className="rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
-            style={{ backgroundColor: "#181f38" }}
+            style={{ backgroundColor: "#1A212B" }}
           >
             <h2 className="text-2xl font-black text-white mb-6">
               {editingOffer ? "Редактировать предложение" : "Добавить предложение"}
@@ -581,8 +587,8 @@ export default function BranchAdditionalOffersPage() {
                   }
                   className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
                   style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
+                    backgroundColor: "#0B0F14",
+                    borderColor: "#202937",
                   }}
                   required
                 />
@@ -600,8 +606,8 @@ export default function BranchAdditionalOffersPage() {
                   rows={3}
                   className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
                   style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
+                    backgroundColor: "#0B0F14",
+                    borderColor: "#202937",
                   }}
                 />
               </div>
@@ -619,8 +625,8 @@ export default function BranchAdditionalOffersPage() {
                     }
                     className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
                     style={{
-                      backgroundColor: "#050c26",
-                      borderColor: "#242b47",
+                      backgroundColor: "#0B0F14",
+                      borderColor: "#202937",
                     }}
                     required
                   />
@@ -637,8 +643,8 @@ export default function BranchAdditionalOffersPage() {
                     }
                     className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
                     style={{
-                      backgroundColor: "#050c26",
-                      borderColor: "#242b47",
+                      backgroundColor: "#0B0F14",
+                      borderColor: "#202937",
                     }}
                     required
                   >
@@ -692,7 +698,7 @@ export default function BranchAdditionalOffersPage() {
                     setEditingOffer(null);
                   }}
                   className="px-6 py-3 rounded-xl font-bold transition-all"
-                  style={{ backgroundColor: "#242b47", color: "white" }}
+                  style={{ backgroundColor: "#202937", color: "white" }}
                 >
                   Отмена
                 </button>
@@ -707,7 +713,7 @@ export default function BranchAdditionalOffersPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div
             className="rounded-2xl p-6 max-w-md w-full"
-            style={{ backgroundColor: "#181f38" }}
+            style={{ backgroundColor: "#1A212B" }}
           >
             <h2 className="text-2xl font-black text-white mb-4">
               Удалить предложение?
@@ -726,7 +732,7 @@ export default function BranchAdditionalOffersPage() {
               <button
                 onClick={() => setDeleteModal(null)}
                 className="flex-1 px-6 py-3 rounded-xl font-bold transition-all"
-                style={{ backgroundColor: "#242b47", color: "white" }}
+                style={{ backgroundColor: "#202937", color: "white" }}
               >
                 Отмена
               </button>

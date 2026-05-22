@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function BranchHeader() {
   const { data: session } = useSession();
@@ -43,6 +44,11 @@ export default function BranchHeader() {
 
       {/* User Info */}
       <div className="flex items-center gap-3">
+        <NotificationBell
+          apiUrl="/api/branch/notifications"
+          ordersUrl="/branch/orders"
+          theme="branch"
+        />
         <div className="text-right">
           <p className="font-bold text-sm" style={{ color: '#F3F5F7' }}>
             {session?.user?.fullName || "Филиал"}

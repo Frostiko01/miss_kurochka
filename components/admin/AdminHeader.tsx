@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import NotificationBell from "@/components/notifications/NotificationBell";
 
 export default function AdminHeader() {
   const { data: session } = useSession();
@@ -35,6 +36,11 @@ export default function AdminHeader() {
 
       {/* User Info */}
       <div className="flex items-center gap-3">
+        <NotificationBell
+          apiUrl="/api/admin/notifications"
+          ordersUrl="/admin/orders"
+          theme="admin"
+        />
         <div className="text-right">
           <p className="font-bold text-sm text-white">
             {session?.user?.fullName || "Admin"}

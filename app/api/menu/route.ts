@@ -1,99 +1,139 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { pickBestBranch } from "@/lib/branchSelector";
+
+// Отключаем статическое кэширование Next.js — роут динамический (читает searchParams)
+export const dynamic = "force-dynamic";
 
 /**
  * Публичный API для получения меню
  * GET /api/menu?branchId=xxx
- * 
+ * GET /api/menu?lat=42.87&lng=74.59   — автоопределение ближайшего филиала
+ *
  * Возвращает:
  * - Все активные категории (глобальные + все категории филиалов)
  * - Все активные блюда в этих категориях
- * - Учитывает стоп-лист выбранного филиала (если указан)
+ * - Учитывает стоп-лист ближайшего/выбранного филиала
  * - Группирует по типам категорий (regular, combo, mini_combo)
  */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const branchId = searchParams.get("branchId");
+    let branchId = searchParams.get("branchId");
 
-    // Получаем ВСЕ активные категории (независимо от филиала)
+    // Если branchId не передан, но есть координаты — определяем ближайший филиал
+    if (!branchId) {
+      const lat = searchParams.get("lat");
+      const lng = searchParams.get("lng");
+      if (lat && lng) {
+        const picked = await pickBestBranch({
+          customerCoord: { lat: parseFloat(lat), lng: parseFloat(lng) },
+        });
+        if (picked) branchId = picked.branchId;
+      }
+    }
+
+    // Один объединённый запрос вместо двух последовательных
     const categories = await prisma.menuCategory.findMany({
-      where: {
-        status: "active",
-      },
-      orderBy: [
-        { sortOrder: "asc" },
-        { createdAt: "asc" },
-      ],
-      include: {
-        branch: {
+      where: { status: "active" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        nameI18n: true,
+        description: true,
+        imageUrl: true,
+        type: true,
+        sortOrder: true,
+        branchId: true,
+        branch: { select: { id: true, name: true } },
+        menuItems: {
+          where: { isActive: true },
           select: {
             id: true,
             name: true,
-          },
-        },
-      },
-    });
-
-    // Получаем все активные блюда из этих категорий
-    const categoryIds = categories.map((c) => c.id);
-
-    const menuItems = await prisma.menuItem.findMany({
-      where: {
-        categoryId: { in: categoryIds },
-        isActive: true,
-      },
-      include: {
-        category: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            branchId: true,
-          },
-        },
-        images: {
-          orderBy: { isPrimary: "desc" },
-        },
-        sizes: {
-          where: { isActive: true },
-          orderBy: { sortOrder: "asc" },
-        },
-        spices: {
-          where: { isActive: true },
-          orderBy: { sortOrder: "asc" },
-        },
-        modifiers: {
-          include: {
-            modifierGroup: {
-              include: {
-                options: {
-                  where: { isActive: true },
-                  orderBy: { createdAt: "asc" },
+            nameI18n: true,
+            description: true,
+            descriptionI18n: true,
+            cookingTimeMinutes: true,
+            ingredients: true,
+            spicyLevel: true,
+            isVegetarian: true,
+            isVegan: true,
+            isFeatured: true,
+            isNew: true,
+            images: {
+              orderBy: { isPrimary: "desc" },
+              select: { id: true, imageUrl: true, isPrimary: true },
+            },
+            sizes: {
+              where: { isActive: true },
+              orderBy: { sortOrder: "asc" },
+              select: {
+                id: true,
+                name: true,
+                price: true,
+                weightGrams: true,
+                sortOrder: true,
+              },
+            },
+            spices: {
+              where: { isActive: true },
+              orderBy: { sortOrder: "asc" },
+              select: { id: true, name: true, price: true, sortOrder: true },
+            },
+            modifiers: {
+              orderBy: { sortOrder: "asc" },
+              select: {
+                id: true,
+                sortOrder: true,
+                modifierGroup: {
+                  select: {
+                    id: true,
+                    name: true,
+                    nameI18n: true,
+                    selectionType: true,
+                    isRequired: true,
+                    minSelections: true,
+                    maxSelections: true,
+                    options: {
+                      where: { isActive: true },
+                      orderBy: { createdAt: "asc" },
+                      select: {
+                        id: true,
+                        name: true,
+                        nameI18n: true,
+                        priceDelta: true,
+                        isDefault: true,
+                      },
+                    },
+                  },
                 },
               },
             },
+            // Стоп-лист только если передан branchId
+            ...(branchId
+              ? {
+                  stopList: {
+                    where: { branchId, restoredAt: null },
+                    select: { id: true },
+                  },
+                }
+              : {}),
           },
         },
-        stopList: branchId
-          ? {
-              where: { branchId, restoredAt: null },
-              select: { id: true, reason: true, expectedReturnAt: true },
-            }
-          : undefined,
       },
     });
 
-    // Фильтруем блюда, которые в стоп-листе
-    const availableItems = menuItems.filter((item) => {
-      if (!branchId) return true; // Если филиал не выбран, показываем все
-      return item.stopList.length === 0; // Показываем только если не в стоп-листе
-    });
-
-    // Группируем по категориям
+    // Формируем ответ
     const categoriesWithItems = categories.map((category) => {
-      const items = availableItems
-        .filter((item) => item.categoryId === category.id)
+      const items = category.menuItems
+        .filter((item) => {
+          if (!branchId) return true;
+          // stopList есть только когда branchId передан
+          const sl = (item as any).stopList;
+          return !sl || sl.length === 0;
+        })
         .map((item) => ({
           id: item.id,
           name: item.name,
@@ -107,11 +147,7 @@ export async function GET(request: NextRequest) {
           isVegan: item.isVegan,
           isFeatured: item.isFeatured,
           isNew: item.isNew,
-          images: item.images.map((img) => ({
-            id: img.id,
-            imageUrl: img.imageUrl,
-            isPrimary: img.isPrimary,
-          })),
+          images: item.images,
           sizes: item.sizes.map((s) => ({
             id: s.id,
             name: s.name,
@@ -125,7 +161,6 @@ export async function GET(request: NextRequest) {
             price: Number(sp.price),
             sortOrder: sp.sortOrder,
           })),
-          // Базовая цена для совместимости — берём первый размер
           price: item.sizes.length > 0 ? Number(item.sizes[0].price) : 0,
           weightGrams: item.sizes[0]?.weightGrams ?? null,
           modifiers: item.modifiers.map((mod) => ({
@@ -165,19 +200,27 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Группируем по типам
     const grouped = {
       regular: categoriesWithItems.filter((c) => c.type === "regular"),
       combo: categoriesWithItems.filter((c) => c.type === "combo"),
       mini_combo: categoriesWithItems.filter((c) => c.type === "mini_combo"),
     };
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       categories: categoriesWithItems,
       grouped,
       totalCategories: categoriesWithItems.length,
-      totalItems: availableItems.length,
+      totalItems: categoriesWithItems.reduce((sum, c) => sum + c.itemsCount, 0),
+      resolvedBranchId: branchId ?? null,
     });
+
+    // HTTP-кэш: браузер и CDN кэшируют на 60 сек, stale-while-revalidate 300 сек
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=60, stale-while-revalidate=300"
+    );
+
+    return response;
   } catch (error) {
     console.error("Error fetching menu:", error);
     return NextResponse.json(

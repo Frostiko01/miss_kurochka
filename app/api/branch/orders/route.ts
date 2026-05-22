@@ -20,52 +20,76 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Branch not found" }, { status: 404 });
     }
 
-    // Получаем только заказы этого филиала
-    const orders = await prisma.order.findMany({
-      where: {
-        branchId: branchUser.branchId,
-      },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            fullName: true,
-            phone: true,
-            email: true,
-          },
-        },
-        items: {
-          include: {
-            menuItem: {
-              select: {
-                id: true,
-                name: true,
-                nameI18n: true,
-              },
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search") || "";
+    const status = searchParams.get("status") || "all";
+    const limit = parseInt(searchParams.get("limit") || "100");
+
+    const where: any = { branchId: branchUser.branchId };
+    if (search) {
+      where.OR = [
+        { orderNumber: { contains: search, mode: "insensitive" } },
+        { customerName: { contains: search, mode: "insensitive" } },
+        { customerPhone: { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (status !== "all") {
+      where.status = status;
+    }
+
+    const [orders, newCount] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              fullName: true,
+              phone: true,
+              email: true,
             },
-            comboOffer: true,
-            modifiers: {
-              include: {
-                modifierOption: {
-                  select: {
-                    id: true,
-                    name: true,
-                    nameI18n: true,
-                    priceDelta: true,
+          },
+          items: {
+            include: {
+              menuItem: {
+                select: {
+                  id: true,
+                  name: true,
+                  nameI18n: true,
+                },
+              },
+              comboOffer: true,
+              modifiers: {
+                include: {
+                  modifierOption: {
+                    select: {
+                      id: true,
+                      name: true,
+                      nameI18n: true,
+                      priceDelta: true,
+                    },
                   },
                 },
               },
             },
           },
+          payments: true,
+          branch: {
+            select: { id: true, name: true, address: true, phone: true },
+          },
         },
-        payments: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.order.count({
+        where: {
+          branchId: branchUser.branchId,
+          status: { in: ["pending", "confirmed"] },
+        },
+      }),
+    ]);
 
-    return NextResponse.json({ orders });
+    return NextResponse.json({ orders, newCount });
   } catch (error) {
     console.error("Branch orders GET error:", error);
     return NextResponse.json(
@@ -75,8 +99,8 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT - Обновить статус заказа
-export async function PUT(request: NextRequest) {
+// PATCH - Обновить статус заказа
+export async function PATCH(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -85,11 +109,29 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { orderId, status } = body;
+    // Поддерживаем оба варианта именования: id (новый, как в админке) и orderId (старый)
+    const orderId = body.id || body.orderId;
+    const { status } = body;
 
     if (!orderId || !status) {
       return NextResponse.json(
         { error: "Order ID and status are required" },
+        { status: 400 }
+      );
+    }
+
+    const allowed = [
+      "pending",
+      "confirmed",
+      "preparing",
+      "ready",
+      "delivering",
+      "completed",
+      "cancelled",
+    ];
+    if (!allowed.includes(status)) {
+      return NextResponse.json(
+        { error: "Invalid status" },
         { status: 400 }
       );
     }
@@ -116,13 +158,17 @@ export async function PUT(request: NextRequest) {
     }
 
     // Обновляем статус
+    const updateData: any = { status };
+    if (status === "ready" && !order.readyAt) updateData.readyAt = new Date();
+    if (status === "completed" && !order.deliveredAt) updateData.deliveredAt = new Date();
+    if (status === "cancelled" && !order.cancelledAt) {
+      updateData.cancelledAt = new Date();
+      updateData.cancelledBy = session.user.id;
+    }
+
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
-      data: {
-        status,
-        ...(status === "ready" && { readyAt: new Date() }),
-        ...(status === "completed" && { deliveredAt: new Date() }),
-      },
+      data: updateData,
       include: {
         customer: {
           select: {
@@ -146,7 +192,7 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ order: updatedOrder });
   } catch (error) {
-    console.error("Branch order PUT error:", error);
+    console.error("Branch order PATCH error:", error);
     return NextResponse.json(
       { error: "Failed to update order" },
       { status: 500 }
