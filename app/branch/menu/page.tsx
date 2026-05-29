@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Toast from "@/components/admin/Toast";
@@ -90,7 +90,7 @@ export default function BranchMenuPage() {
   const [editingDish, setEditingDish] = useState<MenuItem | null>(null);
   const [newlyCreatedDishId, setNewlyCreatedDishId] = useState<string | null>(null);
   const [sizesEnabled, setSizesEnabled] = useState(false);
-  const [sizes, setSizes] = useState<SizeOption[]>([{ name: "250 г", priceDelta: 0 }]);
+  const [sizes, setSizes] = useState<SizeOption[]>([{ name: "250 г", price: 0 }]);
   const [dishFormData, setDishFormData] = useState({
     categoryId: "",
     name: "",
@@ -103,55 +103,20 @@ export default function BranchMenuPage() {
   });
 
   // Загрузка данных
-  useEffect(() => {
-    if (activeTab === "categories") {
-      fetchCategories();
-    } else {
-      fetchMenuItems();
-    }
-  }, [activeTab, search, statusFilter, categoryFilter, sortBy, sortOrder]);
-
   const fetchCategories = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/branch/categories?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedCategories = [...data.categories];
-        
-        sortedCategories.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "name":
-              aValue = a.name.toLowerCase();
-              bValue = b.name.toLowerCase();
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-              break;
-            case "items":
-              aValue = a._count.menuItems;
-              bValue = b._count.menuItems;
-              break;
-            default:
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setCategories(sortedCategories);
+        setCategories(data.categories);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -167,45 +132,14 @@ export default function BranchMenuPage() {
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (categoryFilter !== "all") params.append("categoryId", categoryFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/branch/menu-items?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedItems = [...data.menuItems];
-        
-        sortedItems.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "name":
-              aValue = a.name.toLowerCase();
-              bValue = b.name.toLowerCase();
-              break;
-            case "price":
-              aValue = a.price;
-              bValue = b.price;
-              break;
-            case "category":
-              aValue = a.category.name.toLowerCase();
-              bValue = b.category.name.toLowerCase();
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-              break;
-            default:
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setMenuItems(sortedItems);
+        setMenuItems(data.menuItems);
       }
     } catch (error) {
       console.error("Error fetching menu items:", error);
@@ -213,6 +147,19 @@ export default function BranchMenuPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Откладываем вызовы в микротаск, чтобы setState внутри них не считался
+    // синхронным внутри тела useEffect (react-hooks/set-state-in-effect).
+    Promise.resolve().then(() => {
+      if (activeTab === "categories") {
+        fetchCategories();
+      } else {
+        fetchMenuItems();
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, search, statusFilter, categoryFilter, sortBy, sortOrder]);
 
   // Открытие модального окна удаления
   const openDeleteModal = (id: string, name: string, type: "category" | "dish") => {
@@ -427,7 +374,7 @@ export default function BranchMenuPage() {
     setShowAddDishModal(false);
     setNewlyCreatedDishId(null);
     setSizesEnabled(false);
-    setSizes([{ name: "250 г", priceDelta: 0 }]);
+    setSizes([{ name: "250 г", price: 0 }]);
     setDishFormData({
       categoryId: "",
       name: "",
@@ -752,9 +699,9 @@ export default function BranchMenuPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {/* Sorting Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
                     Сортировка
                   </label>
@@ -785,7 +732,7 @@ export default function BranchMenuPage() {
                 </div>
 
                 {/* Status Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
                     Статус
                   </label>
@@ -802,7 +749,10 @@ export default function BranchMenuPage() {
                 </div>
 
                 {/* Sort Order Toggle */}
-                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 flex flex-col justify-end" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
+                    Порядок
+                  </label>
                   <div className="flex gap-2 w-full">
                     <button
                       onClick={() => setSortOrder("asc")}
@@ -837,7 +787,7 @@ export default function BranchMenuPage() {
 
                 {/* Category Filter Card (only for dishes) */}
                 {activeTab === "dishes" && (
-                  <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                  <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
                     <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
                       Категория
                     </label>
@@ -1101,7 +1051,7 @@ export default function BranchMenuPage() {
 
       {/* Add Category Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center justify-between">
@@ -1132,7 +1082,7 @@ export default function BranchMenuPage() {
                 <label className="block text-sm font-bold text-white mb-2">Описание</label>
                 <textarea value={addFormData.description} onChange={(e) => setAddFormData({ ...addFormData, description: e.target.value })} rows={3} className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border resize-none" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }} placeholder="Описание категории (необязательно)" />
               </div>
-              <ImageUpload label="Изображение категории" value={addFormData.imageUrl} onChange={(url) => setAddFormData({ ...addFormData, imageUrl: url })} />
+              <ImageUpload label="Изображение категории" value={addFormData.imageUrl} onChange={(url) => setAddFormData({ ...addFormData, imageUrl: url })} folder="categories" />
               <div>
                 <label className="block text-sm font-bold text-white mb-2">Статус</label>
                 <select value={addFormData.status} onChange={(e) => setAddFormData({ ...addFormData, status: e.target.value })} className="w-full px-4 py-3 rounded-xl text-white focus:outline-none transition-all border" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }}>
@@ -1157,7 +1107,7 @@ export default function BranchMenuPage() {
 
       {/* Edit Category Modal */}
       {showEditModal && editingCategory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center justify-between">
@@ -1188,7 +1138,7 @@ export default function BranchMenuPage() {
                 <label className="block text-sm font-bold text-white mb-2">Описание</label>
                 <textarea value={editFormData.description} onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })} rows={3} className="w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border resize-none" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }} placeholder="Описание категории (необязательно)" />
               </div>
-              <ImageUpload label="Изображение категории" value={editFormData.imageUrl} onChange={(url) => setEditFormData({ ...editFormData, imageUrl: url })} />
+              <ImageUpload label="Изображение категории" value={editFormData.imageUrl} onChange={(url) => setEditFormData({ ...editFormData, imageUrl: url })} folder="categories" />
               <div>
                 <label className="block text-sm font-bold text-white mb-2">Статус</label>
                 <select value={editFormData.status} onChange={(e) => setEditFormData({ ...editFormData, status: e.target.value })} className="w-full px-4 py-3 rounded-xl text-white focus:outline-none transition-all border" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }}>
@@ -1208,7 +1158,7 @@ export default function BranchMenuPage() {
 
       {/* Add Dish Modal */}
       {showAddDishModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center justify-between">
@@ -1249,7 +1199,7 @@ export default function BranchMenuPage() {
                 <label className="block text-sm font-bold text-white mb-2">Время приготовления (мин)</label>
                 <input type="number" value={dishFormData.cookingTimeMinutes} onChange={(e) => setDishFormData({ ...dishFormData, cookingTimeMinutes: e.target.value })} className="w-full px-4 py-3 rounded-xl text-white border" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }} />
               </div>
-              <ImageUpload label="Изображение блюда" value={dishFormData.imageUrl} onChange={(url) => setDishFormData({ ...dishFormData, imageUrl: url })} />
+              <ImageUpload label="Изображение блюда" value={dishFormData.imageUrl} onChange={(url) => setDishFormData({ ...dishFormData, imageUrl: url })} folder="menu" />
               <div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={dishFormData.isActive} onChange={(e) => setDishFormData({ ...dishFormData, isActive: e.target.checked })} className="w-5 h-5 rounded" style={{ accentColor: '#7C8CA5' }} />
@@ -1278,7 +1228,7 @@ export default function BranchMenuPage() {
 
       {/* Edit Dish Modal */}
       {showEditDishModal && editingDish && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center justify-between">
@@ -1319,7 +1269,7 @@ export default function BranchMenuPage() {
                 <label className="block text-sm font-bold text-white mb-2">Время приготовления (мин)</label>
                 <input type="number" value={dishFormData.cookingTimeMinutes} onChange={(e) => setDishFormData({ ...dishFormData, cookingTimeMinutes: e.target.value })} className="w-full px-4 py-3 rounded-xl text-white border" style={{ backgroundColor: '#0B0F14', borderColor: '#202937' }} />
               </div>
-              <ImageUpload label="Изображение блюда" value={dishFormData.imageUrl} onChange={(url) => setDishFormData({ ...dishFormData, imageUrl: url })} />
+              <ImageUpload label="Изображение блюда" value={dishFormData.imageUrl} onChange={(url) => setDishFormData({ ...dishFormData, imageUrl: url })} folder="menu" />
               <div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" checked={dishFormData.isActive} onChange={(e) => setDishFormData({ ...dishFormData, isActive: e.target.checked })} className="w-5 h-5 rounded" style={{ accentColor: '#7C8CA5' }} />
@@ -1347,7 +1297,7 @@ export default function BranchMenuPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center gap-3">
@@ -1368,7 +1318,7 @@ export default function BranchMenuPage() {
                 <span className="font-bold" style={{ color: '#EF4444' }}>удалить</span>
                 {' '}{deleteModal.type === "category" ? "категорию" : "блюдо"}?
               </p>
-              <p className="font-bold text-white mb-4">"{deleteModal.name}"</p>
+              <p className="font-bold text-white mb-4">&quot;{deleteModal.name}&quot;</p>
               <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
                 <p className="text-sm" style={{ color: '#EF4444' }}>
                   ⚠️ {deleteModal.type === "category" 

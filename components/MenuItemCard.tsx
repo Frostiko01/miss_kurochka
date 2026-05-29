@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Minus, X, Heart } from "lucide-react";
-import { useFavorites } from "@/hooks/useFavorites";
+import { Plus, Minus, X } from "lucide-react";
 
 interface Size {
   id: string;
@@ -458,7 +457,6 @@ export default function MenuItemCard({
     sizes[0]?.id ?? null,
   );
   const [showModal, setShowModal] = useState(false);
-  const { isFavorite, toggle: toggleFavorite } = useFavorites();
 
   const selectedSize =
     sizes.find((s) => s.id === selectedSizeId) ?? sizes[0] ?? null;
@@ -526,27 +524,7 @@ export default function MenuItemCard({
               Хит
             </span>
           )}
-          {/* Кнопка избранного */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleFavorite(item.id);
-            }}
-            aria-label={
-              isFavorite(item.id)
-                ? "Убрать из избранного"
-                : "Добавить в избранное"
-            }
-            className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform"
-          >
-            <Heart
-              className={`w-4 h-4 transition-colors ${
-                isFavorite(item.id)
-                  ? "fill-[var(--brand)] text-[var(--brand)]"
-                  : "text-gray-400"
-              }`}
-            />
-          </button>
+          {/* Кнопка избранного убрана */}
         </div>
 
         {/* Контент */}

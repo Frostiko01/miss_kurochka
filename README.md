@@ -143,6 +143,8 @@ npx prisma migrate dev
 
 ## 🚀 Запуск проекта
 
+### Локальная разработка
+
 ```bash
 # Установка зависимостей
 npm install
@@ -153,6 +155,214 @@ npx prisma migrate dev
 # Запуск dev-сервера
 npm run dev
 ```
+
+### 🐳 Деплой на Timeweb App Platform
+
+Проект готов к деплою на Timeweb App Platform с использованием Docker.
+
+**Быстрый старт:**
+1. Создайте PostgreSQL базу данных (в Timeweb Cloud или внешний сервис)
+2. Загрузите код в GitHub/GitLab/Bitbucket
+3. Создайте приложение в Timeweb App Platform
+4. Настройте переменные окружения
+5. Деплой произойдет автоматически!
+
+**📖 Подробная инструкция:** См. [TIMEWEB_DEPLOY.md](./TIMEWEB_DEPLOY.md)
+
+**Что включено:**
+- ✅ Оптимизированный Dockerfile для production
+- ✅ Multi-stage сборка для минимального размера образа
+- ✅ Автоматическая генерация Prisma Client
+- ✅ Поддержка внешней PostgreSQL базы данных
+- ✅ Готовность к автодеплою при git push
+
+## 💳 Настройка Finik Pay
+
+### Проблема с подписью платежей
+
+Если вы видите ошибку `Failed to generate Finik signature`, это означает, что приватный ключ в `.env` файле настроен неправильно.
+
+### Быстрое решение:
+
+```bash
+# 1. Запустите скрипт проверки
+npx tsx scripts/test-finik-key.ts
+
+# 2. Скопируйте содержимое созданного файла finik_key_for_env.txt в .env
+
+# 3. Перезапустите сервер
+npm run dev
+```
+
+Подробная инструкция: см. [FINIK_KEY_SETUP.md](./FINIK_KEY_SETUP.md)
+
+### Тестирование с localhost
+
+⚠️ **Важно:** Finik API не может отправлять webhooks на `localhost`. Для тестирования используйте:
+
+1. **ngrok** (рекомендуется):
+```bash
+ngrok http 3000
+# Обновите NEXT_PUBLIC_APP_URL в .env на ngrok URL
+```
+
+2. **Beta окружение** (без webhook):
+```env
+FINIK_ENV="beta"
+```
+
+Подробнее: [FINIK_TESTING_GUIDE.md](./FINIK_TESTING_GUIDE.md)
+
+### Переменные окружения для Finik:
+
+```env
+FINIK_ENV="prod"                    # или "beta" для тестирования
+FINIK_ACCOUNT_ID="ваш-account-id"
+FINIK_API_KEY="ваш-api-key"
+FINIK_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...ваш_ключ...\n-----END PRIVATE KEY-----"
+
+# Для тестирования с ngrok:
+NEXT_PUBLIC_APP_URL="https://your-ngrok-url.ngrok.io"
+NEXTAUTH_URL="https://your-ngrok-url.ngrok.io"
+```
+
+**Важно:** Приватный ключ должен быть в одну строку с `\n` вместо реальных переносов строк.
+
+## 🎨 Компоненты загрузки
+
+### Доступные компоненты
+
+#### 1. Spinner - Базовый спиннер
+```tsx
+import Spinner from '@/components/Spinner'
+
+// Разные размеры
+<Spinner size="sm" />  // Маленький (16px)
+<Spinner size="md" />  // Средний (32px) - по умолчанию
+<Spinner size="lg" />  // Большой (48px)
+<Spinner size="xl" />  // Очень большой (64px)
+
+// С кастомными классами
+<Spinner size="lg" className="text-blue-500" />
+```
+
+#### 2. LoadingScreen - Полноэкранная загрузка
+```tsx
+import LoadingScreen from '@/components/LoadingScreen'
+
+// Полноэкранная загрузка
+<LoadingScreen message="Загрузка данных..." />
+
+// Загрузка в контейнере
+<LoadingScreen message="Обработка..." fullScreen={false} />
+```
+
+#### 3. LoadingCard - Загрузка в карточке
+```tsx
+import LoadingCard from '@/components/LoadingCard'
+
+// Стандартная высота
+<LoadingCard message="Загрузка меню..." />
+
+// Кастомная высота
+<LoadingCard message="Загрузка..." height="h-96" />
+```
+
+#### 4. ButtonWithLoading - Кнопка с индикатором загрузки
+```tsx
+import ButtonWithLoading from '@/components/ButtonWithLoading'
+
+<ButtonWithLoading
+  loading={isLoading}
+  onClick={handleSubmit}
+  variant="primary"
+  size="lg"
+>
+  Отправить заказ
+</ButtonWithLoading>
+
+// Варианты: primary, secondary, ghost
+// Размеры: sm, md, lg
+```
+
+### Примеры использования
+
+#### Загрузка данных в странице
+```tsx
+'use client'
+
+import { useState, useEffect } from 'react'
+import LoadingScreen from '@/components/LoadingScreen'
+
+export default function MenuPage() {
+  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState(null)
+
+  useEffect(() => {
+    fetchData().then(result => {
+      setData(result)
+      setLoading(false)
+    })
+  }, [])
+
+  if (loading) {
+    return <LoadingScreen message="Загрузка меню..." />
+  }
+
+  return <div>{/* Контент */}</div>
+}
+```
+
+#### Кнопка с загрузкой
+```tsx
+'use client'
+
+import { useState } from 'react'
+import ButtonWithLoading from '@/components/ButtonWithLoading'
+
+export default function OrderForm() {
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    await submitOrder()
+    setSubmitting(false)
+  }
+
+  return (
+    <ButtonWithLoading
+      loading={submitting}
+      onClick={handleSubmit}
+      variant="primary"
+    >
+      Оформить заказ
+    </ButtonWithLoading>
+  )
+}
+```
+
+#### Загрузка в списке карточек
+```tsx
+import LoadingCard from '@/components/LoadingCard'
+
+export default function MenuList({ loading, items }) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <LoadingCard message="Загрузка блюд..." />
+        <LoadingCard message="Загрузка блюд..." />
+        <LoadingCard message="Загрузка блюд..." />
+      </div>
+    )
+  }
+
+  return <div>{/* Список блюд */}</div>
+}
+```
+
+### Стилизация
+
+Все спиннеры используют цвет бренда `var(--brand)` (#d62300) и автоматически адаптируются к дизайн-системе проекта. Анимация вращения настроена через Tailwind CSS класс `animate-spin`.
 
 ## 📝 Лицензия
 

@@ -1,323 +1,268 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Heart, ShoppingBag, Flame, Plus, Minus } from 'lucide-react'
+import { Heart, ShoppingBag } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { useFavorites } from '@/hooks/useFavorites'
-import MenuItemCard from '@/components/MenuItemCard'
 import AuthModal from '@/components/AuthModal'
 import Link from 'next/link'
+import MobileSubScreen from '@/components/mobile/MobileSubScreen'
+import ProductCard, { ProductCardItem } from '@/components/mobile/ProductCard'
+import MenuItemModal from '@/components/MenuItemModal'
 
-// Карточка для комбо-оффера на странице избранного
-function ComboFavoriteCard({
-  item,
-  comboQty,
-  onAdd,
-  onUpdate,
-}: {
-  item: any
-  comboQty: number
-  onAdd: () => void
-  onUpdate: (cartItemId: string, qty: number) => void
-}) {
-  const { isFavorite, toggle } = useFavorites()
+interface CartApiItem {
+  id: string
+  quantity: number
+  sizeId?: string | null
+  menuItem?: { id: string } | null
+}
 
-  return (
-    <article className="bg-white rounded-2xl overflow-hidden shadow-sm border border-[var(--border)] flex flex-col h-full">
-      {/* Фото */}
-      <div className="relative overflow-hidden bg-[var(--bg-muted)]" style={{ aspectRatio: '4/3' }}>
-        {item.images?.[0]?.imageUrl ? (
-          <img
-            src={item.images[0].imageUrl}
-            alt={item.name}
-            className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-4xl">🍗</div>
-        )}
-        <span className="absolute top-2 left-2 badge badge-brand text-[10px]">
-          <Flame className="w-2.5 h-2.5" />
-          Комбо
-        </span>
-        {/* Кнопка избранного */}
-        <button
-          onClick={() => toggle(item.storageId)}
-          aria-label="Убрать из избранного"
-          className="absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-sm hover:scale-110 transition-transform"
-        >
-          <Heart
-            className={`w-4 h-4 transition-colors ${
-              isFavorite(item.storageId)
-                ? 'fill-[var(--brand)] text-[var(--brand)]'
-                : 'text-gray-400'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Контент */}
-      <div className="p-3 flex flex-col flex-1">
-        <h3 className="text-sm font-extrabold leading-tight mb-1 line-clamp-2">{item.name}</h3>
-
-        {item.comboItems?.length > 0 && (
-          <ul className="mb-2 space-y-0.5 flex-1">
-            {item.comboItems.slice(0, 3).map((name: string, i: number) => (
-              <li key={i} className="flex items-center text-[11px] text-[var(--fg-muted)]">
-                <span className="w-1 h-1 bg-[var(--brand)] rounded-full mr-1.5 shrink-0" />
-                <span className="truncate">{name}</span>
-              </li>
-            ))}
-            {item.comboItems.length > 3 && (
-              <li className="text-[11px] text-[var(--brand)] font-semibold">
-                +{item.comboItems.length - 3} ещё
-              </li>
-            )}
-          </ul>
-        )}
-
-        {/* Цена + кнопка */}
-        <div className="mt-auto flex items-center justify-between gap-2 pt-2 border-t border-[var(--border)]">
-          <div>
-            {item.oldPrice && (
-              <div className="text-[10px] text-[var(--fg-subtle)] line-through font-semibold">
-                {item.oldPrice} сом
-              </div>
-            )}
-            <div className="text-sm font-extrabold text-[var(--fg)]">
-              {item.price}{' '}
-              <span className="text-[10px] font-bold text-[var(--fg-muted)]">сом</span>
-            </div>
-          </div>
-
-          {comboQty > 0 ? (
-            <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
-              <button
-                onClick={() => onUpdate('', comboQty - 1)}
-                className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
-                aria-label="Уменьшить"
-              >
-                <Minus className="w-3 h-3" />
-              </button>
-              <span className="font-bold text-xs text-white min-w-[16px] text-center">{comboQty}</span>
-              <button
-                onClick={onAdd}
-                className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
-                aria-label="Увеличить"
-              >
-                <Plus className="w-3 h-3" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={onAdd}
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
-              aria-label="Добавить"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      </div>
-    </article>
-  )
+interface CartApiCart {
+  items?: CartApiItem[]
 }
 
 export default function FavoritesPage() {
   const { data: session } = useSession()
-  const { ids: favorites, mounted } = useFavorites()
-  const [items, setItems] = useState<any[]>([])
+  const { ids: favorites, mounted, isFavorite, toggle: toggleFavorite } = useFavorites()
+
+  const [items, setItems] = useState<ProductCardItem[]>([])
   const [loading, setLoading] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [cartBySizeId, setCartBySizeId] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
-  const [cartByItemId, setCartByItemId] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
-  const [comboItems, setComboItems] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
+  const [cartItems, setCartItems] = useState<Record<string, { quantity: number; cartItemId: string }>>({})
+  const [selectedItem, setSelectedItem] = useState<ProductCardItem | null>(null)
+  const [modalOpen, setModalOpen] = useState(false)
 
-  // Загружаем блюда по ID из localStorage (только после монтирования)
+  // Загружаем блюда по ID из localStorage
   useEffect(() => {
     if (!mounted) return
-    if (favorites.length === 0) {
-      setItems([])
+    // Читаем напрямую из localStorage — хук может ещё не успеть прочитать
+    let currentIds: string[] = []
+    try {
+      const stored = localStorage.getItem('favorites')
+      currentIds = stored ? JSON.parse(stored) : []
+    } catch {
+      currentIds = favorites
+    }
+
+    if (currentIds.length === 0) {
+      Promise.resolve().then(() => setItems([]))
       return
     }
-    setLoading(true)
-    fetch(`/api/menu/by-ids?ids=${favorites.join(',')}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data.items) setItems(data.items)
+    let cancelled = false
+    Promise.resolve().then(() => setLoading(true))
+    fetch(`/api/menu/by-ids?ids=${currentIds.join(',')}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return
+        if (data.items) setItems(data.items as ProductCardItem[])
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
-  }, [favorites, mounted])
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [mounted, favorites])
 
   // Синхронизируем корзину
-  const syncCart = (cartData: any) => {
-    const bySizeId: Record<string, { quantity: number; cartItemId: string }> = {}
-    const byItemId: Record<string, { quantity: number; cartItemId: string }> = {}
-    const byComboId: Record<string, { quantity: number; cartItemId: string }> = {}
-    cartData?.items?.forEach((ci: any) => {
+  const syncCart = (cart: CartApiCart | null | undefined) => {
+    const map: Record<string, { quantity: number; cartItemId: string }> = {}
+    cart?.items?.forEach((ci) => {
       if (ci.menuItem) {
-        byItemId[ci.menuItem.id] = { quantity: ci.quantity, cartItemId: ci.id }
-        if (ci.sizeId) bySizeId[ci.sizeId] = { quantity: ci.quantity, cartItemId: ci.id }
-      } else if (ci.comboOffer) {
-        byComboId[ci.comboOffer.id] = { quantity: ci.quantity, cartItemId: ci.id }
+        map[ci.menuItem.id] = { quantity: ci.quantity, cartItemId: ci.id }
       }
     })
-    setCartBySizeId(bySizeId)
-    setCartByItemId(byItemId)
-    setComboItems(byComboId)
+    setCartItems(map)
   }
 
   useEffect(() => {
     if (!session) {
-      setCartBySizeId({})
-      setCartByItemId({})
-      setComboItems({})
+      Promise.resolve().then(() => setCartItems({}))
       return
     }
+    let cancelled = false
     fetch('/api/cart')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.cart) syncCart(data.cart) })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (!cancelled && data?.cart) syncCart(data.cart) })
       .catch(() => {})
+    return () => { cancelled = true }
   }, [session])
 
-  const handleAddToCart = async (menuItemId: string, sizeId: string | null, spiceIds: string[]) => {
+  const handleItemClick = (item: ProductCardItem) => {
     if (!session) { setShowAuthModal(true); return }
+    const hasModifiers = ((item as unknown as { modifiers?: unknown[] }).modifiers?.length ?? 0) > 0
+    const hasSpices = ((item as unknown as { spices?: unknown[] }).spices?.length ?? 0) > 0
+    const hasSizes = item.sizes && item.sizes.length > 1
+    if (hasModifiers || hasSpices || hasSizes) {
+      setSelectedItem(item)
+      setModalOpen(true)
+    } else {
+      addToCart(item.id)
+    }
+  }
+
+  const addToCart = async (
+    menuItemId?: string,
+    modifiers?: string[],
+    quantity?: number,
+    sizeId?: string | null,
+    spices?: string[],
+  ) => {
+    if (!session) { setShowAuthModal(true); return }
+    if (!menuItemId) return
     try {
-      const res = await fetch('/api/cart', {
+      const r = await fetch('/api/cart', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ menuItemId, sizeId, spiceIds, quantity: 1 }),
+        body: JSON.stringify({
+          menuItemId,
+          quantity: quantity || 1,
+          modifiers: modifiers || [],
+          spices: spices || [],
+          sizeId: sizeId ?? null,
+        }),
       })
-      if (res.ok) { const data = await res.json(); syncCart(data.cart) }
+      if (r.ok) { const data = await r.json(); syncCart(data.cart) }
     } catch {}
   }
 
-  const handleAddComboToCart = async (comboOfferId: string) => {
-    if (!session) { setShowAuthModal(true); return }
+  const updateQty = async (cartItemId: string, qty: number) => {
     try {
-      const res = await fetch('/api/cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comboOfferId, quantity: 1 }),
-      })
-      if (res.ok) { const data = await res.json(); syncCart(data.cart) }
-    } catch {}
-  }
-
-  const handleUpdateCart = async (cartItemId: string, qty: number) => {
-    if (!session) return
-    try {
-      if (qty === 0) {
-        const res = await fetch(`/api/cart/items?id=${cartItemId}`, { method: 'DELETE' })
-        if (res.ok) { const data = await res.json(); syncCart(data.cart) }
+      if (qty <= 0) {
+        const r = await fetch(`/api/cart/items?id=${cartItemId}`, { method: 'DELETE' })
+        if (r.ok) { const data = await r.json(); syncCart(data.cart) }
       } else {
-        const res = await fetch('/api/cart/items', {
+        const r = await fetch('/api/cart/items', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cartItemId, quantity: qty }),
         })
-        if (res.ok) { const data = await res.json(); syncCart(data.cart) }
+        if (r.ok) { const data = await r.json(); syncCart(data.cart) }
       }
     } catch {}
   }
 
+  const isEmpty = !loading && mounted && favorites.length === 0
+  const allRemoved = !loading && mounted && favorites.length > 0 && items.length === 0
+
+  const renderEmpty = () => (
+    <div className="flex flex-col items-center justify-center py-16 text-center px-4">
+      <div className="w-20 h-20 rounded-full bg-[var(--bg-muted)] flex items-center justify-center mb-5">
+        <Heart className="w-9 h-9 text-[var(--fg-subtle)]" />
+      </div>
+      <h2 className="text-xl font-extrabold mb-2">Пока пусто</h2>
+      <p className="text-[var(--fg-muted)] text-sm max-w-xs mb-6">
+        Нажмите на сердечко на карточке блюда, чтобы добавить его в избранное
+      </p>
+      <Link href="/menu" className="btn btn-primary">
+        <ShoppingBag className="w-4 h-4" />
+        Перейти в меню
+      </Link>
+    </div>
+  )
+
+  const renderSkeleton = () => (
+    <div className="grid grid-cols-2 gap-3">
+      {Array.from({ length: favorites.length || 4 }).map((_, i) => (
+        <div key={i} className="rounded-2xl bg-[var(--bg-muted)] animate-pulse" style={{ aspectRatio: '3/4' }} />
+      ))}
+    </div>
+  )
+
+  const renderGrid = () => (
+    <div className="grid grid-cols-2 gap-3">
+      {items.map((item) => (
+        <ProductCard
+          key={item.id}
+          item={item}
+          cartQuantity={cartItems[item.id]?.quantity ?? 0}
+          isFavorite={isFavorite(item.id)}
+          onClick={() => handleItemClick(item)}
+          onAdd={() => handleItemClick(item)}
+          onIncrease={() => {
+            const ref = cartItems[item.id]
+            if (ref) updateQty(ref.cartItemId, ref.quantity + 1)
+          }}
+          onDecrease={() => {
+            const ref = cartItems[item.id]
+            if (ref) updateQty(ref.cartItemId, ref.quantity - 1)
+          }}
+          onToggleFavorite={() => toggleFavorite(item.id)}
+        />
+      ))}
+    </div>
+  )
+
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
-      {/* Шапка */}
-      <div className="bg-white border-b border-[var(--border)] sticky top-0 z-10">
-        <div className="container-page py-4 flex items-center gap-3">
-          <Heart className="w-5 h-5 text-[var(--brand)]" />
-          <h1 className="text-xl font-extrabold tracking-tight">Избранное</h1>
-          {favorites.length > 0 && (
-            <span className="ml-auto text-sm text-[var(--fg-muted)] font-semibold">
-              {favorites.length}{' '}
-              {favorites.length === 1 ? 'блюдо' : favorites.length < 5 ? 'блюда' : 'блюд'}
-            </span>
-          )}
+    <>
+      {/* Mobile */}
+      <MobileSubScreen
+        title="Избранное"
+        subtitle={
+          favorites.length > 0
+            ? `${favorites.length} ${favorites.length === 1 ? 'блюдо' : favorites.length < 5 ? 'блюда' : 'блюд'}`
+            : undefined
+        }
+      >
+        <div className="px-3 pt-3">
+          {isEmpty || allRemoved
+            ? renderEmpty()
+            : (loading || !mounted) && favorites.length > 0
+            ? renderSkeleton()
+            : renderGrid()}
+        </div>
+      </MobileSubScreen>
+
+      {/* Desktop */}
+      <div className="hidden md:block min-h-screen bg-[var(--bg)]">
+        <div className="bg-white border-b border-[var(--border)] sticky top-0 z-10">
+          <div className="container-page py-4 flex items-center gap-3">
+            <Heart className="w-5 h-5 text-[var(--brand)]" />
+            <h1 className="text-xl font-extrabold tracking-tight">Избранное</h1>
+            {favorites.length > 0 && (
+              <span className="ml-auto text-sm text-[var(--fg-muted)] font-semibold">
+                {favorites.length}{' '}
+                {favorites.length === 1 ? 'блюдо' : favorites.length < 5 ? 'блюда' : 'блюд'}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="container-page py-8">
+          {isEmpty || allRemoved
+            ? renderEmpty()
+            : (loading || !mounted) && favorites.length > 0
+            ? renderSkeleton()
+            : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {items.map((item) => (
+                  <ProductCard
+                    key={item.id}
+                    item={item}
+                    cartQuantity={cartItems[item.id]?.quantity ?? 0}
+                    isFavorite={isFavorite(item.id)}
+                    onClick={() => handleItemClick(item)}
+                    onAdd={() => handleItemClick(item)}
+                    onIncrease={() => {
+                      const ref = cartItems[item.id]
+                      if (ref) updateQty(ref.cartItemId, ref.quantity + 1)
+                    }}
+                    onDecrease={() => {
+                      const ref = cartItems[item.id]
+                      if (ref) updateQty(ref.cartItemId, ref.quantity - 1)
+                    }}
+                    onToggleFavorite={() => toggleFavorite(item.id)}
+                  />
+                ))}
+              </div>
+            )}
         </div>
       </div>
 
-      <div className="container-page py-8">
-        {/* Пустое состояние */}
-        {!loading && mounted && favorites.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-full bg-[var(--bg-muted)] flex items-center justify-center mb-5">
-              <Heart className="w-9 h-9 text-[var(--fg-subtle)]" />
-            </div>
-            <h2 className="text-xl font-extrabold mb-2">Пока пусто</h2>
-            <p className="text-[var(--fg-muted)] text-sm max-w-xs mb-6">
-              Нажмите на сердечко на карточке блюда, чтобы добавить его в избранное
-            </p>
-            <Link href="/#menu" className="btn btn-primary">
-              <ShoppingBag className="w-4 h-4" />
-              Перейти в меню
-            </Link>
-          </div>
-        )}
+      {showAuthModal && <AuthModal isOpen={true} onClose={() => setShowAuthModal(false)} />}
 
-        {/* Загрузка */}
-        {(loading || !mounted) && favorites.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {Array.from({ length: favorites.length }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl bg-[var(--bg-muted)] animate-pulse"
-                style={{ aspectRatio: '3/4' }}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Список блюд */}
-        {!loading && mounted && items.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {items.map(item =>
-              item.type === 'combo' ? (
-                <ComboFavoriteCard
-                  key={item.storageId}
-                  item={item}
-                  comboQty={comboItems[item.id]?.quantity ?? 0}
-                  onAdd={() => handleAddComboToCart(item.id)}
-                  onUpdate={(_, qty) => {
-                    const ref = comboItems[item.id]
-                    if (ref) handleUpdateCart(ref.cartItemId, qty)
-                  }}
-                />
-              ) : (
-                <MenuItemCard
-                  key={item.id}
-                  item={item}
-                  cartBySizeId={cartBySizeId}
-                  cartByItemId={cartByItemId}
-                  onAddToCart={handleAddToCart}
-                  onUpdateCart={handleUpdateCart}
-                />
-              )
-            )}
-          </div>
-        )}
-
-        {/* Блюда удалены из меню */}
-        {!loading && mounted && favorites.length > 0 && items.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-20 h-20 rounded-full bg-[var(--bg-muted)] flex items-center justify-center mb-5">
-              <Heart className="w-9 h-9 text-[var(--fg-subtle)]" />
-            </div>
-            <h2 className="text-xl font-extrabold mb-2">Блюда недоступны</h2>
-            <p className="text-[var(--fg-muted)] text-sm max-w-xs mb-6">
-              Сохранённые блюда временно недоступны или были удалены из меню
-            </p>
-            <Link href="/#menu" className="btn btn-primary">
-              <ShoppingBag className="w-4 h-4" />
-              Перейти в меню
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {showAuthModal && (
-        <AuthModal onClose={() => setShowAuthModal(false)} />
-      )}
-    </div>
+      <MenuItemModal
+        item={selectedItem as unknown}
+        isOpen={modalOpen}
+        onClose={() => { setModalOpen(false); setSelectedItem(null) }}
+        onAddToCart={addToCart}
+      />
+    </>
   )
 }

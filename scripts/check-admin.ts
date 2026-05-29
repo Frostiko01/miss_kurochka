@@ -1,49 +1,52 @@
-import { prisma } from "../lib/prisma";
+import { prisma } from '../lib/prisma'
+import bcrypt from 'bcryptjs'
 
-async function checkAdmin() {
-  try {
-    const admins = await prisma.user.findMany({
-      where: {
-        role: "admin",
-      },
-      select: {
-        id: true,
-        email: true,
-        fullName: true,
-        role: true,
-        status: true,
-        passwordHash: true,
-      },
-    });
+async function main() {
+  const admin = await prisma.user.findFirst({
+    where: { role: 'admin' },
+    select: {
+      id: true,
+      email: true,
+      fullName: true,
+      role: true,
+      status: true,
+      passwordHash: true,
+    }
+  })
 
-    console.log("📊 Найдено админов:", admins.length);
-    console.log("\n👥 Список админов:");
-    admins.forEach((admin) => {
-      console.log(`\n  Email: ${admin.email}`);
-      console.log(`  Имя: ${admin.fullName}`);
-      console.log(`  Роль: ${admin.role}`);
-      console.log(`  Статус: ${admin.status}`);
-      console.log(`  Есть пароль: ${admin.passwordHash ? "✅ Да" : "❌ Нет"}`);
-    });
+  if (!admin) {
+    console.log('❌ Администратор не найден в базе данных!')
+    return
+  }
 
-    // Проверяем настройки Telegram
-    const telegramSettings = await prisma.systemSetting.findMany({
-      where: {
-        key: {
-          in: ["ADMIN_TELEGRAM_USER_ID", "ADMIN_TELEGRAM_BOT_TOKEN"],
-        },
-      },
-    });
+  console.log('Администратор найден:')
+  console.log('  Email:', admin.email)
+  console.log('  Имя:', admin.fullName)
+  console.log('  Роль:', admin.role)
+  console.log('  Статус:', admin.status)
+  console.log('  Есть пароль:', !!admin.passwordHash)
 
-    console.log("\n📱 Настройки Telegram:");
-    telegramSettings.forEach((setting) => {
-      console.log(`  ${setting.key}: ${setting.value ? "✅ Установлено" : "❌ Не установлено"}`);
-    });
-  } catch (error) {
-    console.error("❌ Ошибка:", error);
-  } finally {
-    await prisma.$disconnect();
+  if (admin.passwordHash) {
+    // Проверяем несколько распространённых паролей
+    const testPasswords = ['admin', 'admin123', '123456', 'password', 'Admin123', 'misskurochka']
+    for (const pwd of testPasswords) {
+      const match = await bcrypt.compare(pwd, admin.passwordHash)
+      if (match) {
+        console.log(`\n✅ Пароль найден: "${pwd}"`)
+        return
+      }
+    }
+    console.log('\n⚠️  Пароль не совпадает ни с одним из стандартных.')
+    console.log('   Хэш пароля:', admin.passwordHash.substring(0, 30) + '...')
+    console.log('\n💡 Нужно сбросить пароль. Запустите:')
+    console.log('   npx tsx scripts/reset-admin-password.ts')
+  } else {
+    console.log('\n❌ У администратора нет пароля!')
+    console.log('   Нужно установить пароль. Запустите:')
+    console.log('   npx tsx scripts/reset-admin-password.ts')
   }
 }
 
-checkAdmin();
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect())

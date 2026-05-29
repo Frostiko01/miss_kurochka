@@ -1,7 +1,9 @@
 'use client'
 
+import React from 'react'
+import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
-import { X, Send, Bot, User, Sparkles, RotateCcw, ChevronDown } from 'lucide-react'
+import { X, Send, User, Sparkles, RotateCcw, ChevronDown, Star, Flame, Package, Leaf, ShoppingCart, MapPin } from 'lucide-react'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -14,11 +16,13 @@ interface AiChatModalProps {
   onClose: () => void
 }
 
-const QUICK_QUESTIONS = [
-  'Что посоветуете попробовать?',
-  'Есть ли вегетарианские блюда?',
-  'Какие комбо-наборы есть?',
-  'Как сделать доставку?',
+const QUICK_QUESTIONS: { icon: React.ReactNode; text: string }[] = [
+  { icon: <Star className="w-3 h-3" />,        text: 'Что у вас новенького?' },
+  { icon: <Flame className="w-3 h-3" />,       text: 'Что посоветуете попробовать?' },
+  { icon: <Package className="w-3 h-3" />,     text: 'Какие комбо-наборы есть?' },
+  { icon: <Leaf className="w-3 h-3" />,        text: 'Есть вегетарианские блюда?' },
+  { icon: <ShoppingCart className="w-3 h-3" />,text: 'Как сделать заказ?' },
+  { icon: <MapPin className="w-3 h-3" />,      text: 'Адреса и время работы' },
 ]
 
 export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
@@ -37,7 +41,7 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
       setMessages([
         {
           role: 'assistant',
-          content: 'Привет! 👋 Я ИИ-помощник Miss Kurochka. Помогу выбрать блюдо, расскажу о составе или отвечу на любой вопрос о нашем ресторане. Что вас интересует?',
+          content: 'Привет! 👋 Я ИИ-помощник Miss Kurochka.\n\nЗнаю всё о нашем меню — цены, состав, новинки, акции. Помогу выбрать блюдо и оформить заказ. Спрашивайте!',
           timestamp: new Date(),
         },
       ])
@@ -148,7 +152,7 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
     setMessages([
       {
         role: 'assistant',
-        content: 'Привет! 👋 Я ИИ-помощник Miss Kurochka. Помогу выбрать блюдо, расскажу о составе или отвечу на любой вопрос о нашем ресторане. Что вас интересует?',
+        content: 'Привет! 👋 Я ИИ-помощник Miss Kurochka.\n\nЗнаю всё о нашем меню — цены, состав, новинки, акции. Помогу выбрать блюдо и оформить заказ. Спрашивайте!',
         timestamp: new Date(),
       },
     ])
@@ -183,8 +187,8 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
           style={{ background: 'linear-gradient(135deg, #111 0%, #d62300 100%)' }}
         >
           {/* Аватар */}
-          <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/25">
-            <Sparkles className="w-5 h-5 text-white" />
+          <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/25 overflow-hidden">
+            <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="w-full h-full object-cover" />
           </div>
 
           {/* Инфо */}
@@ -229,15 +233,15 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
             >
               {/* Аватар */}
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden ${
                   msg.role === 'assistant'
-                    ? 'text-white'
+                    ? ''
                     : 'bg-gray-200 text-gray-600'
                 }`}
                 style={msg.role === 'assistant' ? { background: 'linear-gradient(135deg, #111 0%, #d62300 100%)' } : {}}
               >
                 {msg.role === 'assistant'
-                  ? <Bot className="w-4 h-4" />
+                  ? <Image src="/logo.png" alt="Miss Kurochka" width={32} height={32} className="w-full h-full object-cover" />
                   : <User className="w-4 h-4" />
                 }
               </div>
@@ -252,9 +256,13 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
                   }`}
                   style={msg.role === 'user' ? { background: 'linear-gradient(135deg, #d62300 0%, #b01e00 100%)' } : {}}
                 >
-                  {msg.content}
-                </div>
-                <span className="text-[10px] text-gray-400 px-1">
+                  {msg.content.split('\n').map((line, i) => (
+                    <span key={i}>
+                      {line}
+                      {i < msg.content.split('\n').length - 1 && <br />}
+                    </span>
+                  ))}
+                </div>                <span className="text-[10px] text-gray-400 px-1">
                   {formatTime(msg.timestamp)}
                 </span>
               </div>
@@ -265,10 +273,10 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
           {loading && (
             <div className="flex gap-2.5 flex-row">
               <div
-                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white"
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 overflow-hidden"
                 style={{ background: 'linear-gradient(135deg, #111 0%, #d62300 100%)' }}
               >
-                <Bot className="w-4 h-4" />
+                <Image src="/logo.png" alt="Miss Kurochka" width={32} height={32} className="w-full h-full object-cover" />
               </div>
               <div className="px-4 py-3 rounded-2xl rounded-tl-sm bg-white border border-gray-100 shadow-sm">
                 <div className="flex gap-1 items-center h-4">
@@ -300,8 +308,8 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
               {QUICK_QUESTIONS.map((q, i) => (
                 <button
                   key={i}
-                  onClick={() => sendMessage(q)}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold border transition"
+                  onClick={() => sendMessage(q.text)}
+                  className="flex-shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition"
                   style={{ borderColor: '#d62300', color: '#d62300' }}
                   onMouseEnter={e => {
                     const el = e.currentTarget
@@ -314,7 +322,8 @@ export default function AiChatModal({ isOpen, onClose }: AiChatModalProps) {
                     el.style.color = '#d62300'
                   }}
                 >
-                  {q}
+                  {q.icon}
+                  {q.text}
                 </button>
               ))}
             </div>

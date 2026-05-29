@@ -67,6 +67,14 @@ export async function getDashboardStats(
   const fromTopItems = new Date(today)
   fromTopItems.setDate(fromTopItems.getDate() - 30)
 
+  // Вспомогательная функция: дата → строка YYYY-MM-DD в локальном времени
+  const toLocalDateStr = (d: Date): string => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
   // Параллельные запросы для производительности
   const [
     todayOrdersCount,
@@ -218,16 +226,18 @@ export async function getDashboardStats(
       : Promise.resolve(null),
   ])
 
-  // Группируем заказы по дням
+  // Группируем заказы по дням (используем локальное время, не UTC)
   const byDay = new Map<string, { amount: number; ordersCount: number }>()
   for (let i = 0; i < daysBack; i++) {
     const d = new Date(fromGraph)
     d.setDate(d.getDate() + i)
-    const key = d.toISOString().slice(0, 10)
+    const key = toLocalDateStr(d)
     byDay.set(key, { amount: 0, ordersCount: 0 })
   }
   for (const o of graphOrders) {
-    const key = o.createdAt.toISOString().slice(0, 10)
+    // Конвертируем в локальное время сервера для правильной группировки
+    const localDate = new Date(o.createdAt)
+    const key = toLocalDateStr(localDate)
     const cur = byDay.get(key)
     if (!cur) continue
     cur.ordersCount += 1
@@ -236,7 +246,7 @@ export async function getDashboardStats(
     }
   }
   const salesByDay = Array.from(byDay.entries()).map(([dateStr, v]) => {
-    const d = new Date(dateStr + 'T00:00:00')
+    const d = new Date(dateStr + 'T12:00:00') // полдень чтобы избежать DST-проблем
     return {
       date: dateStr,
       day: DAY_LABELS_RU[d.getDay()],

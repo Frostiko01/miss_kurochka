@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
         oldPrice: true,
         imageUrl: true,
         sortOrder: true,
+        type: true,
         comboItems: {
           orderBy: { sortOrder: "asc" },
           select: {
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       oldPrice: combo.oldPrice ? Number(combo.oldPrice) : null,
       imageUrl: combo.imageUrl,
       sortOrder: combo.sortOrder,
+      type: combo.type,
       items: combo.comboItems.map((ci) => ci.menuItem.name),
     }));
 

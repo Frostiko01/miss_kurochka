@@ -18,6 +18,24 @@ interface DeliveryMapProps {
   className?: string
 }
 
+// Форматирует адрес из Nominatim addressdetails — без страны, индекса и координат
+function formatAddress(addr: Record<string, string>): string {
+  const parts: string[] = []
+  if (addr.road) {
+    parts.push(addr.house_number ? `${addr.road}, ${addr.house_number}` : addr.road)
+  } else if (addr.pedestrian) {
+    parts.push(addr.house_number ? `${addr.pedestrian}, ${addr.house_number}` : addr.pedestrian)
+  } else if (addr.neighbourhood) {
+    parts.push(addr.neighbourhood)
+  }
+  if (addr.suburb) parts.push(addr.suburb)
+  if (addr.city) parts.push(addr.city)
+  else if (addr.town) parts.push(addr.town)
+  else if (addr.village) parts.push(addr.village)
+
+  return parts.length > 0 ? parts.join(', ') : (addr.display_name ?? '')
+}
+
 export default function DeliveryMap({ 
   onLocationSelect, 
   initialLocation = { lat: 42.8746, lng: 74.5698 }, // Бишкек
@@ -28,17 +46,35 @@ export default function DeliveryMap({
   const markerRef = useRef<L.Marker | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [mapStatus, setMapStatus] = useState('Инициализация карты...')
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Убеждаемся, что компонент смонтирован
+  useEffect(() => {
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
 
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    if (!isMounted || !mapRef.current || mapInstanceRef.current) return
 
-    // Инициализация карты
-    const map = L.map(mapRef.current, {
-      center: [initialLocation.lat, initialLocation.lng],
-      zoom: 13,
-      zoomControl: true,
-      attributionControl: false,
-    })
+    // Проверка готовности DOM
+    if (!mapRef.current.offsetParent && mapRef.current.offsetWidth === 0) {
+      console.warn('Map container not ready yet, skipping initialization')
+      return
+    }
+
+    // Небольшая задержка для гарантии готовности DOM
+    const initTimeout = setTimeout(() => {
+      if (!mapRef.current || mapInstanceRef.current) return
+
+      try {
+        // Инициализация карты
+        const map = L.map(mapRef.current, {
+          center: [initialLocation.lat, initialLocation.lng],
+          zoom: 13,
+          zoomControl: true,
+          attributionControl: false,
+        })
 
     // Добавляем тайлы с несколькими fallback вариантами
     let currentTileLayer: L.TileLayer | null = null
@@ -153,7 +189,7 @@ export default function DeliveryMap({
         onLocationSelect({ lat, lng, address })
       } catch (error) {
         console.error('Ошибка геокодирования:', error)
-        onLocationSelect({ lat, lng, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` })
+        onLocationSelect({ lat, lng, address: `����� �� ��������` })
       }
     })
 
@@ -166,7 +202,7 @@ export default function DeliveryMap({
         onLocationSelect({ lat, lng, address })
       } catch (error) {
         console.error('Ошибка геокодирования:', error)
-        onLocationSelect({ lat, lng, address: `${lat.toFixed(6)}, ${lng.toFixed(6)}` })
+        onLocationSelect({ lat, lng, address: `����� �� ��������` })
       }
     })
 
@@ -191,16 +227,25 @@ export default function DeliveryMap({
         })
       })
 
-    return () => {
-      if (currentTileLayer) {
-        currentTileLayer.remove()
+      } catch (error) {
+        console.error('Failed to initialize Leaflet map:', error)
+        setMapStatus('Ошибка инициализации карты')
+        setIsLoading(false)
       }
+    }, 100) // Задержка 100мс для готовности DOM
+
+    return () => {
+      clearTimeout(initTimeout)
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
+        try {
+          mapInstanceRef.current.remove()
+        } catch (error) {
+          console.error('Error removing map:', error)
+        }
         mapInstanceRef.current = null
       }
     }
-  }, [])
+  }, [isMounted])
 
   // Функция обратного геокодирования с улучшенной обработкой ошибок
   const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
@@ -215,16 +260,14 @@ export default function DeliveryMap({
       
       const data = await response.json()
       
-      if (data.display_name) {
-        // Форматируем адрес для лучшего отображения
-        const address = data.display_name
-        return address.length > 100 ? address.substring(0, 100) + '...' : address
+      if (data.address) {
+        return formatAddress(data.address)
       }
       
-      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      return data.display_name?.split(',').slice(0, 3).join(',').trim() ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`
     } catch (error) {
       console.warn('Ошибка геокодирования:', error)
-      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
     }
   }
 
@@ -244,15 +287,18 @@ export default function DeliveryMap({
       const data = await response.json()
       
       if (data.length > 0) {
-        const { lat, lon, display_name } = data[0]
+        const { lat, lon, address: addrDetails } = data[0]
         const newLat = parseFloat(lat)
         const newLng = parseFloat(lon)
+        
+        // Форматируем адрес без страны и координат
+        const formattedAddress = addrDetails ? formatAddress(addrDetails) : data[0].display_name?.split(',').slice(0, 3).join(',').trim() ?? ''
         
         // Перемещаем карту и маркер
         if (mapInstanceRef.current && markerRef.current) {
           mapInstanceRef.current.setView([newLat, newLng], 15)
           markerRef.current.setLatLng([newLat, newLng])
-          onLocationSelect({ lat: newLat, lng: newLng, address: display_name })
+          onLocationSelect({ lat: newLat, lng: newLng, address: formattedAddress })
         }
         
         return true
@@ -289,7 +335,7 @@ export default function DeliveryMap({
             onLocationSelect({ 
               lat: latitude, 
               lng: longitude, 
-              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
+              address: `������� ��������������` 
             })
           }
         }

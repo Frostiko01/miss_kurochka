@@ -23,6 +23,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
     const where: any = {
       category: { OR: [{ branchId: branchUser.branchId }, { branchId: null }] },
@@ -31,10 +33,13 @@ export async function GET(request: NextRequest) {
     if (status === "active") where.isActive = true;
     else if (status === "inactive") where.isActive = false;
 
+    let orderBy: any = { createdAt: sortOrder };
+    if (sortBy === "name") orderBy = { name: sortOrder };
+
     const menuItems = await prisma.menuItem.findMany({
       where,
       include: includeMenuItem,
-      orderBy: { createdAt: "desc" },
+      orderBy,
     });
 
     // Конвертируем Decimal → Number

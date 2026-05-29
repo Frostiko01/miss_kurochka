@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Toast from "@/components/admin/Toast";
+import Select from "@/components/ui/Select";
+import { ArrowUp, ArrowDown, AlertTriangle } from "lucide-react";
 
 interface StopListItem {
   id: string;
@@ -388,47 +390,44 @@ export default function BranchStopListPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {/* Sorting Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
                     Сортировка
                   </label>
-                  <select
+                  <Select dark="branch"
                     value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
-                    style={{ backgroundColor: '#1A212B', borderColor: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <option value="stoppedAt" style={{ backgroundColor: '#1A212B' }}>По дате добавления</option>
-                    <option value="name" style={{ backgroundColor: '#1A212B' }}>По названию</option>
-                    <option value="category" style={{ backgroundColor: '#1A212B' }}>По категории</option>
-                    <option value="price" style={{ backgroundColor: '#1A212B' }}>По цене</option>
-                  </select>
+                    onChange={setSortBy}
+                    options={[
+                      { value: 'stoppedAt', label: 'По дате добавления' },
+                      { value: 'name', label: 'По названию' },
+                      { value: 'category', label: 'По категории' },
+                      { value: 'price', label: 'По цене' },
+                    ]}
+                  />
                 </div>
 
                 {/* Category Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
                     Категория
                   </label>
-                  <select
+                  <Select dark="branch"
                     value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-white text-sm focus:outline-none transition-all border"
-                    style={{ backgroundColor: '#1A212B', borderColor: 'rgba(255,255,255,0.05)' }}
-                  >
-                    <option value="all" style={{ backgroundColor: '#1A212B' }}>Все категории</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id} style={{ backgroundColor: '#1A212B' }}>
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setCategoryFilter}
+                    options={[
+                      { value: 'all', label: 'Все категории' },
+                      ...categories.map(cat => ({ value: cat.id, label: cat.name })),
+                    ]}
+                  />
                 </div>
 
                 {/* Sort Order Toggle */}
-                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                <div className="rounded-xl p-4 border flex-1 flex flex-col justify-end" style={{ backgroundColor: '#0B0F14', borderColor: 'rgba(255,255,255,0.05)' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#98A2B3' }}>
+                    Порядок
+                  </label>
                   <div className="flex gap-2 w-full">
                     <button
                       onClick={() => setSortOrder("asc")}
@@ -441,7 +440,7 @@ export default function BranchStopListPage() {
                         borderColor: sortOrder === "asc" ? '#7C8CA5' : 'rgba(255,255,255,0.05)'
                       }}
                     >
-                      <span className="text-lg">🔼</span>
+                      <ArrowUp className="w-4 h-4" />
                       <span className="text-sm">А-Я</span>
                     </button>
                     <button
@@ -455,7 +454,7 @@ export default function BranchStopListPage() {
                         borderColor: sortOrder === "desc" ? '#7C8CA5' : 'rgba(255,255,255,0.05)'
                       }}
                     >
-                      <span className="text-lg">🔽</span>
+                      <ArrowDown className="w-4 h-4" />
                       <span className="text-sm">Я-А</span>
                     </button>
                   </div>
@@ -595,7 +594,7 @@ export default function BranchStopListPage() {
 
       {/* Add to Stop List Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#1A212B' }}>
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
               <div className="flex items-center justify-between">
@@ -774,7 +773,7 @@ export default function BranchStopListPage() {
 
       {/* Confirm Add to Stop List Modal */}
       {showConfirmAddModal && selectedMenuItem && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-[60] p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1A212B' }}>
             {/* Header */}
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>
@@ -802,8 +801,9 @@ export default function BranchStopListPage() {
                 Оно станет недоступным для заказа в вашем филиале.
               </p>
               <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-                <p className="text-sm" style={{ color: '#ef4444' }}>
-                  ⚠️ Клиенты не смогут заказать это блюдо
+                <p className="text-sm flex items-center gap-1.5" style={{ color: '#ef4444' }}>
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  Клиенты не смогут заказать это блюдо
                 </p>
               </div>
             </div>
@@ -838,7 +838,7 @@ export default function BranchStopListPage() {
 
       {/* Restore Confirmation Modal */}
       {showRestoreModal && selectedItem && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl max-w-md w-full shadow-2xl" style={{ backgroundColor: '#1A212B' }}>
             {/* Header */}
             <div className="p-6 border-b" style={{ borderColor: '#202937' }}>

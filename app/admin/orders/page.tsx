@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Toast from "@/components/admin/Toast";
+import Select from "@/components/ui/Select";
+import { Truck, Store } from "lucide-react";
 
 interface OrderItem {
   id: string;
@@ -58,15 +60,15 @@ interface Branch {
 
 const STATUS_META: Record<
   string,
-  { label: string; bg: string; text: string; icon: string }
+  { label: string; bg: string; text: string; dot: string }
 > = {
-  pending: { label: "Новый", bg: "rgba(251, 191, 36, 0.2)", text: "#fbbf24", icon: "🟡" },
-  confirmed: { label: "Подтверждён", bg: "rgba(59, 130, 246, 0.2)", text: "#60a5fa", icon: "🔵" },
-  preparing: { label: "Готовится", bg: "rgba(249, 115, 22, 0.2)", text: "#fb923c", icon: "🟠" },
-  ready: { label: "Готов", bg: "rgba(34, 197, 94, 0.2)", text: "#4ade80", icon: "🟢" },
-  delivering: { label: "У курьера", bg: "rgba(168, 85, 247, 0.2)", text: "#c084fc", icon: "🚚" },
-  completed: { label: "Завершён", bg: "rgba(16, 185, 129, 0.2)", text: "#34d399", icon: "✅" },
-  cancelled: { label: "Отменён", bg: "rgba(239, 68, 68, 0.2)", text: "#f87171", icon: "❌" },
+  pending:   { label: "Новый",        bg: "rgba(251, 191, 36, 0.2)",  text: "#fbbf24", dot: "#fbbf24" },
+  confirmed: { label: "Подтверждён",  bg: "rgba(59, 130, 246, 0.2)",  text: "#60a5fa", dot: "#60a5fa" },
+  preparing: { label: "Готовится",    bg: "rgba(249, 115, 22, 0.2)",  text: "#fb923c", dot: "#fb923c" },
+  ready:     { label: "Готов",        bg: "rgba(34, 197, 94, 0.2)",   text: "#4ade80", dot: "#4ade80" },
+  delivering:{ label: "У курьера",    bg: "rgba(168, 85, 247, 0.2)",  text: "#c084fc", dot: "#c084fc" },
+  completed: { label: "Завершён",     bg: "rgba(16, 185, 129, 0.2)",  text: "#34d399", dot: "#34d399" },
+  cancelled: { label: "Отменён",      bg: "rgba(239, 68, 68, 0.2)",   text: "#f87171", dot: "#f87171" },
 };
 
 const fmtTime = (iso: string) =>
@@ -104,7 +106,6 @@ export default function AdminOrdersPage() {
   const [branchFilter, setBranchFilter] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "info";
@@ -153,38 +154,6 @@ export default function AdminOrdersPage() {
       console.error("Error fetching orders:", error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleStatusChange = async (orderId: string, newStatus: string) => {
-    try {
-      setUpdatingId(orderId);
-      const response = await fetch("/api/admin/orders", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: orderId, status: newStatus }),
-      });
-      if (response.ok) {
-        const meta = STATUS_META[newStatus];
-        setToast({
-          message: `Статус: ${meta?.label ?? newStatus}`,
-          type: "success",
-        });
-        await fetchOrders();
-      } else {
-        setToast({
-          message: "Ошибка при обновлении статуса",
-          type: "error",
-        });
-      }
-    } catch (error) {
-      console.error("Error updating status:", error);
-      setToast({
-        message: "Ошибка сети",
-        type: "error",
-      });
-    } finally {
-      setUpdatingId(null);
     }
   };
 
@@ -273,23 +242,15 @@ export default function AdminOrdersPage() {
               />
             </div>
 
-            <select
+            <Select dark="admin"
               value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-4 py-3 rounded-xl text-white text-sm font-semibold focus:outline-none transition-all border"
-              style={{
-                backgroundColor: "#050c26",
-                borderColor: "#242b47",
-                minWidth: 220,
-              }}
-            >
-              <option value="all">Все филиалы</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              onChange={setBranchFilter}
+              options={[
+                { value: 'all', label: 'Все филиалы' },
+                ...branches.map((b) => ({ value: b.id, label: b.name })),
+              ]}
+              className="min-w-[220px]"
+            />
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -397,17 +358,6 @@ export default function AdminOrdersPage() {
                       >
                         {order.orderNumber}
                       </div>
-                      {isNew && (
-                        <span
-                          className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded animate-pulse"
-                          style={{
-                            backgroundColor: "#fbbf24",
-                            color: "#000",
-                          }}
-                        >
-                          NEW
-                        </span>
-                      )}
                     </div>
                     <div
                       className="text-xs font-semibold"
@@ -423,8 +373,8 @@ export default function AdminOrdersPage() {
                       }}
                     >
                       {order.orderType === "delivery"
-                        ? "🚚 Доставка"
-                        : "🏪 Самовывоз"}
+                        ? <><Truck className="w-3 h-3" /> Доставка</>
+                        : <><Store className="w-3 h-3" /> Самовывоз</>}
                     </div>
                   </div>
 
@@ -526,7 +476,10 @@ export default function AdminOrdersPage() {
                         color: statusMeta.text,
                       }}
                     >
-                      <span>{statusMeta.icon}</span>
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: statusMeta.dot }}
+                      />
                       {statusMeta.label}
                     </span>
                   </div>
@@ -539,7 +492,7 @@ export default function AdminOrdersPage() {
 
       {/* Order Details Modal */}
       {showDetailsModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div
             className="rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
             style={{ backgroundColor: "#181f38" }}
@@ -596,27 +549,18 @@ export default function AdminOrdersPage() {
                       STATUS_META.pending.text,
                   }}
                 >
-                  <span>{STATUS_META[selectedOrder.status]?.icon}</span>
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: STATUS_META[selectedOrder.status]?.dot ?? STATUS_META.pending.dot }}
+                  />
                   {STATUS_META[selectedOrder.status]?.label ?? selectedOrder.status}
                 </span>
-                <select
-                  value={selectedOrder.status}
-                  onChange={(e) => {
-                    handleStatusChange(selectedOrder.id, e.target.value);
-                  }}
-                  disabled={updatingId === selectedOrder.id}
-                  className="px-4 py-2 rounded-lg text-white text-sm font-bold focus:outline-none border"
-                  style={{
-                    backgroundColor: "#050c26",
-                    borderColor: "#242b47",
-                  }}
+                <span
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                  style={{ backgroundColor: "#242b47", color: "#78819d" }}
                 >
-                  {Object.entries(STATUS_META).map(([key, m]) => (
-                    <option key={key} value={key} style={{ background: "#181f38" }}>
-                      {m.icon} {m.label}
-                    </option>
-                  ))}
-                </select>
+                  👁 Только просмотр
+                </span>
               </div>
 
               {/* Branch + delivery */}

@@ -64,45 +64,14 @@ export default function AdminBranchesPage() {
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/admin/branches?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedBranches = [...data.branches];
-        
-        sortedBranches.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "name":
-              aValue = a.name.toLowerCase();
-              bValue = b.name.toLowerCase();
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt).getTime();
-              bValue = new Date(b.createdAt).getTime();
-              break;
-            case "orders":
-              aValue = a._count.orders;
-              bValue = b._count.orders;
-              break;
-            case "status":
-              aValue = a.status;
-              bValue = b.status;
-              break;
-            default:
-              aValue = new Date(a.createdAt).getTime();
-              bValue = new Date(b.createdAt).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setBranches(sortedBranches);
+        setBranches(data.branches);
       }
     } catch (error) {
       console.error("Error fetching branches:", error);
@@ -511,9 +480,9 @@ export default function AdminBranchesPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {/* Sorting Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Сортировка
                   </label>
@@ -531,7 +500,7 @@ export default function AdminBranchesPage() {
                 </div>
 
                 {/* Status Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Статус
                   </label>
@@ -548,7 +517,10 @@ export default function AdminBranchesPage() {
                 </div>
 
                 {/* Sort Order Toggle */}
-                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 flex flex-col justify-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
+                    Порядок
+                  </label>
                   <div className="flex gap-2 w-full">
                     <button
                       onClick={() => setSortOrder("asc")}
@@ -912,7 +884,7 @@ export default function AdminBranchesPage() {
 
       {/* Add Branch Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#181f38' }}>
             {/* Header */}
             <div className="sticky top-0 p-6 rounded-t-2xl border-b" style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}>
@@ -1201,7 +1173,7 @@ export default function AdminBranchesPage() {
 
       {/* Edit Branch Modal */}
       {showEditModal && editingBranch && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ backgroundColor: '#181f38' }}>
             {/* Header */}
             <div className="sticky top-0 p-6 rounded-t-2xl border-b" style={{ backgroundColor: '#181f38', borderColor: '#242b47' }}>
@@ -1423,7 +1395,7 @@ export default function AdminBranchesPage() {
 
       {/* Confirmation Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div 
             className="rounded-2xl max-w-md w-full shadow-2xl"
             style={{ backgroundColor: '#181f38' }}

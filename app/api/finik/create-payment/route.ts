@@ -1,0 +1,344 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { createFinikPayment } from '@/lib/finik'
+import { notifyNewOrder } from '@/lib/notifications'
+import { pickBestBranch } from '@/lib/branchSelector'
+
+/**
+ * POST /api/finik/create-payment
+ *
+ * 1. Создаёт заказ в БД (status=pending, payment.status=pending)
+ * 2. Создаёт платёж в Finik с workId = order.id
+ * 3. Возвращает URL платёжной страницы клиенту
+ *
+ * После успешной оплаты Finik отправит webhook на /api/finik/webhook,
+ * который обновит статус заказа и оплаты на completed.
+ *
+ * ВАЖНО: цена ВСЕГДА фиксированная — 5 сом, не считается из БД.
+ */
+
+// Фиксированная сумма платежа (как просил клиент)
+const FIXED_AMOUNT = 5
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const {
+      customerName,
+      customerPhone,
+      customerComment,
+      orderType,
+      deliveryAddressId,
+      pickupBranchId,
+    } = body
+
+    // Получаем адрес доставки и координаты
+    let deliveryAddressText = ''
+    let deliveryCoord: { lat: number; lng: number } | null = null
+    let rawAddressLine: string | null = null
+    if (orderType === 'delivery' && deliveryAddressId) {
+      const address = await prisma.deliveryAddress.findUnique({
+        where: { id: deliveryAddressId },
+        select: {
+          addressLine: true,
+          apartment: true,
+          entrance: true,
+          floor: true,
+          intercom: true,
+          comment: true,
+          latitude: true,
+          longitude: true,
+        },
+      })
+      if (address) {
+        rawAddressLine = address.addressLine
+        if (address.latitude !== null && address.longitude !== null) {
+          deliveryCoord = {
+            lat: Number(address.latitude),
+            lng: Number(address.longitude),
+          }
+        }
+        deliveryAddressText = `\n📍 Адрес доставки: ${address.addressLine}`
+        if (address.apartment) deliveryAddressText += `, кв. ${address.apartment}`
+        if (address.entrance) deliveryAddressText += `, под. ${address.entrance}`
+        if (address.floor) deliveryAddressText += `, эт. ${address.floor}`
+        if (address.intercom) deliveryAddressText += `, домофон: ${address.intercom}`
+        if (address.comment) deliveryAddressText += `\n💬 ${address.comment}`
+      }
+    }
+
+    const finalComment = customerComment
+      ? `${customerComment}${deliveryAddressText}`
+      : deliveryAddressText || null
+
+    // Получаем корзину
+    const cart = await prisma.cart.findUnique({
+      where: { userId: session.user.id },
+      include: {
+        items: {
+          include: {
+            menuItem: {
+              include: {
+                sizes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+              },
+            },
+            comboOffer: true,
+            modifiers: { include: { modifierOption: true } },
+            spices: { include: { spice: true } },
+          },
+        },
+        branch: true,
+      },
+    })
+
+    if (!cart || cart.items.length === 0) {
+      return NextResponse.json({ error: 'Корзина пуста' }, { status: 400 })
+    }
+
+    // Подбор филиала
+    const picked = await pickBestBranch({
+      preferredBranchId: orderType === 'pickup' ? pickupBranchId ?? null : null,
+      customerCoord: orderType === 'delivery' ? deliveryCoord : null,
+      addressText: orderType === 'delivery' ? rawAddressLine : null,
+    })
+
+    let branchId = cart.branchId
+    if (picked) {
+      branchId = picked.branchId
+      if (cart.branchId !== branchId) {
+        await prisma.cart.update({
+          where: { id: cart.id },
+          data: { branchId },
+        })
+      }
+    }
+
+    if (!branchId) {
+      return NextResponse.json(
+        { error: 'Не удалось определить филиал. Пожалуйста, попробуйте снова.' },
+        { status: 400 },
+      )
+    }
+
+    if (!customerName) {
+      return NextResponse.json({ error: 'Не указано имя клиента' }, { status: 400 })
+    }
+
+    const phone = customerPhone || 'Не указан'
+
+    // Стоп-лист
+    const menuItemIds = cart.items
+      .map((item) => item.menuItemId)
+      .filter((id): id is string => !!id)
+
+    if (menuItemIds.length > 0) {
+      const stopListItems = await prisma.stopList.findMany({
+        where: {
+          branchId,
+          restoredAt: null,
+          menuItemId: { in: menuItemIds },
+        },
+        include: { menuItem: { select: { name: true } } },
+      })
+      if (stopListItems.length > 0) {
+        const unavailableItems = stopListItems.map((item) => item.menuItem.name).join(', ')
+        return NextResponse.json(
+          {
+            error: `Следующие блюда временно недоступны: ${unavailableItems}`,
+          },
+          { status: 400 },
+        )
+      }
+    }
+
+    // Формируем позиции заказа
+    const orderNumber = `ORD-${Date.now()}`
+    let totalAmount = 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orderItemsData: any[] = []
+
+    for (const cartItem of cart.items) {
+      if (cartItem.comboOffer) {
+        const combo = cartItem.comboOffer
+        if (!combo.isActive) {
+          return NextResponse.json(
+            { error: `Комбо "${combo.name}" неактивно` },
+            { status: 400 },
+          )
+        }
+        const unitPrice = Number(combo.price)
+        const itemTotal = unitPrice * cartItem.quantity
+        totalAmount += itemTotal
+        orderItemsData.push({
+          comboOfferId: combo.id,
+          itemName: combo.name,
+          quantity: cartItem.quantity,
+          unitPrice,
+          totalPrice: itemTotal,
+          itemComment: cartItem.itemComment,
+        })
+        continue
+      }
+
+      const menuItem = cartItem.menuItem
+      if (!menuItem) continue
+      if (!menuItem.isActive) {
+        return NextResponse.json(
+          { error: `Блюдо "${menuItem.name}" неактивно` },
+          { status: 400 },
+        )
+      }
+
+      let unitPrice = 0
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sizes = (menuItem as any).sizes ?? []
+      const selectedSize = cartItem.sizeId
+        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          sizes.find((s: any) => s.id === cartItem.sizeId) ?? sizes[0]
+        : sizes[0]
+      if (selectedSize) unitPrice = Number(selectedSize.price)
+
+      const modifiersData = []
+      for (const mod of cartItem.modifiers) {
+        const modPrice = Number(mod.modifierOption.priceDelta)
+        unitPrice += modPrice
+        modifiersData.push({
+          modifierOptionId: mod.modifierOptionId,
+          priceDelta: modPrice,
+        })
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const cs of (cartItem as any).spices ?? []) {
+        const spicePrice = Number(cs.spice?.price ?? 0)
+        unitPrice += spicePrice
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const spiceNames = ((cartItem as any).spices ?? [])
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((cs: any) => cs.spice?.name)
+        .filter(Boolean)
+      const itemName =
+        spiceNames.length > 0 ? `${menuItem.name} (${spiceNames.join(', ')})` : menuItem.name
+
+      const itemTotal = unitPrice * cartItem.quantity
+      totalAmount += itemTotal
+
+      orderItemsData.push({
+        menuItemId: cartItem.menuItemId,
+        itemName,
+        quantity: cartItem.quantity,
+        unitPrice,
+        totalPrice: itemTotal,
+        itemComment: cartItem.itemComment,
+        modifiers: { create: modifiersData },
+      })
+    }
+
+    // Создаём заказ со статусом pending — он ещё не виден филиалу как "оплаченный".
+    // Платёж пока тоже pending — переключим на completed в webhook.
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        branchId,
+        customerId: session.user.id,
+        customerName,
+        customerPhone: phone,
+        customerComment: finalComment,
+        orderType: orderType || 'pickup',
+        paymentMethod: 'finik',
+        totalAmount,
+        deliveryAddressId:
+          orderType === 'delivery' && deliveryAddressId ? deliveryAddressId : null,
+        status: 'pending',
+        items: { create: orderItemsData },
+        payments: {
+          create: {
+            paymentMethod: 'finik',
+            amount: totalAmount,
+            currency: 'KGS',
+            status: 'pending',
+          },
+        },
+      },
+      include: {
+        items: true,
+        branch: true,
+        payments: true,
+      },
+    })
+
+    // Создаём платёж в Finik. Цена ФИКСИРОВАННАЯ — 5 сом.
+    let paymentUrl: string
+    try {
+      console.log('🔄 Attempting to create Finik payment...')
+      paymentUrl = await createFinikPayment({
+        amount: FIXED_AMOUNT,
+        workId: order.id,
+        workTopic: `Payment for order ${order.orderNumber}`,
+        userId: session.user.id,
+      })
+      console.log('✅ Finik payment created successfully:', paymentUrl)
+    } catch (e) {
+      console.error('❌ Failed to create Finik payment:', {
+        error: e,
+        message: e instanceof Error ? e.message : 'Unknown error',
+        stack: e instanceof Error ? e.stack : undefined,
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+      })
+      
+      // Откатываем заказ если не получилось создать платёж
+      await prisma.order
+        .delete({ where: { id: order.id } })
+        .catch((deleteError) => {
+          console.error('Failed to delete order after payment error:', deleteError)
+        })
+      console.error('[finik/create-payment] Failed to create Finik payment:', e)
+      return NextResponse.json(
+        {
+          error: 'Не удалось создать платёж. Попробуйте позже.',
+          details: e instanceof Error ? e.message : 'Unknown error',
+        },
+        { status: 500 },
+      )
+    }
+
+    // Уведомляем филиал и админа о новом (но ещё не оплаченном) заказе
+    const itemsCount = order.items.reduce((s, it) => s + it.quantity, 0)
+    await notifyNewOrder({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      branchId: order.branchId,
+      branchName: order.branch?.name,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      totalAmount: Number(order.totalAmount),
+      orderType: order.orderType as 'pickup' | 'delivery',
+      itemsCount,
+    })
+
+    return NextResponse.json({
+      success: true,
+      paymentUrl,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amount: FIXED_AMOUNT,
+    })
+  } catch (error) {
+    console.error('Error creating Finik payment:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to create payment',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 },
+    )
+  }
+}

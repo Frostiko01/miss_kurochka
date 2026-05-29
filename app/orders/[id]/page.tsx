@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
-import { Truck, Store, CreditCard, Clock, CheckCircle, ChefHat, ArrowLeft, Phone } from 'lucide-react'
+import { Truck, Store, CreditCard, Clock, CheckCircle, ChefHat, ArrowLeft, Phone, PackageCheck } from 'lucide-react'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Ожидает',
@@ -30,6 +30,7 @@ export default function OrderDetailPage() {
   const params = useParams()
   const [order, setOrder] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [completing, setCompleting] = useState(false)
 
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin?callbackUrl=/orders')
@@ -47,6 +48,23 @@ export default function OrderDetailPage() {
       router.push('/orders')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePickupComplete = async () => {
+    if (!order) return
+    setCompleting(true)
+    try {
+      const res = await fetch(`/api/user/orders/${order.id}/complete`, {
+        method: 'POST',
+      })
+      if (res.ok) {
+        await fetchOrder()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -281,7 +299,27 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Actions */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}
+        >
+          {/* Кнопка "Я забрал заказ" — только для самовывоза в статусе ready */}
+          {order.orderType === 'pickup' && order.status === 'ready' && (
+            <div className="sm:col-span-2">
+              <button
+                onClick={handlePickupComplete}
+                disabled={completing}
+                className="btn btn-primary w-full"
+                style={{ background: 'var(--success)' }}
+              >
+                <PackageCheck className="w-4 h-4" />
+                {completing ? 'Завершаем...' : 'Я забрал заказ'}
+              </button>
+              <p className="text-xs text-center text-[var(--fg-muted)] mt-2">
+                Нажмите когда заберёте заказ из филиала
+              </p>
+            </div>
+          )}
           <button onClick={() => router.push('/home')} className="btn btn-secondary">
             На главную
           </button>

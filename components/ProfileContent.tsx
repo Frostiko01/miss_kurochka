@@ -103,7 +103,7 @@ export default function ProfileContent({ user }: ProfileContentProps) {
     <div className="min-h-screen bg-[var(--bg-muted)] py-8 px-4">
       <div className="container-page max-w-3xl">
         <Link
-          href="/home"
+          href="/"
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--fg-muted)] hover:text-[var(--fg)] mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -223,7 +223,7 @@ export default function ProfileContent({ user }: ProfileContentProps) {
 
         {/* Quick actions */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-          <QuickAction href="/home" icon={<Drumstick className="w-5 h-5" />} title="Меню" subtitle="Перейти к блюдам" />
+          <QuickAction href="/" icon={<Drumstick className="w-5 h-5" />} title="Меню" subtitle="Перейти к блюдам" />
           <QuickAction href="/orders" icon={<Package className="w-5 h-5" />} title="Заказы" subtitle="История и статусы" />
           <QuickAction href="/cart" icon={<MapPin className="w-5 h-5" />} title="Корзина" subtitle="Оформить заказ" />
         </div>

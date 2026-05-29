@@ -62,49 +62,14 @@ export default function AdminUsersPage() {
       if (search) params.append("search", search);
       if (roleFilter !== "all") params.append("role", roleFilter);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/admin/users?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedUsers = [...data.users];
-        
-        sortedUsers.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "fullName":
-              aValue = a.fullName.toLowerCase();
-              bValue = b.fullName.toLowerCase();
-              break;
-            case "email":
-              aValue = a.email.toLowerCase();
-              bValue = b.email.toLowerCase();
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt).getTime();
-              bValue = new Date(b.createdAt).getTime();
-              break;
-            case "orders":
-              aValue = a._count.orders;
-              bValue = b._count.orders;
-              break;
-            case "role":
-              aValue = a.role;
-              bValue = b.role;
-              break;
-            default:
-              aValue = new Date(a.createdAt).getTime();
-              bValue = new Date(b.createdAt).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setUsers(sortedUsers);
+        setUsers(data.users);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -222,10 +187,6 @@ export default function AdminUsersPage() {
 
     if (!editingUser) return;
 
-    if (!validateForm(true)) {
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -236,7 +197,8 @@ export default function AdminUsersPage() {
         },
         body: JSON.stringify({
           id: editingUser.id,
-          ...formData,
+          role: formData.role,
+          status: formData.status,
         }),
       });
 
@@ -545,9 +507,9 @@ export default function AdminUsersPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {/* Sorting Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Сортировка
                   </label>
@@ -566,7 +528,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Role Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Роль
                   </label>
@@ -584,7 +546,7 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Status Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Статус
                   </label>
@@ -601,7 +563,10 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Sort Order Toggle */}
-                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 flex flex-col justify-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
+                    Порядок
+                  </label>
                   <div className="flex gap-2 w-full">
                     <button
                       onClick={() => setSortOrder("asc")}
@@ -1020,7 +985,7 @@ export default function AdminUsersPage() {
 
       {/* Модальное окно добавления пользователя */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-6">Добавить пользователя</h2>
             <form onSubmit={handleAddUser}>
@@ -1124,48 +1089,14 @@ export default function AdminUsersPage() {
 
       {/* Модальное окно редактирования пользователя */}
       {showEditModal && editingUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: '#181f38' }}>
-            <h2 className="text-2xl font-bold text-white mb-6">Редактировать пользователя</h2>
+            <h2 className="text-2xl font-bold text-white mb-2">Редактировать пользователя</h2>
+            <p className="text-sm mb-6" style={{ color: '#78819d' }}>
+              {editingUser.fullName} · {editingUser.email}
+            </p>
             <form onSubmit={handleUpdateUser}>
               <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-white">Email *</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                    style={{ backgroundColor: '#050c26', borderColor: formErrors.email ? '#ef4444' : '#242b47' }}
-                  />
-                  {formErrors.email && <p className="text-red-400 text-sm mt-1">{formErrors.email}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-white">Полное имя *</label>
-                  <input
-                    type="text"
-                    value={formData.fullName}
-                    onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                    style={{ backgroundColor: '#050c26', borderColor: formErrors.fullName ? '#ef4444' : '#242b47' }}
-                  />
-                  {formErrors.fullName && <p className="text-red-400 text-sm mt-1">{formErrors.fullName}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-bold mb-2 text-white">Новый пароль (оставьте пустым, чтобы не менять)</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl text-white focus:outline-none border"
-                    style={{ backgroundColor: '#050c26', borderColor: formErrors.password ? '#ef4444' : '#242b47' }}
-                    placeholder="Минимум 6 символов"
-                  />
-                  {formErrors.password && <p className="text-red-400 text-sm mt-1">{formErrors.password}</p>}
-                </div>
-
                 <div>
                   <label className="block text-sm font-bold mb-2 text-white">Роль *</label>
                   <select
@@ -1226,7 +1157,7 @@ export default function AdminUsersPage() {
 
       {/* Модальное окно подтверждения изменения статуса */}
       {confirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-4">
               {confirmModal.currentStatus === 'active' ? 'Заблокировать пользователя?' : 'Разблокировать пользователя?'}
@@ -1257,7 +1188,7 @@ export default function AdminUsersPage() {
 
       {/* Модальное окно подтверждения удаления */}
       {deleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-4">Удалить пользователя?</h2>
             <p className="mb-6" style={{ color: '#78819d' }}>

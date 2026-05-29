@@ -11,6 +11,7 @@ export type MenuCategoryWithItems = Prisma.MenuCategoryGetPayload<{
     menuItems: {
       include: {
         images: true
+        sizes: true
         modifiers: {
           include: {
             modifierGroup: {
@@ -28,6 +29,7 @@ export type MenuCategoryWithItems = Prisma.MenuCategoryGetPayload<{
 export type MenuItemWithDetails = Prisma.MenuItemGetPayload<{
   include: {
     images: true
+    sizes: true
     modifiers: {
       include: {
         modifierGroup: {
@@ -210,11 +212,6 @@ export const ORDER_STATUS_LABELS: Record<string, I18nText> = {
 }
 
 export const PAYMENT_METHOD_LABELS: Record<string, I18nText> = {
-  card: {
-    ru: 'Карта',
-    en: 'Card',
-    ky: 'Карта'
-  },
   card: {
     ru: 'Карта',
     en: 'Card',

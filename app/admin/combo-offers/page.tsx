@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Toast from "@/components/admin/Toast";
 import ImageUpload from "@/components/admin/ImageUpload";
+import Select from "@/components/ui/Select";
+import { ArrowUp, ArrowDown, Plus } from "lucide-react";
 
 interface MenuItem {
   id: string;
@@ -199,6 +201,7 @@ function ComboForm({ formData, menuItems, onChange }: ComboFormProps) {
         onChange={(url) => onChange({ ...formData, imageUrl: url })}
         label="Изображение"
         required
+        folder="combos"
       />
 
       {/* Активность */}
@@ -221,9 +224,11 @@ export default function AdminComboOffersPage() {
   const [combos, setCombos] = useState<ComboOffer[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortBy, setSortBy] = useState("sortOrder");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [showFiltersMenu, setShowFiltersMenu] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ show: boolean; id: string; name: string } | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -234,7 +239,9 @@ export default function AdminComboOffersPage() {
   useEffect(() => {
     fetchCombos();
     fetchMenuItems();
-  }, [statusFilter]);
+  }, [statusFilter, sortBy, sortOrder, search]);
+
+  const filteredCombos = combos;
 
   const fetchMenuItems = async () => {
     try {
@@ -251,23 +258,13 @@ export default function AdminComboOffersPage() {
       setLoading(true);
       const params = new URLSearchParams();
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (search.trim()) params.append("search", search.trim());
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
       const response = await fetch(`/api/admin/combo-offers?${params}`);
       const data = await response.json();
       if (response.ok) {
-        let sorted = [...(data.combos ?? [])];
-        sorted.sort((a, b) => {
-          let aVal: any, bVal: any;
-          switch (sortBy) {
-            case "name": aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
-            case "price": aVal = a.price; bVal = b.price; break;
-            case "createdAt": aVal = new Date(a.createdAt).getTime(); bVal = new Date(b.createdAt).getTime(); break;
-            default: aVal = a.sortOrder; bVal = b.sortOrder;
-          }
-          if (aVal < bVal) return sortOrder === "asc" ? -1 : 1;
-          if (aVal > bVal) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        setCombos(sorted);
+        setCombos(data.combos ?? []);
       }
     } catch {
       setToast({ message: "Ошибка загрузки комбо-наборов", type: "error" });
@@ -411,40 +408,108 @@ export default function AdminComboOffersPage() {
         </button>
       </div>
 
-      {/* Filters */}
-      <div className="rounded-2xl p-4 mb-6 flex flex-wrap gap-3" style={{ backgroundColor: "#181f38" }}>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 rounded-xl text-white focus:outline-none border text-sm"
-          style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}
-        >
-          <option value="all">Все статусы</option>
-          <option value="active">Активные</option>
-          <option value="inactive">Неактивные</option>
-        </select>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="px-4 py-2 rounded-xl text-white focus:outline-none border text-sm"
-          style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}
-        >
-          <option value="sortOrder">По порядку</option>
-          <option value="name">По названию</option>
-          <option value="price">По цене</option>
-          <option value="createdAt">По дате</option>
-        </select>
-        <div className="flex gap-2">
-          {(["asc", "desc"] as const).map((o) => (
+      {/* Search + Filters */}
+      <div className="rounded-2xl p-6 mb-6" style={{ backgroundColor: "#181f38" }}>
+        <div className="flex flex-col gap-4">
+          {/* Row 1: Search + Filters Button + Add Button */}
+          <div className="flex flex-col lg:flex-row gap-4">
+            {/* Search */}
+            <div className="flex-1">
+              <div className="relative">
+                <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: "#78819d" }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Поиск комбо-наборов..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-300 focus:outline-none transition-all border"
+                  style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}
+                />
+              </div>
+            </div>
+            {/* Filters Button */}
             <button
-              key={o}
-              onClick={() => setSortOrder(o)}
-              className="px-4 py-2 rounded-xl font-bold text-white text-sm"
-              style={{ backgroundColor: sortOrder === o ? "#4047ee" : "#242b47" }}
+              onClick={() => setShowFiltersMenu(!showFiltersMenu)}
+              className="px-6 py-3 text-white rounded-xl font-bold transition-all flex items-center gap-2 justify-center lg:justify-start"
+              style={{ backgroundColor: statusFilter !== "all" ? "#4047ee" : "#242b47" }}
             >
-              {o === "asc" ? "↑" : "↓"}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Фильтры
+              <svg className="w-4 h-4 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                style={{ transform: showFiltersMenu ? "rotate(180deg)" : "rotate(0deg)" }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
             </button>
-          ))}
+            {/* Add Button */}
+            <button
+              onClick={() => { setShowAddModal(true); setFormData(defaultForm); }}
+              className="px-6 py-3 text-white rounded-xl font-bold flex items-center gap-2 justify-center"
+              style={{ backgroundColor: "#4047ee" }}
+            >
+              <Plus className="w-5 h-5" />
+              Добавить комбо
+            </button>
+          </div>
+
+          {/* Expandable Filters */}
+          <div className="overflow-hidden transition-all duration-300 ease-in-out"
+            style={{ maxHeight: showFiltersMenu ? "500px" : "0", opacity: showFiltersMenu ? 1 : 0 }}>
+            <div className="pt-4 border-t" style={{ borderColor: "#242b47" }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold uppercase" style={{ color: "#78819d" }}>Фильтры и сортировка</h3>
+                {statusFilter !== "all" && (
+                  <button onClick={() => setStatusFilter("all")}
+                    className="text-xs font-bold px-3 py-1.5 rounded-lg"
+                    style={{ color: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)" }}>
+                    Сбросить все
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: "#78819d" }}>Сортировка</label>
+                  <Select dark="admin" value={sortBy} onChange={setSortBy}
+                    options={[
+                      { value: "sortOrder", label: "По порядку" },
+                      { value: "name", label: "По названию" },
+                      { value: "price", label: "По цене" },
+                      { value: "createdAt", label: "По дате" },
+                    ]} />
+                </div>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: "#78819d" }}>Статус</label>
+                  <Select dark="admin" value={statusFilter} onChange={setStatusFilter}
+                    options={[
+                      { value: "all", label: "Все статусы" },
+                      { value: "active", label: "Активные" },
+                      { value: "inactive", label: "Неактивные" },
+                    ]} />
+                </div>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px] flex flex-col justify-end" style={{ backgroundColor: "#050c26", borderColor: "#242b47" }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: "#78819d" }}>Порядок</label>
+                  <div className="flex gap-2 w-full">
+                    {(["asc", "desc"] as const).map((o) => (
+                      <button key={o} onClick={() => setSortOrder(o)}
+                        className="flex-1 px-4 py-2 rounded-lg font-bold transition-all flex items-center justify-center gap-2"
+                        style={{
+                          backgroundColor: sortOrder === o ? "#4047ee" : "#181f38",
+                          color: sortOrder === o ? "white" : "#78819d",
+                          borderWidth: "1px", borderStyle: "solid",
+                          borderColor: sortOrder === o ? "#4047ee" : "#242b47",
+                        }}>
+                        {o === "asc" ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />}
+                        <span className="text-sm">{o === "asc" ? "А-Я" : "Я-А"}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -454,15 +519,15 @@ export default function AdminComboOffersPage() {
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: "#4047ee" }} />
           </div>
-        ) : combos.length === 0 ? (
+        ) : filteredCombos.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-lg font-semibold" style={{ color: "#78819d" }}>
-              Комбо-наборы не найдены
+              {search ? `По запросу «${search}» ничего не найдено` : "Комбо-наборы не найдены"}
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {combos.map((combo) => (
+            {filteredCombos.map((combo) => (
               <div
                 key={combo.id}
                 className="rounded-xl p-4 border transition-all"
@@ -549,7 +614,7 @@ export default function AdminComboOffersPage() {
 
       {/* Add/Edit Modal */}
       {(showAddModal || showEditModal) && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
           <div
             className="rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             style={{ backgroundColor: "#181f38" }}
@@ -586,7 +651,7 @@ export default function AdminComboOffersPage() {
 
       {/* Delete Modal */}
       {deleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: "#181f38" }}>
             <h2 className="text-2xl font-black text-white mb-4">Удалить комбо?</h2>
             <p className="mb-6" style={{ color: "#78819d" }}>

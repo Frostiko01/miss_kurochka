@@ -30,13 +30,17 @@ async function checkMenuData() {
             branchId: true
           }
         },
-        images: true
+        images: true,
+        sizes: true,
       }
     })
     
     console.log(`🍗 Всего блюд: ${menuItems.length}`)
     menuItems.forEach(item => {
-      console.log(`  - ${item.name} (${item.category.name}) - ${item.price} сом - Активно: ${item.isActive} - Изображений: ${item.images.length}`)
+      const minPrice = item.sizes.length > 0
+        ? Math.min(...item.sizes.map(s => Number(s.price)))
+        : 0
+      console.log(`  - ${item.name} (${item.category.name}) - от ${minPrice} сом - Активно: ${item.isActive} - Изображений: ${item.images.length}`)
     })
     console.log()
 

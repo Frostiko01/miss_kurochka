@@ -60,7 +60,7 @@ export default function AdminLayout({
       <AdminSidebar onCollapsedChange={setIsSidebarCollapsed} />
       <main 
         className="overflow-x-hidden transition-all duration-300" 
-        style={{ paddingLeft: isSidebarCollapsed ? '120px' : '320px' }}
+        style={{ marginLeft: isSidebarCollapsed ? '120px' : '320px' }}
       >
         {children}
       </main>

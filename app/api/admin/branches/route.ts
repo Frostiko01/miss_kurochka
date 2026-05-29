@@ -13,11 +13,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    // Строим условия фильтрации
     const where: any = {};
-
-    // Поиск по названию, адресу или телефону
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -25,11 +24,13 @@ export async function GET(request: NextRequest) {
         { phone: { contains: search, mode: "insensitive" } },
       ];
     }
-
-    // Фильтр по статусу
     if (status !== "all") {
       where.status = status === "active" ? "active" : "inactive";
     }
+
+    let orderBy: any = { createdAt: sortOrder };
+    if (sortBy === "name") orderBy = { name: sortOrder };
+    else if (sortBy === "status") orderBy = { status: sortOrder };
 
     const branches = await prisma.branch.findMany({
       where,
@@ -41,9 +42,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy,
     });
 
     return NextResponse.json({ branches });

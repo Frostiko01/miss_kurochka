@@ -27,7 +27,7 @@ declare module "next-auth" {
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(prisma),
-  debug: process.env.NODE_ENV === "development",
+  debug: false,
   pages: {
     signIn: "/auth/signin",
     error: "/auth/error",
@@ -45,36 +45,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("🔐 Попытка входа через форму:", credentials?.email);
-        
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Email и пароль обязательны");
         }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
-          include: {
-            accounts: true, // Включаем связанные аккаунты (Google, etc.)
-          },
+          include: { accounts: true },
         });
-
-        console.log("👤 Найден пользователь:", user?.email);
-        console.log("🔗 OAuth аккаунты:", user?.accounts?.length || 0);
-        console.log("🔑 Есть пароль:", !!user?.passwordHash);
-        console.log("👑 Роль пользователя:", user?.role);
 
         if (!user) {
           throw new Error("Неверный email или пароль");
         }
 
-        // Проверяем, есть ли у пользователя OAuth аккаунты (Google)
         const hasOAuthAccount = user.accounts && user.accounts.length > 0;
-        
         if (hasOAuthAccount && !user.passwordHash) {
-          // Пользователь зарегистрирован через Google и не имеет пароля
           const provider = user.accounts[0].provider;
           const providerName = provider === 'google' ? 'Google' : provider;
-          console.log("⚠️ OAuth пользователь пытается войти через форму!");
           throw new Error(`Этот аккаунт зарегистрирован через ${providerName}. Пожалуйста, войдите через ${providerName}.`);
         }
 
@@ -95,7 +82,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           throw new Error("Неверный email или пароль");
         }
 
-        console.log("✅ Вход успешен! Возвращаем пользователя с ролью:", user.role);
         return {
           id: user.id,
           email: user.email,
@@ -137,25 +123,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user, trigger, session }) {
       if (user) {
-        console.log("🎫 JWT: Добавляем данные пользователя в токен", {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-        });
         token.id = user.id;
         token.role = user.role;
         token.fullName = user.fullName;
         token.avatarUrl = user.avatarUrl;
       }
 
-      // Если данных нет в токене, но есть email - загружаем из БД
+      // Если данных нет в токене, но есть email — загружаем из БД (только один раз)
       if (!token.role && token.email) {
-        console.log("🔄 JWT: Загружаем роль из БД для", token.email);
         const dbUser = await prisma.user.findUnique({
           where: { email: token.email },
+          select: { id: true, role: true, fullName: true, phone: true, avatarUrl: true },
         });
         if (dbUser) {
-          console.log("✅ JWT: Роль загружена из БД:", dbUser.role);
           token.id = dbUser.id;
           token.role = dbUser.role;
           token.fullName = dbUser.fullName;
@@ -170,7 +150,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.avatarUrl = session.avatarUrl;
       }
 
-      console.log("🎫 JWT токен:", { email: token.email, role: token.role });
       return token;
     },
     async session({ session, token }) {
@@ -181,10 +160,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.phone = token.phone as string | null;
         session.user.avatarUrl = token.avatarUrl as string | null;
       }
-      console.log("👤 Сессия создана:", {
-        email: session.user?.email,
-        role: session.user?.role,
-      });
       return session;
     },
   },

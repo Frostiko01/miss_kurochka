@@ -314,7 +314,8 @@ export async function POST(request: NextRequest) {
         orderType: orderType || 'pickup',
         paymentMethod: paymentMethod || 'card',
         totalAmount,
-        status: 'pending', // Новый заказ ждёт подтверждения от филиала
+        deliveryAddressId: orderType === 'delivery' && deliveryAddressId ? deliveryAddressId : null,
+        status: 'pending',
         items: {
           create: orderItemsData,
         },
@@ -323,8 +324,8 @@ export async function POST(request: NextRequest) {
             paymentMethod: paymentMethod || 'card',
             amount: totalAmount,
             currency: 'KGS',
-            status: 'completed', // Тестовая оплата — автоматически считаем оплаченным
-            completedAt: new Date(),
+            status: paymentMethod === 'online' ? 'pending' : 'completed',
+            completedAt: paymentMethod === 'online' ? null : new Date(),
           },
         },
       },
@@ -346,6 +347,7 @@ export async function POST(request: NextRequest) {
         },
         payments: true,
         branch: true,
+        deliveryAddress: true,
       },
     })
 

@@ -5,6 +5,7 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import Spinner from "@/components/Spinner";
 import {
   ShoppingCart,
   Package,
@@ -24,7 +25,6 @@ import {
   ChefHat,
   Menu as MenuIcon,
   X,
-  Heart,
   Sparkles,
 } from "lucide-react";
 import MenuItemDetailModal from "@/components/MenuItemDetailModal";
@@ -33,7 +33,6 @@ import MenuCard from "@/components/MenuCard";
 import MenuItemCard from "@/components/MenuItemCard";
 import SideMenu from "@/components/SideMenu";
 import AiChatModal from "@/components/AiChatModal";
-import { useFavorites } from "@/hooks/useFavorites";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Ожидает",
@@ -99,11 +98,6 @@ export default function HomePage() {
   const [sideMenuOpen, setSideMenuOpen] = useState(false);
   const [aiChatOpen, setAiChatOpen] = useState(false);
   const [selectedCombo, setSelectedCombo] = useState<any>(null);
-  const {
-    toggle: toggleFavorite,
-    isFavorite,
-    mounted: favMounted,
-  } = useFavorites();
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -407,7 +401,7 @@ export default function HomePage() {
     return (
       <div className="min-h-screen bg-[var(--bg-muted)] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <Spinner size="lg" className="mx-auto mb-3" />
           <p className="text-sm text-[var(--fg-muted)] font-semibold">
             Загрузка...
           </p>
@@ -581,29 +575,6 @@ export default function HomePage() {
                   key={combo.id}
                   className="card card-hover overflow-hidden flex relative"
                 >
-                  {/* Сердечко */}
-                  {favMounted && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(`combo_${combo.id}`);
-                      }}
-                      className="absolute top-2 right-2 z-10 w-7 h-7 flex items-center justify-center rounded-full bg-white/90 backdrop-blur-sm shadow-sm transition hover:scale-110"
-                      aria-label={
-                        isFavorite(`combo_${combo.id}`)
-                          ? "Убрать из избранного"
-                          : "В избранное"
-                      }
-                    >
-                      <Heart
-                        className={`w-3.5 h-3.5 transition ${
-                          isFavorite(`combo_${combo.id}`)
-                            ? "fill-[var(--brand)] text-[var(--brand)]"
-                            : "text-[var(--fg-muted)]"
-                        }`}
-                      />
-                    </button>
-                  )}
 
                   <div className="w-28 sm:w-36 shrink-0 bg-[var(--bg-muted)]">
                     {combo.imageUrl ? (
@@ -773,88 +744,8 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* ── RECENT ORDERS ── */}
-        {recentOrders.length > 0 && (
-          <section>
-            <SectionHeader
-              title="Последние заказы"
-              icon={<Package className="w-4 h-4" />}
-              href="/orders"
-            />
-            <div className="space-y-3">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  onClick={() => router.push(`/orders/${order.id}`)}
-                  className="card card-hover p-4 cursor-pointer"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <p className="text-sm font-bold">
-                          Заказ #{order.orderNumber}
-                        </p>
-                        <span
-                          className={`badge ${STATUS_BADGE[order.status] ?? "badge"}`}
-                        >
-                          {STATUS_LABEL[order.status] ?? order.status}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[var(--fg-subtle)]">
-                        {new Date(order.createdAt).toLocaleDateString("ru-RU", {
-                          day: "numeric",
-                          month: "long",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </p>
-                      <div className="flex -space-x-1.5 mt-2">
-                        {order.items?.slice(0, 4).map((item: any) => {
-                          const img =
-                            item.menuItem?.images?.[0]?.imageUrl ??
-                            item.comboOffer?.imageUrl ??
-                            null;
-                          return (
-                            <div
-                              key={item.id}
-                              className="w-8 h-8 rounded-lg overflow-hidden border-2 border-white bg-[var(--bg-muted)]"
-                            >
-                              {img ? (
-                                <img
-                                  src={img}
-                                  alt=""
-                                  className="w-full h-full object-cover"
-                                />
-                              ) : (
-                                <div className="w-full h-full flex items-center justify-center text-sm">
-                                  🍗
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {order.items?.length > 4 && (
-                          <div className="w-8 h-8 rounded-lg bg-[var(--bg-muted)] border-2 border-white flex items-center justify-center text-[10px] font-bold text-[var(--fg-muted)]">
-                            +{order.items.length - 4}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-base font-extrabold text-[var(--brand)]">
-                        {order.totalAmount} сом
-                      </p>
-                      <ChevronRight className="w-4 h-4 text-[var(--fg-subtle)] ml-auto mt-1" />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* ── SIGN OUT ── */}
-        <section className="pb-4">
+        <section style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}>
           <button
             onClick={() => signOut({ callbackUrl: "/" })}
             className="btn btn-secondary w-full"
@@ -911,9 +802,9 @@ export default function HomePage() {
         onAddSize={addSize}
         onUpdateSize={updateCartItemById}
         // Избранное
-        showFavorite={favMounted}
-        isFavorite={detailItem ? isFavorite(detailItem.id) : false}
-        onToggleFavorite={() => detailItem && toggleFavorite(detailItem.id)}
+        showFavorite={false}
+        isFavorite={false}
+        onToggleFavorite={undefined}
       />
       <AuthModal
         isOpen={showAuthModal}
@@ -923,7 +814,6 @@ export default function HomePage() {
         isOpen={sideMenuOpen}
         onClose={() => setSideMenuOpen(false)}
         onAddToCart={(id) => addToCart(id)}
-        allMenuItems={allMenuItems}
       />
 
       {/* ── COMBO MODAL ── */}
@@ -1023,18 +913,33 @@ export default function HomePage() {
       )}
 
       {/* ── FLOATING BUTTONS ── */}
-      <div className="fixed bottom-5 right-4 z-30 flex items-center gap-2">
+      {/* На мобиле поднимаем выше bottom navigation (~84px) + safe-area */}
+      <div
+        className="fixed right-4 z-30 flex items-center gap-2"
+        style={{
+          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 92px)',
+        }}
+      >
         {/* Кнопка ИИ поддержки */}
         <button
           onClick={() => setAiChatOpen(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-2xl text-white font-bold text-sm transition-all hover:scale-105 active:scale-95 shadow-lg"
+          className="w-14 h-14 rounded-full flex items-center justify-center hover:scale-110 active:scale-95 shadow-xl"
           style={{
             background: "linear-gradient(135deg, #111 0%, #d62300 100%)",
+            animation: "aiPulse 2s ease-in-out infinite",
           }}
+          aria-label="ИИ поддержка"
         >
-          <Sparkles className="w-4 h-4" />
-          <span className="hidden sm:block">ИИ поддержка</span>
+          <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="rounded-full object-cover" />
         </button>
+
+        <style jsx global>{`
+          @keyframes aiPulse {
+            0%   { transform: scale(1); box-shadow: 0 0 0 0 rgba(214, 35, 0, 0.45); }
+            50%  { transform: scale(1.12); box-shadow: 0 0 0 10px rgba(214, 35, 0, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(214, 35, 0, 0); }
+          }
+        `}</style>
 
         {/* Корзина */}
         {cartCount > 0 && (

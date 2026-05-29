@@ -1,95 +1,100 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { Upload, X, ImageIcon, AlertTriangle } from "lucide-react";
 
 interface ImageUploadProps {
   value: string;
   onChange: (url: string) => void;
   label?: string;
   required?: boolean;
+  /** Папка в S3: menu | categories | banners | combos | additional */
+  folder?: string;
 }
 
-export default function ImageUpload({ value, onChange, label, required }: ImageUploadProps) {
+export default function ImageUpload({
+  value,
+  onChange,
+  label,
+  required,
+  folder = "menu",
+}: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+  const uploadImage = async (file: File) => {
+    setIsUploading(true);
+    setError(null);
+    setProgress(10);
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
+    try {
+      if (file.size > 10 * 1024 * 1024) {
+        setError("Файл слишком большой. Максимум 10 МБ");
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        setError("Пожалуйста, выберите изображение");
+        return;
+      }
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+      setProgress(30);
 
-    const files = Array.from(e.dataTransfer.files);
-    const imageFile = files.find(file => file.type.startsWith('image/'));
+      const formData = new FormData();
+      formData.append("file", file);
 
-    if (imageFile) {
-      await uploadImage(imageFile);
+      const res = await fetch(`/api/upload?folder=${folder}`, {
+        method: "POST",
+        body: formData,
+      });
+
+      setProgress(80);
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error ?? "Ошибка загрузки");
+        return;
+      }
+
+      setProgress(100);
+      onChange(data.url);
+    } catch (err) {
+      console.error("ImageUpload error:", err);
+      setError("Ошибка сети. Попробуйте ещё раз.");
+    } finally {
+      setIsUploading(false);
+      setProgress(0);
     }
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      await uploadImage(file);
-    }
+    if (file) await uploadImage(file);
+    // сбрасываем input чтобы можно было выбрать тот же файл повторно
+    e.target.value = "";
   };
 
-  const uploadImage = async (file: File) => {
-    setIsUploading(true);
-    setError(null);
-
-    try {
-      // Проверка размера файла (максимум 10MB)
-      if (file.size > 10 * 1024 * 1024) {
-        setError('Файл слишком большой. Максимум 10MB');
-        setIsUploading(false);
-        return;
-      }
-
-      // Проверка типа файла
-      if (!file.type.startsWith('image/')) {
-        setError('Пожалуйста, выберите изображение');
-        setIsUploading(false);
-        return;
-      }
-
-      // Конвертируем в base64 для хранения
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        onChange(base64String);
-        setIsUploading(false);
-        setError(null);
-      };
-      reader.onerror = () => {
-        setError('Ошибка при чтении файла');
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      setError('Ошибка при загрузке изображения');
-      setIsUploading(false);
-    }
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = Array.from(e.dataTransfer.files).find((f) =>
+      f.type.startsWith("image/")
+    );
+    if (file) await uploadImage(file);
   };
 
   const handleRemove = () => {
-    onChange('');
+    onChange("");
     setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
+
+  // Определяем — это base64 или URL
+  const isBase64 = value.startsWith("data:");
+  const isUrl = value.startsWith("http");
+  const hasImage = isBase64 || isUrl;
 
   return (
     <div>
@@ -99,23 +104,32 @@ export default function ImageUpload({ value, onChange, label, required }: ImageU
         </label>
       )}
 
-      {value ? (
-        // Preview
-        <div className="relative rounded-xl overflow-hidden border" style={{ borderColor: '#242b47' }}>
+      {hasImage ? (
+        /* ── Preview ── */
+        <div
+          className="relative rounded-xl overflow-hidden border"
+          style={{ borderColor: "rgba(255,255,255,0.08)" }}
+        >
           <img
             src={value}
             alt="Preview"
             className="w-full h-48 object-cover"
-            style={{ backgroundColor: '#181f38' }}
+            style={{ backgroundColor: "#1A212B" }}
           />
+          {isBase64 && (
+            <div
+              className="absolute top-2 left-2 px-2 py-1 rounded text-[10px] font-bold"
+              style={{ backgroundColor: "rgba(251,191,36,0.9)", color: "#000" }}
+            >
+              base64 — сохраните для загрузки в S3
+            </div>
+          )}
           <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="px-4 py-2 rounded-lg font-bold text-white transition-all"
-              style={{ backgroundColor: '#4047ee' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5a5ff5'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4047ee'}
+              style={{ backgroundColor: "#7C8CA5" }}
             >
               Изменить
             </button>
@@ -123,59 +137,72 @@ export default function ImageUpload({ value, onChange, label, required }: ImageU
               type="button"
               onClick={handleRemove}
               className="px-4 py-2 rounded-lg font-bold text-white transition-all"
-              style={{ backgroundColor: '#ef4444' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ef4444'}
+              style={{ backgroundColor: "#ef4444" }}
             >
               Удалить
             </button>
           </div>
         </div>
       ) : (
-        // Upload area
+        /* ── Upload area ── */
         <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
+          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
           onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => !isUploading && fileInputRef.current?.click()}
           className="relative rounded-xl border-2 border-dashed transition-all cursor-pointer"
           style={{
-            backgroundColor: isDragging ? 'rgba(64, 71, 238, 0.1)' : '#181f38',
-            borderColor: isDragging ? '#4047ee' : '#242b47',
+            backgroundColor: isDragging ? "rgba(124,140,165,0.1)" : "#1A212B",
+            borderColor: isDragging ? "#7C8CA5" : "rgba(255,255,255,0.08)",
           }}
         >
           <div className="p-8 text-center">
             {isUploading ? (
               <>
-                <div className="animate-spin rounded-full h-12 w-12 border-b-4 mx-auto mb-4" style={{ borderColor: '#4047ee' }}></div>
-                <p className="text-white font-bold">Загрузка...</p>
-              </>
-            ) : (
-              <>
-                <div className="w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: '#242b47' }}>
-                  <svg
-                    className="w-8 h-8"
-                    style={{ color: '#4047ee' }}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
+                <div className="w-12 h-12 mx-auto mb-4 flex items-center justify-center">
+                  <svg className="animate-spin w-10 h-10" viewBox="0 0 24 24" fill="none">
+                    <circle
+                      className="opacity-25"
+                      cx="12" cy="12" r="10"
+                      stroke="#7C8CA5" strokeWidth="3"
+                    />
                     <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      className="opacity-75"
+                      fill="#7C8CA5"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                     />
                   </svg>
                 </div>
-                <p className="text-white font-bold mb-2">
+                <p className="text-white font-bold mb-2">Загрузка в S3...</p>
+                <div
+                  className="w-full h-1.5 rounded-full overflow-hidden"
+                  style={{ backgroundColor: "rgba(255,255,255,0.1)" }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${progress}%`,
+                      backgroundColor: "#7C8CA5",
+                    }}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  className="w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-4"
+                  style={{ backgroundColor: "rgba(124,140,165,0.15)" }}
+                >
+                  <Upload className="w-7 h-7" style={{ color: "#7C8CA5" }} />
+                </div>
+                <p className="text-white font-bold mb-1">
                   Перетащите изображение сюда
                 </p>
-                <p className="text-sm mb-4" style={{ color: '#78819d' }}>
+                <p className="text-sm mb-3" style={{ color: "#98A2B3" }}>
                   или нажмите для выбора файла
                 </p>
-                <p className="text-xs" style={{ color: '#78819d' }}>
-                  PNG, JPG, GIF до 10MB
+                <p className="text-xs" style={{ color: "#98A2B3" }}>
+                  PNG, JPG, WebP, GIF · до 10 МБ
                 </p>
               </>
             )}
@@ -191,16 +218,20 @@ export default function ImageUpload({ value, onChange, label, required }: ImageU
         className="hidden"
       />
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
-        <div className="mt-2 p-3 rounded-lg" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
-          <p className="text-sm font-bold" style={{ color: '#ef4444' }}>
-            ⚠️ {error}
+        <div
+          className="mt-2 p-3 rounded-lg flex items-start gap-2"
+          style={{ backgroundColor: "rgba(239,68,68,0.1)" }}
+        >
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#ef4444" }} />
+          <p className="text-sm font-bold" style={{ color: "#ef4444" }}>
+            {error}
           </p>
         </div>
       )}
 
-      {/* URL Input as alternative */}
+      {/* URL input */}
       <div className="mt-3">
         <input
           type="url"
@@ -208,7 +239,10 @@ export default function ImageUpload({ value, onChange, label, required }: ImageU
           onChange={(e) => onChange(e.target.value)}
           placeholder="или вставьте URL изображения"
           className="w-full px-4 py-2 rounded-lg text-white placeholder-slate-400 focus:outline-none transition-all border text-sm"
-          style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}
+          style={{
+            backgroundColor: "#0B0F14",
+            borderColor: "rgba(255,255,255,0.05)",
+          }}
         />
       </div>
     </div>

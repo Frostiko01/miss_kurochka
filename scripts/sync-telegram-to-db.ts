@@ -39,7 +39,6 @@ async function syncTelegramToDb() {
       create: {
         key: "ADMIN_TELEGRAM_USER_ID",
         value: userId,
-        description: "Telegram User ID администратора для 2FA",
       },
     });
 
@@ -49,7 +48,6 @@ async function syncTelegramToDb() {
       create: {
         key: "ADMIN_TELEGRAM_BOT_TOKEN",
         value: botToken,
-        description: "Токен Telegram бота для отправки 2FA кодов",
       },
     });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   X,
@@ -42,62 +42,82 @@ interface FavoritesModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCart?: (menuItemId: string) => Promise<void>;
-  /** Уже загруженные блюда — если переданы, fetch не делается */
   preloadedItems?: FavoriteItem[];
+}
+
+const STORAGE_KEY = "favorites";
+
+function getFavoriteIds(): string[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export default function FavoritesModal({
   isOpen,
   onClose,
   onAddToCart,
-  preloadedItems,
 }: FavoritesModalProps) {
   const router = useRouter();
   const { ids: favoriteIds, toggle } = useFavorites();
 
-  const cacheRef = useRef<FavoriteItem[]>([]);
-  const [cacheReady, setCacheReady] = useState(false);
-  const [loading, setLoading] = useState(false);
-
   const [items, setItems] = useState<FavoriteItem[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<string[]>([]);
 
-  // ── если переданы готовые данные — сразу кладём в кэш ──────────────────
-  useEffect(() => {
-    if (preloadedItems && preloadedItems.length > 0) {
-      cacheRef.current = preloadedItems;
-      setCacheReady(true);
-    }
-  }, [preloadedItems]);
-
-  // ── при открытии: если кэша нет — грузим сами ──────────────────────────
+  // При каждом открытии — загружаем актуальные блюда по ID из localStorage
   useEffect(() => {
     if (!isOpen) return;
-    if (cacheReady) {
-      syncItems();
+
+    const ids = getFavoriteIds();
+    if (ids.length === 0) {
+      setItems([]);
       return;
     }
-    fetchAllItems();
-  }, [isOpen, cacheReady]);
 
-  // ── реактивная синхронизация: изменились ids → пересчитываем список ────
-  useEffect(() => {
-    if (cacheReady) syncItems();
-  }, [favoriteIds, cacheReady]);
+    let cancelled = false;
+    setLoading(true);
 
-  // ── блокируем скролл ────────────────────────────────────────────────────
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = "";
-      };
-    }
+    fetch(`/api/menu/by-ids?ids=${ids.join(",")}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        setItems(data.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
-  // ── Escape ──────────────────────────────────────────────────────────────
+  // Когда пользователь убирает сердечко — убираем из списка сразу
+  useEffect(() => {
+    setItems((prev) => prev.filter((item) => favoriteIds.includes(item.id)));
+  }, [favoriteIds]);
+
+  // Блокируем скролл
+  useEffect(() => {
+    if (!isOpen) return;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  // Escape
   useEffect(() => {
     if (!isOpen) return;
     const h = (e: KeyboardEvent) => {
@@ -107,50 +127,13 @@ export default function FavoritesModal({
     return () => document.removeEventListener("keydown", h);
   }, [isOpen, onClose]);
 
-  const syncItems = () => {
-    setItems(cacheRef.current.filter((i) => favoriteIds.includes(i.id)));
-  };
-
-  const fetchAllItems = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/menu");
-      const data = await res.json();
-      if (res.ok) {
-        const all: FavoriteItem[] = [
-          ...(data.grouped?.regular ?? []),
-          ...(data.grouped?.combo ?? []),
-          ...(data.grouped?.mini_combo ?? []),
-        ].flatMap((cat: { items?: FavoriteItem[] }) => cat.items ?? []);
-        cacheRef.current = all;
-        setCacheReady(true);
-        // favoriteIds может быть ещё не загружен из localStorage
-        // читаем напрямую
-        try {
-          const stored = localStorage.getItem("favorites");
-          const ids: string[] = stored ? JSON.parse(stored) : [];
-          setItems(all.filter((i) => ids.includes(i.id)));
-        } catch {
-          setItems(all.filter((i) => favoriteIds.includes(i.id)));
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleAddToCart = async (item: FavoriteItem) => {
     if (!onAddToCart) return;
     setAddingId(item.id);
     try {
       await onAddToCart(item.id);
       setAddedIds((p) => [...p, item.id]);
-      setTimeout(
-        () => setAddedIds((p) => p.filter((x) => x !== item.id)),
-        1500,
-      );
+      setTimeout(() => setAddedIds((p) => p.filter((x) => x !== item.id)), 1500);
     } finally {
       setAddingId(null);
     }
@@ -168,22 +151,15 @@ export default function FavoritesModal({
   return (
     <div
       className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-6"
-      style={{
-        backgroundColor: "rgba(0,0,0,0.65)",
-        backdropFilter: "blur(8px)",
-      }}
+      style={{ backgroundColor: "rgba(0,0,0,0.65)", backdropFilter: "blur(8px)" }}
       onClick={onClose}
     >
       <div
         className="relative bg-white w-full sm:rounded-3xl shadow-2xl flex flex-col"
-        style={{
-          maxWidth: 740,
-          maxHeight: "94vh",
-          borderRadius: "24px 24px 0 0",
-        }}
+        style={{ maxWidth: 740, maxHeight: "94vh", borderRadius: "24px 24px 0 0" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ══ ШАПКА ══════════════════════════════════════════════════════════ */}
+        {/* ШАПКА */}
         <div className="flex items-center gap-4 px-6 py-5 border-b border-[var(--border)] shrink-0">
           <div className="w-11 h-11 rounded-2xl bg-[var(--brand-soft)] flex items-center justify-center shrink-0">
             <Heart className="w-6 h-6 text-[var(--brand)] fill-[var(--brand)]" />
@@ -205,7 +181,7 @@ export default function FavoritesModal({
           </button>
         </div>
 
-        {/* ══ ПОИСК ══════════════════════════════════════════════════════════ */}
+        {/* ПОИСК */}
         {items.length > 3 && (
           <div className="px-6 pt-4 pb-2 shrink-0">
             <div className="relative">
@@ -229,15 +205,13 @@ export default function FavoritesModal({
           </div>
         )}
 
-        {/* ══ СПИСОК ══════════════════════════════════════════════════════════ */}
+        {/* СПИСОК */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {/* Загрузка */}
           {loading && (
             <div className="flex flex-col items-center justify-center py-24 gap-3">
               <div className="w-10 h-10 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm text-[var(--fg-muted)] font-semibold">
-                Загружаем избранное...
-              </p>
+              <p className="text-sm text-[var(--fg-muted)] font-semibold">Загружаем избранное...</p>
             </div>
           )}
 
@@ -247,46 +221,36 @@ export default function FavoritesModal({
               <div className="w-24 h-24 rounded-3xl bg-[var(--brand-soft)] flex items-center justify-center mx-auto mb-6">
                 <Heart className="w-12 h-12 text-[var(--brand)]" />
               </div>
-              <p className="text-xl font-extrabold mb-2">
-                Список избранного пуст
-              </p>
+              <p className="text-xl font-extrabold mb-2">Список избранного пуст</p>
               <p className="text-sm text-[var(--fg-muted)] max-w-xs leading-relaxed">
-                Нажмите <span className="text-[var(--brand)] font-bold">♡</span>{" "}
-                на карточке любого блюда, чтобы добавить его сюда
+                Нажмите <span className="text-[var(--brand)] font-bold">♡</span> на карточке
+                любого блюда, чтобы добавить его сюда
               </p>
             </div>
           )}
 
-          {/* Не нашли по поиску */}
-          {!loading &&
-            favoriteIds.length > 0 &&
-            filtered.length === 0 &&
-            search && (
-              <div className="text-center py-20">
-                <UtensilsCrossed className="w-12 h-12 text-[var(--fg-subtle)] mx-auto mb-3" />
-                <p className="text-sm font-bold text-[var(--fg-muted)]">
-                  Ничего не найдено
-                </p>
-                <p className="text-xs text-[var(--fg-subtle)] mt-1 mb-4">
-                  По запросу «{search}»
-                </p>
-                <button
-                  onClick={() => setSearch("")}
-                  className="text-sm text-[var(--brand)] font-bold hover:underline"
-                >
-                  Сбросить поиск
-                </button>
-              </div>
-            )}
+          {/* Нет результатов поиска */}
+          {!loading && favoriteIds.length > 0 && filtered.length === 0 && search && (
+            <div className="text-center py-20">
+              <UtensilsCrossed className="w-12 h-12 text-[var(--fg-subtle)] mx-auto mb-3" />
+              <p className="text-sm font-bold text-[var(--fg-muted)]">Ничего не найдено</p>
+              <p className="text-xs text-[var(--fg-subtle)] mt-1 mb-4">По запросу «{search}»</p>
+              <button
+                onClick={() => setSearch("")}
+                className="text-sm text-[var(--brand)] font-bold hover:underline"
+              >
+                Сбросить поиск
+              </button>
+            </div>
+          )}
 
-          {/* ── КАРТОЧКИ ─────────────────────────────────────────────────────── */}
+          {/* КАРТОЧКИ */}
           {!loading && filtered.length > 0 && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filtered.map((item) => {
                 const img =
                   item.images?.find((i) => i.isPrimary)?.imageUrl ??
                   item.images?.[0]?.imageUrl;
-                // Берём размеры отсортированные
                 const sizes = [...(item.sizes ?? [])].sort(
                   (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
                 );
@@ -311,12 +275,10 @@ export default function FavoritesModal({
                         <img
                           src={img}
                           alt={item.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-400"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-5xl">
-                          🍗
-                        </div>
+                        <div className="w-full h-full flex items-center justify-center text-5xl">🍗</div>
                       )}
 
                       {/* Бейджи */}
@@ -351,12 +313,10 @@ export default function FavoritesModal({
 
                     {/* Контент */}
                     <div className="p-4 flex flex-col flex-1 gap-2">
-                      {/* Название */}
                       <h3 className="text-sm font-extrabold leading-snug line-clamp-2">
                         {item.name}
                       </h3>
 
-                      {/* Описание */}
                       {item.description && (
                         <p className="text-xs text-[var(--fg-subtle)] line-clamp-2 leading-relaxed">
                           {item.description}
@@ -377,8 +337,7 @@ export default function FavoritesModal({
                         )}
                         {(item.spicyLevel ?? 0) > 0 && (
                           <span className="text-[10px] px-2 py-0.5 rounded-full bg-orange-50 text-orange-600 font-semibold">
-                            {"🌶️".repeat(Math.min(item.spicyLevel ?? 0, 3))}{" "}
-                            Острое
+                            {"🌶️".repeat(Math.min(item.spicyLevel ?? 0, 3))} Острое
                           </span>
                         )}
                         {item.cookingTimeMinutes && (
@@ -388,7 +347,7 @@ export default function FavoritesModal({
                         )}
                       </div>
 
-                      {/* Размеры — если несколько */}
+                      {/* Размеры */}
                       {sizes.length > 1 && (
                         <div className="flex flex-wrap gap-1">
                           {sizes.map((s) => (
@@ -396,21 +355,18 @@ export default function FavoritesModal({
                               key={s.id}
                               className="text-[10px] px-2 py-0.5 rounded-full border border-[var(--border)] text-[var(--fg-muted)] font-semibold"
                             >
-                              {s.weightGrams ? `${s.weightGrams} г` : s.name} —{" "}
-                              {Number(s.price)} сом
+                              {s.weightGrams ? `${s.weightGrams} г` : s.name} — {Number(s.price)} сом
                             </span>
                           ))}
                         </div>
                       )}
 
-                      {/* Нижняя строка: вес + цена + кнопка */}
+                      {/* Цена + кнопка */}
                       <div className="flex items-center justify-between gap-2 mt-auto pt-1">
                         <div className="flex items-end gap-2 min-w-0 flex-wrap">
                           <p className="text-lg font-extrabold text-[var(--brand)] shrink-0">
                             {Number(price)}{" "}
-                            <span className="text-xs font-bold text-[var(--fg-muted)]">
-                              сом
-                            </span>
+                            <span className="text-xs font-bold text-[var(--fg-muted)]">сом</span>
                           </p>
                           {weight && (
                             <span className="text-xs text-[var(--fg-subtle)] bg-[var(--bg-muted)] px-2 py-0.5 rounded-full font-semibold shrink-0">
@@ -423,7 +379,6 @@ export default function FavoritesModal({
                           <button
                             onClick={() => handleAddToCart(item)}
                             disabled={isAdding}
-                            title="Добавить в корзину"
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold transition shrink-0 ${
                               isAdded
                                 ? "bg-emerald-500 text-white"
@@ -435,9 +390,7 @@ export default function FavoritesModal({
                             ) : isAdded ? (
                               <>✓ Добавлено</>
                             ) : (
-                              <>
-                                <Plus className="w-4 h-4" /> В корзину
-                              </>
+                              <><Plus className="w-4 h-4" /> В корзину</>
                             )}
                           </button>
                         )}
@@ -450,7 +403,7 @@ export default function FavoritesModal({
           )}
         </div>
 
-        {/* ══ ФУТЕР ══════════════════════════════════════════════════════════ */}
+        {/* ФУТЕР */}
         {!loading && items.length > 0 && (
           <div className="px-6 py-4 border-t border-[var(--border)] shrink-0 flex items-center justify-between gap-4">
             <p className="text-xs text-[var(--fg-muted)] font-semibold">
@@ -458,10 +411,7 @@ export default function FavoritesModal({
             </p>
             {onAddToCart && (
               <button
-                onClick={() => {
-                  onClose();
-                  router.push("/cart");
-                }}
+                onClick={() => { onClose(); router.push("/cart"); }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--brand)] text-white font-bold text-sm hover:bg-[var(--brand-dark)] transition"
               >
                 <ShoppingCart className="w-4 h-4" />

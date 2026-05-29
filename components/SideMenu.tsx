@@ -10,7 +10,6 @@ import {
   ShoppingCart,
   Package,
   User,
-  Heart,
   MapPin,
   HelpCircle,
   Settings,
@@ -23,8 +22,6 @@ import {
   Clock,
   ArrowLeft,
 } from "lucide-react";
-import { useFavorites } from "@/hooks/useFavorites";
-import FavoritesModal, { type FavoriteItem } from "@/components/FavoritesModal";
 
 // Динамический импорт карты (SSR отключён — Leaflet требует window)
 const BranchesMap = dynamic(() => import("@/components/map/BranchesMap"), {
@@ -43,8 +40,6 @@ interface SideMenuProps {
   isOpen: boolean;
   onClose: () => void;
   onAddToCart?: (menuItemId: string) => void;
-  /** Уже загруженные блюда — передаём чтобы не делать лишний fetch */
-  allMenuItems?: FavoriteItem[];
 }
 
 interface NavItem {
@@ -60,16 +55,13 @@ export default function SideMenu({
   isOpen,
   onClose,
   onAddToCart,
-  allMenuItems,
 }: SideMenuProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
-  const { ids: favoriteIds } = useFavorites();
 
   const [panel, setPanel] = useState<Panel>("main");
   const [branches, setBranches] = useState<any[]>([]);
   const [loadingBranches, setLoadingBranches] = useState(false);
-  const [favModalOpen, setFavModalOpen] = useState(false);
 
   // Escape
   useEffect(() => {
@@ -84,10 +76,7 @@ export default function SideMenu({
     return () => document.removeEventListener("keydown", handler);
   }, [isOpen, onClose, panel]);
 
-  // Закрываем боковую панель при открытии модалки избранного
-  useEffect(() => {
-    if (favModalOpen) onClose();
-  }, [favModalOpen]);
+  // Закрываем боковую панель при открытии модалки избранного убрано
 
   // Блокируем скролл
   useEffect(() => {
@@ -121,14 +110,8 @@ export default function SideMenu({
     }
   };
 
-  // Открыть модалку избранного
-  const handleOpenFavorites = () => {
-    setFavModalOpen(true);
-  };
-
   const user = session?.user;
   const initials = user?.fullName?.charAt(0).toUpperCase() ?? "?";
-  const favCount = favoriteIds.length;
 
   const mainItems: NavItem[] = [
     { href: "/home", icon: <Home className="w-5 h-5" />, label: "Главная" },
@@ -323,21 +306,6 @@ export default function SideMenu({
               />
             ))}
 
-            {/* Избранное */}
-            <button
-              onClick={handleOpenFavorites}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition group text-[var(--fg)] hover:bg-[var(--bg-muted)]"
-            >
-              <span className="text-[var(--fg-muted)] group-hover:text-[var(--brand)]">
-                <Heart className="w-5 h-5" />
-              </span>
-              <span className="flex-1 text-left">Избранное</span>
-              {favCount > 0 && (
-                <span className="badge badge-brand">{favCount}</span>
-              )}
-              <ChevronRight className="w-4 h-4 text-[var(--fg-subtle)] opacity-0 group-hover:opacity-100 transition" />
-            </button>
-
             {/* Филиалы */}
             <button
               onClick={handleOpenBranches}
@@ -381,19 +349,6 @@ export default function SideMenu({
           </div>
         )}
       </aside>
-      {/* ─── FAVORITES MODAL ─── */}
-      <FavoritesModal
-        isOpen={favModalOpen}
-        onClose={() => setFavModalOpen(false)}
-        preloadedItems={allMenuItems}
-        onAddToCart={
-          onAddToCart
-            ? async (id) => {
-                await onAddToCart(id);
-              }
-            : undefined
-        }
-      />
     </>
   );
 }

@@ -149,41 +149,14 @@ export default function AdminMenuPage() {
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/admin/categories?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedCategories = [...data.categories];
-        
-        sortedCategories.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "name":
-              aValue = a.name.toLowerCase();
-              bValue = b.name.toLowerCase();
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-              break;
-            case "items":
-              aValue = a._count.menuItems;
-              bValue = b._count.menuItems;
-              break;
-            default:
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setCategories(sortedCategories);
+        setCategories(data.categories);
       }
     } catch (error) {
       console.error("Error fetching categories:", error);
@@ -201,53 +174,14 @@ export default function AdminMenuPage() {
       if (branchFilter !== "all") params.append("branchId", branchFilter);
       if (stopListBranchFilter !== "all") params.append("stopListBranchId", stopListBranchFilter);
       if (categoryFilter !== "all") params.append("categoryId", categoryFilter);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
 
       const response = await fetch(`/api/admin/menu-items?${params}`);
       const data = await response.json();
 
       if (response.ok) {
-        // Сортировка на клиенте
-        let sortedItems = [...data.menuItems];
-        
-        sortedItems.sort((a, b) => {
-          let aValue, bValue;
-          
-          switch (sortBy) {
-            case "name":
-              aValue = a.name.toLowerCase();
-              bValue = b.name.toLowerCase();
-              break;
-            case "price":
-              aValue = a.sizes?.[0]?.price ?? 0;
-              bValue = b.sizes?.[0]?.price ?? 0;
-              break;
-            case "category":
-              aValue = a.category.name.toLowerCase();
-              bValue = b.category.name.toLowerCase();
-              break;
-            case "branch":
-              aValue = a.category.branch?.name.toLowerCase() || "zzz";
-              bValue = b.category.branch?.name.toLowerCase() || "zzz";
-              break;
-            case "stopList":
-              aValue = a.stopList.length;
-              bValue = b.stopList.length;
-              break;
-            case "createdAt":
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-              break;
-            default:
-              aValue = new Date(a.createdAt || 0).getTime();
-              bValue = new Date(b.createdAt || 0).getTime();
-          }
-          
-          if (aValue < bValue) return sortOrder === "asc" ? -1 : 1;
-          if (aValue > bValue) return sortOrder === "asc" ? 1 : -1;
-          return 0;
-        });
-        
-        setMenuItems(sortedItems);
+        setMenuItems(data.menuItems);
       }
     } catch (error) {
       console.error("Error fetching menu items:", error);
@@ -415,9 +349,9 @@ export default function AdminMenuPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {/* Sorting Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Сортировка
                   </label>
@@ -450,7 +384,7 @@ export default function AdminMenuPage() {
                 </div>
 
                 {/* Status Filter Card */}
-                <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                   <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                     Статус
                   </label>
@@ -467,7 +401,10 @@ export default function AdminMenuPage() {
                 </div>
 
                 {/* Sort Order Toggle */}
-                <div className="rounded-xl p-4 border flex items-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                <div className="rounded-xl p-4 border flex-1 flex flex-col justify-end" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                  <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
+                    Порядок
+                  </label>
                   <div className="flex gap-2 w-full">
                     <button
                       onClick={() => setSortOrder("asc")}
@@ -504,7 +441,7 @@ export default function AdminMenuPage() {
                 {activeTab === "dishes" && (
                   <>
                     {/* Branch Filter Card */}
-                    <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                    <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                       <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                         Филиал
                       </label>
@@ -525,7 +462,7 @@ export default function AdminMenuPage() {
                     </div>
 
                     {/* Stop List Branch Filter Card */}
-                    <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                    <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                       <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                         В стоп-листе филиала
                       </label>
@@ -545,7 +482,7 @@ export default function AdminMenuPage() {
                     </div>
 
                     {/* Category Filter Card */}
-                    <div className="rounded-xl p-4 border" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
+                    <div className="rounded-xl p-4 border flex-1 min-w-[200px]" style={{ backgroundColor: '#050c26', borderColor: '#242b47' }}>
                       <label className="block text-xs font-bold uppercase mb-3" style={{ color: '#78819d' }}>
                         Категория
                       </label>
@@ -884,7 +821,7 @@ export default function AdminMenuPage() {
 
       {/* Add Category Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-2xl w-full my-8" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-6">
               Добавить категорию
@@ -956,6 +893,7 @@ export default function AdminMenuPage() {
                   <ImageUpload
                     value={addFormData.imageUrl}
                     onChange={(url) => setAddFormData({ ...addFormData, imageUrl: url })}
+                    folder="categories"
                   />
                 </div>
 
@@ -999,7 +937,7 @@ export default function AdminMenuPage() {
 
       {/* Edit Category Modal */}
       {showEditModal && editingCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-2xl w-full my-8" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-6">
               Редактировать категорию
@@ -1075,6 +1013,7 @@ export default function AdminMenuPage() {
                   <ImageUpload
                     value={editFormData.imageUrl}
                     onChange={(url) => setEditFormData({ ...editFormData, imageUrl: url })}
+                    folder="categories"
                   />
                 </div>
 
@@ -1121,7 +1060,7 @@ export default function AdminMenuPage() {
 
       {/* Add Dish Modal */}
       {showAddDishModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-2xl w-full my-8" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-6">
               Добавить блюдо
@@ -1339,7 +1278,7 @@ export default function AdminMenuPage() {
 
       {/* Edit Dish Modal */}
       {showEditDishModal && editingDish && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4 overflow-y-auto" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-2xl w-full my-8" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-6">
               Редактировать блюдо
@@ -1554,7 +1493,7 @@ export default function AdminMenuPage() {
 
       {/* Delete Confirmation Modal */}
       {deleteModal?.show && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(5,12,38,0.82)', backdropFilter: 'blur(4px)' }}>
           <div className="rounded-2xl p-6 max-w-md w-full" style={{ backgroundColor: '#181f38' }}>
             <h2 className="text-2xl font-bold text-white mb-4">
               Подтвердите удаление

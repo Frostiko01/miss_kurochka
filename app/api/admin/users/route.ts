@@ -16,26 +16,23 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const role = searchParams.get("role") || "all";
     const status = searchParams.get("status") || "all";
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
     const where: any = {};
-
-    // Поиск
     if (search) {
       where.OR = [
         { fullName: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
       ];
     }
+    if (role !== "all") where.role = role;
+    if (status !== "all") where.status = status;
 
-    // Фильтр по роли
-    if (role !== "all") {
-      where.role = role;
-    }
-
-    // Фильтр по статусу
-    if (status !== "all") {
-      where.status = status;
-    }
+    let orderBy: any = { createdAt: sortOrder };
+    if (sortBy === "fullName") orderBy = { fullName: sortOrder };
+    else if (sortBy === "email") orderBy = { email: sortOrder };
+    else if (sortBy === "role") orderBy = { role: sortOrder };
 
     const users = await prisma.user.findMany({
       where,
@@ -54,9 +51,7 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy,
     });
 
     return NextResponse.json({ users });
@@ -133,7 +128,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Обновить пользователя
+// PUT - Обновить пользователя (только role и status)
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
@@ -143,7 +138,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, email, fullName, role, status, password } = body;
+    const { id, role, status } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -152,34 +147,9 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Проверка существующего email (если изменился)
-    if (email) {
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          email,
-          NOT: { id },
-        },
-      });
-
-      if (existingUser) {
-        return NextResponse.json(
-          { error: "Пользователь с таким email уже существует" },
-          { status: 400 }
-        );
-      }
-    }
-
     const updateData: any = {};
-
-    if (email) updateData.email = email;
-    if (fullName) updateData.fullName = fullName;
     if (role) updateData.role = role;
     if (status) updateData.status = status;
-
-    // Обновление пароля если указан
-    if (password) {
-      updateData.passwordHash = await bcrypt.hash(password, 10);
-    }
 
     const user = await prisma.user.update({
       where: { id },

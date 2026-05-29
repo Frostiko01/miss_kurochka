@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Получаем настройки Telegram из базы данных
+    // Получаем настройки Telegram из базы данных (с fallback на env)
     const telegramUserIdSetting = await prisma.systemSetting.findUnique({
       where: { key: "ADMIN_TELEGRAM_USER_ID" },
     });
@@ -95,15 +95,15 @@ export async function POST(request: NextRequest) {
       where: { key: "ADMIN_TELEGRAM_BOT_TOKEN" },
     });
 
-    if (!telegramUserIdSetting || !telegramBotTokenSetting) {
+    const telegramUserId = telegramUserIdSetting?.value ?? process.env.ADMIN_TELEGRAM_USER_ID
+    const telegramBotToken = telegramBotTokenSetting?.value ?? process.env.ADMIN_TELEGRAM_BOT_TOKEN
+
+    if (!telegramUserId || !telegramBotToken) {
       return NextResponse.json(
         { error: "telegramNotConfigured" },
         { status: 500 }
       );
     }
-
-    const telegramUserId = telegramUserIdSetting.value;
-    const telegramBotToken = telegramBotTokenSetting.value;
 
     // Генерируем код
     const code = generateCode();

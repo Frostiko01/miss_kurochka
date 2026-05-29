@@ -1,8 +1,11 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import type { MenuCategoryWithItems } from '@/types'
-import { formatPrice, getI18nText, type Language } from '@/types'
+import { formatPrice, getI18nText, type Language, type I18nText } from '@/types'
+
+const asI18n = (v: unknown): I18nText | null =>
+  v && typeof v === 'object' ? (v as I18nText) : null
 
 interface MenuListProps {
   categories: MenuCategoryWithItems[]
@@ -41,7 +44,7 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                         : 'bg-white text-black border-black hover:bg-black hover:text-white shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#d62300] hover:translate-x-[-2px] hover:translate-y-[-2px]'
                     }`}
                   >
-                    {getI18nText(category.nameI18n as any, category.name, language)}
+                    {getI18nText(asI18n(category.nameI18n), category.name, language)}
                   </button>
                 ))}
               </nav>
@@ -54,7 +57,7 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
               <>
                 <div className="mb-8">
                   <h2 className="text-5xl font-black uppercase tracking-tight mb-2">
-                    {getI18nText(currentCategory.nameI18n as any, currentCategory.name, language)}
+                    {getI18nText(asI18n(currentCategory.nameI18n), currentCategory.name, language)}
                   </h2>
                   <div className="h-2 w-24 bg-[#d62300]"></div>
                 </div>
@@ -62,6 +65,10 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {currentCategory.menuItems.map(item => {
                     const primaryImage = item.images.find(img => img.isPrimary)
+                    const firstSize = item.sizes?.[0]
+                    const displayPrice =
+                      firstSize?.price !== undefined ? Number(firstSize.price) : 0
+                    const displayWeight = firstSize?.weightGrams
 
                     return (
                       <article
@@ -73,10 +80,10 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                           <div className="aspect-[4/3] bg-gray-100 relative overflow-hidden">
                             <img
                               src={primaryImage.imageUrl}
-                              alt={getI18nText(item.nameI18n as any, item.name, language)}
+                              alt={getI18nText(asI18n(item.nameI18n), item.name, language)}
                               className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                             />
-                            
+
                             {/* Badges */}
                             <div className="absolute top-3 left-3 flex flex-col gap-2">
                               {item.isNew && (
@@ -103,22 +110,19 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                         {/* Content */}
                         <div className="p-6">
                           <h3 className="text-2xl font-black uppercase tracking-tight mb-2 group-hover:text-[#d62300] transition-colors">
-                            {getI18nText(item.nameI18n as any, item.name, language)}
+                            {getI18nText(asI18n(item.nameI18n), item.name, language)}
                           </h3>
 
                           {item.description && (
                             <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                              {getI18nText(item.descriptionI18n as any, item.description, language)}
+                              {getI18nText(asI18n(item.descriptionI18n), item.description, language)}
                             </p>
                           )}
 
                           {/* Details */}
                           <div className="flex items-center gap-3 text-xs font-bold text-gray-500 mb-4 flex-wrap">
-                            {item.weightGrams && (
-                              <span className="bg-gray-100 px-2 py-1 rounded border border-gray-300">{item.weightGrams}г</span>
-                            )}
-                            {item.volumeMl && (
-                              <span className="bg-gray-100 px-2 py-1 rounded border border-gray-300">{item.volumeMl}мл</span>
+                            {displayWeight && (
+                              <span className="bg-gray-100 px-2 py-1 rounded border border-gray-300">{displayWeight}г</span>
                             )}
                             {item.cookingTimeMinutes && (
                               <span className="bg-gray-100 px-2 py-1 rounded border border-gray-300">⏱ {item.cookingTimeMinutes} мин</span>
@@ -142,7 +146,7 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                           {/* Price and Button */}
                           <div className="flex items-center justify-between pt-4 border-t-2 border-black">
                             <span className="text-4xl font-black text-[#d62300]">
-                              {formatPrice(item.price)}
+                              {formatPrice(displayPrice)}
                             </span>
                             <button className="bg-[#d62300] hover:bg-black text-white px-6 py-3 rounded-full font-black uppercase text-xs tracking-wide transition-all border-2 border-black shadow-[3px_3px_0_#000] hover:shadow-[4px_4px_0_#000] hover:translate-x-[-1px] hover:translate-y-[-1px]">
                               {language === 'ru' ? 'В корзину' : language === 'en' ? 'Add' : 'Себетке'}

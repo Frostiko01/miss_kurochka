@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
-// GET - Получить все дополнительные предложения (глобальные + своего филиала)
+/**
+ * NOTE: Текущая схема Prisma не содержит поля `branchId` у `AdditionalOffer` —
+ * все доп. предложения общие для всех филиалов. Поэтому филиал
+ * может видеть и редактировать только глобальные офферы.
+ * Если в будущем добавите `branchId` в схему — раскомментируйте логику ниже.
+ */
+
+// GET - Получить все дополнительные предложения
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -10,7 +18,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Получаем филиал пользователя
+    // Проверяем, что у пользователя есть привязка к филиалу
     const branchUser = await prisma.branchUser.findFirst({
       where: { userId: session.user.id },
     });
@@ -24,12 +32,7 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get("category") || "all";
     const status = searchParams.get("status") || "all";
 
-    const where: any = {
-      OR: [
-        { branchId: null }, // Глобальные предложения
-        { branchId: branchUser.branchId }, // Предложения филиала
-      ],
-    };
+    const where: Prisma.AdditionalOfferWhereInput = {};
 
     if (search) {
       where.name = { contains: search, mode: "insensitive" };
@@ -60,7 +63,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Создать предложение для своего филиала
+// POST - Создать предложение
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -68,7 +71,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Получаем филиал пользователя
     const branchUser = await prisma.branchUser.findFirst({
       where: { userId: session.user.id },
     });
@@ -95,7 +97,6 @@ export async function POST(request: NextRequest) {
         category,
         imageUrl: imageUrl || null,
         isActive: isActive !== undefined ? isActive : true,
-        branchId: branchUser.branchId, // Привязываем к филиалу
       },
     });
 
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Обновить предложение (только свои)
+// PUT - Обновить предложение
 export async function PUT(request: NextRequest) {
   try {
     const session = await auth();
@@ -117,7 +118,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Получаем филиал пользователя
     const branchUser = await prisma.branchUser.findFirst({
       where: { userId: session.user.id },
     });
@@ -136,14 +136,13 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Проверяем что предложение принадлежит этому филиалу
     const existingOffer = await prisma.additionalOffer.findUnique({
       where: { id },
     });
 
-    if (!existingOffer || existingOffer.branchId !== branchUser.branchId) {
+    if (!existingOffer) {
       return NextResponse.json(
-        { error: "Offer not found or access denied" },
+        { error: "Offer not found" },
         { status: 404 }
       );
     }
@@ -170,7 +169,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Удалить предложение (только свои)
+// DELETE - Удалить предложение
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
@@ -178,7 +177,6 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Получаем филиал пользователя
     const branchUser = await prisma.branchUser.findFirst({
       where: { userId: session.user.id },
     });
@@ -197,14 +195,13 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Проверяем что предложение принадлежит этому филиалу
     const existingOffer = await prisma.additionalOffer.findUnique({
       where: { id },
     });
 
-    if (!existingOffer || existingOffer.branchId !== branchUser.branchId) {
+    if (!existingOffer) {
       return NextResponse.json(
-        { error: "Offer not found or access denied" },
+        { error: "Offer not found" },
         { status: 404 }
       );
     }

@@ -12,16 +12,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
     const where: any = {};
-
     if (search) {
       where.name = { contains: search, mode: "insensitive" };
     }
-
     if (status !== "all") {
       where.status = status;
     }
+
+    let orderBy: any = { createdAt: sortOrder };
+    if (sortBy === "name") orderBy = { name: sortOrder };
 
     const categories = await prisma.menuCategory.findMany({
       where,
@@ -30,7 +33,7 @@ export async function GET(request: NextRequest) {
           select: { menuItems: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy,
     });
 
     return NextResponse.json({ categories });

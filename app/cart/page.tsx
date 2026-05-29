@@ -82,7 +82,7 @@ interface SavedAddress {
   comment?: string | null
 }
 
-type Step = 1 | 2 | 3
+type Step = 1 | 2 | 3 | 4
 type OrderType = 'delivery' | 'pickup'
 
 // ============ PAGE ============
@@ -116,6 +116,8 @@ export default function CartPage() {
 
   // Step 3 state
   const [customerComment, setCustomerComment] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [paymentMethod] = useState<'card'>('card')
   const [nearestBranch, setNearestBranch] = useState<{
     id: string
     name: string
@@ -127,6 +129,12 @@ export default function CartPage() {
   useEffect(() => {
     if (status === 'unauthenticated') router.push('/auth/signin?callbackUrl=/cart')
     else if (status === 'authenticated') {
+      // Инициализируем телефон из профиля — храним только 9 цифр без +996
+      if (session?.user?.phone) {
+        const digits = session.user.phone.replace(/\D/g, '')
+        // Убираем 996 в начале если есть
+        setCustomerPhone(digits.startsWith('996') && digits.length > 9 ? digits.slice(3) : digits.slice(0, 9))
+      }
       Promise.all([fetchCart(), fetchAddresses(), fetchBranches()]).finally(() =>
         setLoading(false)
       )
@@ -344,6 +352,9 @@ export default function CartPage() {
       }
       setStep(3)
     } else if (step === 3) {
+      // Переходим к оплате
+      setStep(4)
+    } else if (step === 4) {
       await submitOrder()
     }
   }
@@ -351,30 +362,29 @@ export default function CartPage() {
   const submitOrder = async () => {
     setSubmitting(true)
     try {
-      const res = await fetch('/api/orders', {
+      const res = await fetch('/api/finik/create-payment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderType,
-          paymentMethod: 'card',
           customerName: session?.user?.fullName,
-          customerPhone: session?.user?.phone || '',
+          customerPhone: customerPhone ? `+996${customerPhone}` : (session?.user?.phone || ''),
           customerComment: customerComment || null,
           deliveryAddressId: orderType === 'delivery' ? selectedAddressId : null,
           pickupBranchId: orderType === 'pickup' ? selectedBranchId : null,
         }),
       })
       const data = await res.json()
-      if (res.ok) {
-        await fetch('/api/cart', { method: 'DELETE' })
-        router.push(`/orders/${data.order.id}`)
+      if (res.ok && data.paymentUrl) {
+        // Перенаправляем пользователя на платёжную страницу Finik
+        window.location.href = data.paymentUrl
       } else {
-        alert(data.error || 'Ошибка создания заказа')
+        alert(data.error || 'Ошибка создания платежа')
+        setSubmitting(false)
       }
     } catch (e) {
       console.error(e)
-      alert('Ошибка создания заказа')
-    } finally {
+      alert('Ошибка создания платежа')
       setSubmitting(false)
     }
   }
@@ -403,9 +413,14 @@ export default function CartPage() {
   const selectedAddress = savedAddresses.find(a => a.id === selectedAddressId)
   const selectedBranch = branches.find(b => b.id === selectedBranchId)
 
-  const stepLabels = ['Корзина', 'Доставка', 'Подтверждение']
+  const stepLabels = ['Корзина', 'Доставка', 'Подтверждение', 'Оплата']
+  const FINIK_PRICE = 5
   const nextLabel =
-    step === 3 ? (submitting ? 'Оформление...' : `Оформить заказ · ${totalAmount} сом`) : 'Продолжить'
+    step === 3
+      ? `Перейти к оплате · ${FINIK_PRICE} сом`
+      : step === 4
+      ? (submitting ? 'Обработка...' : `Оплатить · ${FINIK_PRICE} сом`)
+      : 'Продолжить'
 
   return (
     <div className="min-h-screen bg-[var(--bg-muted)] flex flex-col">
@@ -421,7 +436,7 @@ export default function CartPage() {
           </button>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] uppercase tracking-wider text-[var(--fg-subtle)] font-bold">
-              Шаг {step} из 3
+              Шаг {step} из 4
             </p>
             <h1 className="text-base font-extrabold tracking-tight truncate">
               {stepLabels[step - 1]}
@@ -488,37 +503,49 @@ export default function CartPage() {
             user={session?.user}
             customerComment={customerComment}
             setCustomerComment={setCustomerComment}
+            customerPhone={customerPhone}
+            setCustomerPhone={setCustomerPhone}
+            paymentMethod={paymentMethod}
             onEditStep={(s: Step) => setStep(s)}
+          />
+        )}
+        {step === 4 && (
+          <Step4Payment
+            totalAmount={totalAmount}
+            submitting={submitting}
+            onPay={submitOrder}
+            onBack={() => setStep(3)}
           />
         )}
       </main>
 
-      {/* STICKY FOOTER */}
-      <footer className="fixed bottom-0 inset-x-0 z-20 bg-white border-t border-[var(--border)]">
-        <div className="container-page max-w-3xl py-3">
-          {/* Сумма всегда видна */}
-          <div className="flex items-baseline justify-between mb-3 px-1">
-            <span className="text-xs text-[var(--fg-muted)] font-semibold">
-              {itemsCount} {itemsCount === 1 ? 'товар' : 'товаров'}
-            </span>
-            <span className="text-xl font-extrabold text-[var(--brand)]">
-              {totalAmount} сом
-            </span>
+      {/* STICKY FOOTER — скрыт на шаге 4 (там своя кнопка) */}
+      {step < 4 && (
+        <footer className="fixed bottom-0 inset-x-0 z-20 bg-white border-t border-[var(--border)]">
+          <div className="container-page max-w-3xl py-3">
+            <div className="flex items-baseline justify-between mb-3 px-1">
+              <span className="text-xs text-[var(--fg-muted)] font-semibold">
+                {itemsCount} {itemsCount === 1 ? 'товар' : 'товаров'}
+              </span>
+              <span className="text-xl font-extrabold text-[var(--brand)]">
+                {totalAmount} сом
+              </span>
+            </div>
+            <button
+              onClick={handleNext}
+              disabled={
+                submitting ||
+                (step === 1 && !canProceedToStep2) ||
+                (step === 2 && !canProceedToStep3)
+              }
+              className="btn btn-primary btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {nextLabel}
+              {step < 3 && !submitting && <ChevronRight className="w-4 h-4" />}
+            </button>
           </div>
-          <button
-            onClick={handleNext}
-            disabled={
-              submitting ||
-              (step === 1 && !canProceedToStep2) ||
-              (step === 2 && !canProceedToStep3)
-            }
-            className="btn btn-primary btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {nextLabel}
-            {step < 3 && !submitting && <ChevronRight className="w-4 h-4" />}
-          </button>
-        </div>
-      </footer>
+        </footer>
+      )}
     </div>
   )
 }
@@ -1053,6 +1080,24 @@ function Step2Address(props: {
 }
 
 // ============ STEP 3: CONFIRM ============
+
+/**
+ * Убирает из адреса почтовый индекс (6 цифр) и страну в конце.
+ * "Октябрьский район, город Бишкек, 720060, Киргизия" →
+ * "Октябрьский район, город Бишкек"
+ */
+function cleanAddress(address: string): string {
+  return address
+    // убираем ", 6-значный индекс"
+    .replace(/,?\s*\d{6}/g, '')
+    // убираем ", Киргизия" / ", Кыргызстан" / ", Kyrgyzstan" в конце
+    .replace(/,?\s*(Киргизия|Кыргызстан|Kyrgyzstan|KG)\s*$/i, '')
+    .trim()
+    // убираем висячую запятую в конце
+    .replace(/,\s*$/, '')
+    .trim()
+}
+
 function Step3Confirm({
   cart,
   calc,
@@ -1065,6 +1110,9 @@ function Step3Confirm({
   user,
   customerComment,
   setCustomerComment,
+  customerPhone,
+  setCustomerPhone,
+  paymentMethod,
   onEditStep,
 }: {
   cart: Cart
@@ -1078,6 +1126,9 @@ function Step3Confirm({
   user: any
   customerComment: string
   setCustomerComment: (s: string) => void
+  customerPhone: string
+  setCustomerPhone: (s: string) => void
+  paymentMethod: 'card'
   onEditStep: (s: Step) => void
 }) {
   const showAddress = address ?? (newAddress && newAddress.addressLine ? newAddress : null)
@@ -1131,7 +1182,7 @@ function Step3Confirm({
               <div className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-[var(--fg-muted)] mt-0.5 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold leading-tight">{showAddress.addressLine}</p>
+                  <p className="text-sm font-bold leading-tight">{cleanAddress(showAddress.addressLine)}</p>
                   {(showAddress.apartment || showAddress.entrance || showAddress.floor) && (
                     <p className="text-xs text-[var(--fg-muted)] mt-0.5">
                       {showAddress.apartment && `Кв. ${showAddress.apartment}`}
@@ -1150,7 +1201,7 @@ function Step3Confirm({
               <Store className="w-4 h-4 text-[var(--fg-muted)] mt-0.5 shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm font-bold">{branch.name}</p>
-                <p className="text-xs text-[var(--fg-muted)] mt-0.5">{branch.address}</p>
+                <p className="text-xs text-[var(--fg-muted)] mt-0.5">{cleanAddress(branch.address)}</p>
               </div>
             </div>
           ) : (
@@ -1179,7 +1230,7 @@ function Step3Confirm({
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-[var(--fg-muted)] mt-0.5">{nearestBranch.address}</p>
+                <p className="text-xs text-[var(--fg-muted)] mt-0.5">{cleanAddress(nearestBranch.address)}</p>
               </div>
             </div>
           ) : (
@@ -1195,18 +1246,36 @@ function Step3Confirm({
         <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-3">
           Контактные данные
         </h2>
-        <div className="space-y-2.5 text-sm">
+        <div className="space-y-3 text-sm">
           <div className="flex items-center gap-2.5">
             <UserIcon className="w-4 h-4 text-[var(--fg-muted)] shrink-0" />
             <span className="font-semibold truncate">{user?.fullName ?? '—'}</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <PhoneIcon className="w-4 h-4 text-[var(--fg-muted)] shrink-0" />
-            <span className="font-semibold">
-              {user?.phone || (
-                <span className="text-[var(--fg-subtle)] font-normal">Не указан</span>
+            <PhoneIcon className="w-4 h-4 text-[var(--fg-muted)] shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center rounded-xl overflow-hidden" style={{ background: 'var(--bg-muted)' }}>
+                {/* Префикс +996 — фиксированный */}
+                <span className="px-3 py-2 text-sm font-bold text-[var(--fg-muted)] shrink-0 select-none border-r border-[var(--border)]">
+                  +996
+                </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                  placeholder="555 123 456"
+                  className="flex-1 px-3 py-2 text-sm font-semibold focus:outline-none bg-transparent"
+                  style={{ color: 'var(--fg)' }}
+                  maxLength={9}
+                />
+              </div>
+              {!customerPhone && (
+                <p className="text-[11px] text-[var(--brand)] mt-1 font-semibold">
+                  Укажите телефон для связи с курьером
+                </p>
               )}
-            </span>
+            </div>
           </div>
         </div>
       </section>
@@ -1227,21 +1296,6 @@ function Step3Confirm({
       </section>
 
       {/* Payment */}
-      <section className="surface p-4">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--fg-subtle)] mb-3">
-          Способ оплаты
-        </h2>
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-[var(--brand-soft)] border border-[var(--brand-tint)]">
-          <div className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-[var(--brand)]">
-            <CreditCard className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="text-sm font-bold">Оплата при получении</p>
-            <p className="text-xs text-[var(--fg-muted)]">Наличными или картой курьеру</p>
-          </div>
-        </div>
-      </section>
-
       {/* Speed promise */}
       {orderType === 'delivery' && (
         <div className="flex items-start gap-2.5 p-3 rounded-xl bg-[#ecfdf5] border border-[#d1fae5]">
@@ -1279,3 +1333,121 @@ function SectionHeader({
     </div>
   )
 }
+
+// ============ STEP 4: PAYMENT ============
+// Цена платежа фиксированная — 5 сом (передаётся в Finik отдельно).
+// Здесь просто кнопка "Оплатить через Finik" — после нажатия пользователя
+// перенаправит на платёжную страницу Finik (QR-код).
+const FINIK_FIXED_AMOUNT = 5
+
+function Step4Payment({
+  totalAmount,
+  submitting,
+  onPay,
+  onBack,
+}: {
+  totalAmount: number
+  submitting: boolean
+  onPay: () => void
+  onBack: () => void
+}) {
+  return (
+    <div className="space-y-4 pb-8">
+      {/* Заголовок */}
+      <div className="surface p-5">
+        <div className="flex items-center gap-3 mb-1">
+          <div className="w-10 h-10 rounded-xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center shrink-0">
+            <CreditCard className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-base font-extrabold">Оплата через Finik</h2>
+            <p className="text-xs text-[var(--fg-muted)]">Безопасная оплата по QR-коду</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Информация о платеже */}
+      <div className="surface p-5 space-y-3">
+        <div className="flex items-baseline justify-between pb-3 border-b border-[var(--border)]">
+          <span className="text-sm text-[var(--fg-muted)] font-semibold">Сумма заказа</span>
+          <span className="text-base font-bold text-[var(--fg-muted)] line-through">
+            {totalAmount} сом
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-bold">К оплате</span>
+          <span className="text-3xl font-extrabold text-[var(--brand)]">
+            {FINIK_FIXED_AMOUNT} сом
+          </span>
+        </div>
+        <p className="text-[11px] text-[var(--fg-subtle)] text-center pt-2">
+          Тестовый платёж — фиксированная сумма {FINIK_FIXED_AMOUNT} сом
+        </p>
+      </div>
+
+      {/* Шаги оплаты */}
+      <div className="surface p-5">
+        <h3 className="text-sm font-extrabold mb-3">Как это работает</h3>
+        <ol className="space-y-2.5">
+          {[
+            'Нажмите кнопку «Оплатить»',
+            'Откроется страница Finik с QR-кодом',
+            'Отсканируйте QR-код в приложении банка',
+            'После оплаты вернётесь на чек заказа',
+          ].map((text, i) => (
+            <li key={i} className="flex items-start gap-2.5">
+              <span
+                className="w-5 h-5 rounded-full text-white text-[11px] font-extrabold flex items-center justify-center shrink-0 mt-0.5"
+                style={{ background: 'var(--brand)' }}
+              >
+                {i + 1}
+              </span>
+              <span className="text-sm text-[var(--fg)]">{text}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      {/* Кнопки */}
+      <div className="surface p-5 space-y-3">
+        <button
+          onClick={onPay}
+          disabled={submitting}
+          className="btn btn-primary btn-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ boxShadow: 'var(--shadow-brand)' }}
+        >
+          {submitting ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              Создание платежа...
+            </>
+          ) : (
+            <>
+              <CreditCard className="w-4 h-4" />
+              Оплатить {FINIK_FIXED_AMOUNT} сом через Finik
+            </>
+          )}
+        </button>
+        <button
+          onClick={onBack}
+          disabled={submitting}
+          className="btn btn-secondary w-full disabled:opacity-50"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Назад к подтверждению
+        </button>
+        <p className="text-center text-[11px] text-[var(--fg-subtle)] mt-3 flex items-center justify-center gap-1">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path
+              fillRule="evenodd"
+              d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+              clipRule="evenodd"
+            />
+          </svg>
+          Защищённое соединение · Finik Acquiring
+        </p>
+      </div>
+    </div>
+  )
+}
+

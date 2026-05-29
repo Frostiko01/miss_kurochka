@@ -313,6 +313,7 @@ model Order {
   orderType       OrderType         @map("order_type")
   status          OrderStatus       @default(pending)
   totalAmount     Decimal           @map("total_amount") @db.Decimal(10, 2)
+  deliveryAddressId String?         @map("delivery_address_id") @db.Uuid
   readyAt         DateTime?         @map("ready_at") @db.Timestamptz(6)
   deliveredAt     DateTime?         @map("delivered_at") @db.Timestamptz(6)
   cancelledAt     DateTime?         @map("cancelled_at") @db.Timestamptz(6)
@@ -325,6 +326,7 @@ model Order {
   branch          Branch            @relation(fields: [branchId], references: [id])
   canceller       User?             @relation("CancelledBy", fields: [cancelledBy], references: [id])
   customer        User?             @relation(fields: [customerId], references: [id])
+  deliveryAddress DeliveryAddress?  @relation(fields: [deliveryAddressId], references: [id])
   payments        Payment[]
 
   @@map("orders")
@@ -406,6 +408,7 @@ model DeliveryAddress {
   isDefault   Boolean  @default(false) @map("is_default")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders      Order[]
 
   @@map("delivery_addresses")
 }
@@ -512,6 +515,7 @@ model ComboOffer {
   imageUrl    String           @map("image_url")
   isActive    Boolean          @default(true) @map("is_active")
   sortOrder   Int              @default(0) @map("sort_order")
+  type        ComboType        @default(regular)
   createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
   cartItems   CartItem[]
@@ -637,6 +641,7 @@ enum OrderStatus {
 
 enum PaymentMethodType {
   card
+  cash
   finik
   online
 }
@@ -685,4 +690,9 @@ enum NotificationType {
   order_status
   payment
   system
+}
+
+enum ComboType {
+  regular
+  mini
 }

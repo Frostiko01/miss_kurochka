@@ -56,6 +56,7 @@ export default function BranchesMap({ branches, className = '' }: BranchesMapPro
   const userMarkerRef = useRef<L.Marker | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [locating, setLocating] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
   const withCoords = branches.filter(
     b => b.latitude != null && b.longitude != null &&
@@ -65,92 +66,120 @@ export default function BranchesMap({ branches, className = '' }: BranchesMapPro
   // Центр по умолчанию — Бишкек
   const defaultCenter: [number, number] = [42.8746, 74.5698]
 
+  // Убеждаемся, что компонент смонтирован
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
+
+  useEffect(() => {
+    // Проверяем, что компонент смонтирован и элемент существует
+    if (!isMounted || !mapRef.current || mapInstanceRef.current) return
+
+    // Дополнительная проверка готовности DOM
+    if (!mapRef.current.offsetParent && mapRef.current.offsetWidth === 0) {
+      console.warn('Map container not ready yet, skipping initialization')
+      return
+    }
+
+    // Небольшая задержка для гарантии готовности DOM
+    const initTimeout = setTimeout(() => {
+      if (!mapRef.current || mapInstanceRef.current) return
 
     const center: [number, number] =
       withCoords.length > 0
         ? [Number(withCoords[0].latitude), Number(withCoords[0].longitude)]
         : defaultCenter
 
-    const map = L.map(mapRef.current, {
-      center,
-      zoom: 12,
-      zoomControl: true,
-      attributionControl: false,
-      scrollWheelZoom: true,
-    })
-
-    // Тайлы с fallback
-    const providers = [
-      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    ]
-
-    let loaded = false
-    let providerIdx = 0
-
-    const tryLoad = (idx: number) => {
-      if (idx >= providers.length) { setIsLoading(false); return }
-      const tl = L.tileLayer(providers[idx], { maxZoom: 19 })
-      tl.on('tileload', () => {
-        if (!loaded) { loaded = true; setIsLoading(false) }
+    try {
+      const map = L.map(mapRef.current, {
+        center,
+        zoom: 12,
+        zoomControl: true,
+        attributionControl: false,
+        scrollWheelZoom: true,
       })
-      tl.on('tileerror', () => {
-        if (!loaded && idx === providerIdx) {
-          providerIdx++
-          tl.remove()
-          tryLoad(providerIdx)
-        }
+
+      // Тайлы с fallback
+      const providers = [
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+      ]
+
+      let loaded = false
+      let providerIdx = 0
+
+      const tryLoad = (idx: number) => {
+        if (idx >= providers.length) { setIsLoading(false); return }
+        const tl = L.tileLayer(providers[idx], { maxZoom: 19 })
+        tl.on('tileload', () => {
+          if (!loaded) { loaded = true; setIsLoading(false) }
+        })
+        tl.on('tileerror', () => {
+          if (!loaded && idx === providerIdx) {
+            providerIdx++
+            tl.remove()
+            tryLoad(providerIdx)
+          }
+        })
+        tl.addTo(map)
+        setTimeout(() => { if (!loaded) { tl.remove(); tryLoad(idx + 1) } }, 5000)
+      }
+      tryLoad(0)
+
+      // Маркеры филиалов
+      const branchIcon = createBranchIcon()
+      const bounds: [number, number][] = []
+
+      withCoords.forEach(branch => {
+        const lat = Number(branch.latitude)
+        const lng = Number(branch.longitude)
+        bounds.push([lat, lng])
+
+        L.marker([lat, lng], { icon: branchIcon })
+          .addTo(map)
+          .bindPopup(
+            `<div style="font-family:inherit;min-width:150px;padding:2px 0">
+              <strong style="font-size:13px;color:#0f0f10">${branch.name}</strong>
+              <p style="font-size:11px;color:#57575c;margin:5px 0 0;line-height:1.4">${branch.address}</p>
+              ${branch.phone
+                ? `<a href="tel:${branch.phone}" style="font-size:11px;color:#d62300;font-weight:700;display:block;margin-top:5px">${branch.phone}</a>`
+                : ''}
+            </div>`,
+            { maxWidth: 220, className: 'branch-popup' }
+          )
       })
-      tl.addTo(map)
-      setTimeout(() => { if (!loaded) { tl.remove(); tryLoad(idx + 1) } }, 5000)
+
+      // Подгоняем вид под все маркеры
+      if (bounds.length === 1) {
+        map.setView(bounds[0], 15)
+      } else if (bounds.length > 1) {
+        map.fitBounds(bounds, { padding: [24, 24] })
+      }
+
+      mapInstanceRef.current = map
+
+      // Пересчёт размера после анимации drawer
+      setTimeout(() => map.invalidateSize(), 150)
+      setTimeout(() => map.invalidateSize(), 400)
+    } catch (error) {
+      console.error('Failed to initialize Leaflet map:', error)
+      setIsLoading(false)
     }
-    tryLoad(0)
-
-    // Маркеры филиалов
-    const branchIcon = createBranchIcon()
-    const bounds: [number, number][] = []
-
-    withCoords.forEach(branch => {
-      const lat = Number(branch.latitude)
-      const lng = Number(branch.longitude)
-      bounds.push([lat, lng])
-
-      L.marker([lat, lng], { icon: branchIcon })
-        .addTo(map)
-        .bindPopup(
-          `<div style="font-family:inherit;min-width:150px;padding:2px 0">
-            <strong style="font-size:13px;color:#0f0f10">${branch.name}</strong>
-            <p style="font-size:11px;color:#57575c;margin:5px 0 0;line-height:1.4">${branch.address}</p>
-            ${branch.phone
-              ? `<a href="tel:${branch.phone}" style="font-size:11px;color:#d62300;font-weight:700;display:block;margin-top:5px">${branch.phone}</a>`
-              : ''}
-          </div>`,
-          { maxWidth: 220, className: 'branch-popup' }
-        )
-    })
-
-    // Подгоняем вид под все маркеры
-    if (bounds.length === 1) {
-      map.setView(bounds[0], 15)
-    } else if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [24, 24] })
-    }
-
-    mapInstanceRef.current = map
-
-    // Пересчёт размера после анимации drawer
-    setTimeout(() => map.invalidateSize(), 150)
-    setTimeout(() => map.invalidateSize(), 400)
+    }, 100) // Задержка 100мс для готовности DOM
 
     return () => {
+      clearTimeout(initTimeout)
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
+        try {
+          mapInstanceRef.current.remove()
+        } catch (error) {
+          console.error('Error removing map:', error)
+        }
         mapInstanceRef.current = null
       }
     }
-  }, [])
+  }, [isMounted])
 
   // Обновляем маркеры при изменении списка филиалов
   useEffect(() => {

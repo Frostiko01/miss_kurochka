@@ -14,6 +14,14 @@ export const metadata: Metadata = {
   description: "Заказывайте вкусную курицу, бургеры и напитки онлайн. Быстрая доставка и самовывоз.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover" as const,
+  themeColor: "#ffffff",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{

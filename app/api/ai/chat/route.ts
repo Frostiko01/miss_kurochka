@@ -1,20 +1,163 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 const openai = new OpenAI({
   apiKey: process.env.OPEN_AI,
 })
 
-// Функции для получения данных из БД
-async function getMenuItems(filters?: { category?: string; isVegetarian?: boolean; maxPrice?: number }) {
-  const where: any = { isActive: true }
-  
+// ─── ФУНКЦИИ ДОСТУПА К БД ────────────────────────────────────────────────────
+
+/** Полная карта меню — все категории + блюда */
+async function getFullMenu() {
+  const categories = await prisma.menuCategory.findMany({
+    where: { status: 'active' },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    select: {
+      id: true,
+      name: true,
+      type: true,
+      description: true,
+      menuItems: {
+        where: { isActive: true },
+        orderBy: [{ isFeatured: 'desc' }, { name: 'asc' }],
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          isFeatured: true,
+          isNew: true,
+          isVegetarian: true,
+          isVegan: true,
+          spicyLevel: true,
+          sizes: {
+            where: { isActive: true },
+            orderBy: { sortOrder: 'asc' },
+            select: { name: true, price: true, weightGrams: true },
+          },
+        },
+      },
+    },
+  })
+
+  return categories
+    .filter(c => c.menuItems.length > 0)
+    .map(c => ({
+      category: c.name,
+      type: c.type,
+      itemsCount: c.menuItems.length,
+      items: c.menuItems.map(i => ({
+        name: i.name,
+        description: i.description,
+        isFeatured: i.isFeatured,
+        isNew: i.isNew,
+        isVegetarian: i.isVegetarian,
+        isVegan: i.isVegan,
+        spicyLevel: i.spicyLevel,
+        priceRange: i.sizes.length > 0 ? {
+          min: Math.min(...i.sizes.map(s => Number(s.price))),
+          max: Math.max(...i.sizes.map(s => Number(s.price))),
+        } : null,
+        sizes: i.sizes.map(s => ({
+          name: s.name,
+          price: Number(s.price),
+          weightGrams: s.weightGrams,
+        })),
+      })),
+    }))
+}
+
+/** Подробная информация о блюде по названию */
+async function getItemDetails(name: string) {
+  const item = await prisma.menuItem.findFirst({
+    where: {
+      isActive: true,
+      name: { contains: name, mode: 'insensitive' },
+    },
+    include: {
+      category: { select: { name: true } },
+      sizes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+      spices: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+      modifiers: {
+        include: {
+          modifierGroup: {
+            include: { options: { where: { isActive: true } } },
+          },
+        },
+      },
+    },
+  })
+
+  if (!item) return { found: false, message: `Блюдо "${name}" не найдено` }
+
+  return {
+    found: true,
+    name: item.name,
+    description: item.description,
+    category: item.category.name,
+    ingredients: item.ingredients,
+    isFeatured: item.isFeatured,
+    isNew: item.isNew,
+    isVegetarian: item.isVegetarian,
+    isVegan: item.isVegan,
+    spicyLevel: item.spicyLevel,
+    cookingTimeMinutes: item.cookingTimeMinutes,
+    sizes: item.sizes.map(s => ({
+      name: s.name,
+      price: Number(s.price),
+      weightGrams: s.weightGrams,
+    })),
+    spices: item.spices.map(sp => ({
+      name: sp.name,
+      price: Number(sp.price),
+    })),
+    modifiers: item.modifiers.map(m => ({
+      groupName: m.modifierGroup.name,
+      isRequired: m.modifierGroup.isRequired,
+      selectionType: m.modifierGroup.selectionType,
+      options: m.modifierGroup.options.map(o => ({
+        name: o.name,
+        priceDelta: Number(o.priceDelta),
+      })),
+    })),
+  }
+}
+
+/** Поиск блюд по нескольким критериям */
+async function searchItems(filters?: {
+  query?: string
+  category?: string
+  isVegetarian?: boolean
+  isVegan?: boolean
+  isNew?: boolean
+  isFeatured?: boolean
+  maxPrice?: number
+  minPrice?: number
+  minSpicyLevel?: number
+  maxSpicyLevel?: number
+}) {
+  const where: Prisma.MenuItemWhereInput = { isActive: true }
+
+  if (filters?.query) {
+    where.OR = [
+      { name: { contains: filters.query, mode: 'insensitive' } },
+      { description: { contains: filters.query, mode: 'insensitive' } },
+      { ingredients: { contains: filters.query, mode: 'insensitive' } },
+    ]
+  }
   if (filters?.category) {
     where.category = { name: { contains: filters.category, mode: 'insensitive' } }
   }
-  if (filters?.isVegetarian !== undefined) {
-    where.isVegetarian = filters.isVegetarian
+  if (filters?.isVegetarian !== undefined) where.isVegetarian = filters.isVegetarian
+  if (filters?.isVegan !== undefined) where.isVegan = filters.isVegan
+  if (filters?.isNew !== undefined) where.isNew = filters.isNew
+  if (filters?.isFeatured !== undefined) where.isFeatured = filters.isFeatured
+  if (filters?.minSpicyLevel !== undefined || filters?.maxSpicyLevel !== undefined) {
+    const range: { gte?: number; lte?: number } = {}
+    if (filters.minSpicyLevel !== undefined) range.gte = filters.minSpicyLevel
+    if (filters.maxSpicyLevel !== undefined) range.lte = filters.maxSpicyLevel
+    where.spicyLevel = range
   }
 
   const items = await prisma.menuItem.findMany({
@@ -22,329 +165,585 @@ async function getMenuItems(filters?: { category?: string; isVegetarian?: boolea
     include: {
       category: { select: { name: true } },
       sizes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
-      images: { where: { isPrimary: true }, take: 1 },
-      modifiers: {
-        include: {
-          modifierGroup: {
-            include: {
-              options: { where: { isActive: true } }
-            }
-          }
-        }
-      }
+      spices: { where: { isActive: true } },
     },
-    take: 20,
-    orderBy: { name: 'asc' }
+    take: 30,
+    orderBy: [{ isFeatured: 'desc' }, { name: 'asc' }],
   })
 
-  // Фильтрация по цене после получения данных
-  let filteredItems = items
-  if (filters?.maxPrice) {
-    filteredItems = items.filter(item => {
-      const minPrice = Math.min(...item.sizes.map(s => Number(s.price)))
-      return minPrice <= filters.maxPrice!
+  let result = items
+  if (filters?.maxPrice !== undefined) {
+    result = result.filter(item => {
+      const prices = item.sizes.map(s => Number(s.price))
+      return prices.length > 0 && Math.min(...prices) <= filters.maxPrice!
+    })
+  }
+  if (filters?.minPrice !== undefined) {
+    result = result.filter(item => {
+      const prices = item.sizes.map(s => Number(s.price))
+      return prices.length > 0 && Math.max(...prices) >= filters.minPrice!
     })
   }
 
-  return filteredItems.map(item => ({
-    id: item.id,
+  return result.map(item => ({
     name: item.name,
     description: item.description,
     category: item.category.name,
-    sizes: item.sizes.map(s => ({
-      name: s.name,
-      price: Number(s.price),
-      weight: s.weightGrams
-    })),
+    ingredients: item.ingredients,
+    isFeatured: item.isFeatured,
+    isNew: item.isNew,
     isVegetarian: item.isVegetarian,
     isVegan: item.isVegan,
     spicyLevel: item.spicyLevel,
-    ingredients: item.ingredients,
-    modifiers: item.modifiers.map(m => ({
-      groupName: m.modifierGroup.name,
-      isRequired: m.modifierGroup.isRequired,
-      options: m.modifierGroup.options.map(o => ({
-        name: o.name,
-        priceDelta: Number(o.priceDelta)
-      }))
-    }))
+    sizes: item.sizes.map(s => ({
+      name: s.name,
+      price: Number(s.price),
+      weightGrams: s.weightGrams,
+    })),
+    availableSpices: item.spices.map(sp => ({
+      name: sp.name,
+      price: Number(sp.price),
+    })),
   }))
 }
 
+/** Категории меню с количеством блюд */
+async function getCategories() {
+  const cats = await prisma.menuCategory.findMany({
+    where: { status: 'active' },
+    orderBy: [{ sortOrder: 'asc' }],
+    select: {
+      name: true,
+      type: true,
+      description: true,
+      _count: { select: { menuItems: { where: { isActive: true } } } },
+    },
+  })
+
+  return cats
+    .filter(c => c._count.menuItems > 0)
+    .map(c => ({
+      name: c.name,
+      type: c.type,
+      description: c.description,
+      itemsCount: c._count.menuItems,
+    }))
+}
+
+/** Новинки */
+async function getNewItems() {
+  const items = await prisma.menuItem.findMany({
+    where: { isActive: true, isNew: true },
+    include: {
+      category: { select: { name: true } },
+      sizes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 15,
+  })
+
+  return items.map(i => ({
+    name: i.name,
+    description: i.description,
+    category: i.category.name,
+    spicyLevel: i.spicyLevel,
+    isVegetarian: i.isVegetarian,
+    sizes: i.sizes.map(s => ({
+      name: s.name,
+      price: Number(s.price),
+      weightGrams: s.weightGrams,
+    })),
+  }))
+}
+
+/** Хиты / рекомендации */
+async function getFeaturedItems() {
+  const items = await prisma.menuItem.findMany({
+    where: { isActive: true, isFeatured: true },
+    include: {
+      category: { select: { name: true } },
+      sizes: { where: { isActive: true }, orderBy: { sortOrder: 'asc' } },
+    },
+    orderBy: { name: 'asc' },
+    take: 15,
+  })
+
+  return items.map(i => ({
+    name: i.name,
+    description: i.description,
+    category: i.category.name,
+    spicyLevel: i.spicyLevel,
+    isVegetarian: i.isVegetarian,
+    sizes: i.sizes.map(s => ({
+      name: s.name,
+      price: Number(s.price),
+      weightGrams: s.weightGrams,
+    })),
+  }))
+}
+
+/** Самые дешёвые / дорогие блюда */
+async function getPriceExtremes(direction: 'cheapest' | 'most_expensive', limit = 5) {
+  const items = await prisma.menuItem.findMany({
+    where: { isActive: true },
+    include: {
+      category: { select: { name: true } },
+      sizes: { where: { isActive: true }, orderBy: { price: 'asc' } },
+    },
+  })
+
+  const withPrice = items
+    .filter(i => i.sizes.length > 0)
+    .map(i => ({
+      name: i.name,
+      description: i.description,
+      category: i.category.name,
+      minPrice: Math.min(...i.sizes.map(s => Number(s.price))),
+      maxPrice: Math.max(...i.sizes.map(s => Number(s.price))),
+      sizes: i.sizes.map(s => ({
+        name: s.name,
+        price: Number(s.price),
+        weightGrams: s.weightGrams,
+      })),
+    }))
+
+  const sorted = withPrice.sort((a, b) =>
+    direction === 'cheapest' ? a.minPrice - b.minPrice : b.maxPrice - a.maxPrice,
+  )
+
+  return sorted.slice(0, limit)
+}
+
+/** Комбо-наборы и акции */
 async function getComboOffers() {
   const combos = await prisma.comboOffer.findMany({
     where: { isActive: true },
     include: {
       comboItems: {
-        include: {
-          menuItem: {
-            select: { name: true }
-          }
-        },
-        orderBy: { sortOrder: 'asc' }
-      }
+        include: { menuItem: { select: { name: true, description: true } } },
+        orderBy: { sortOrder: 'asc' },
+      },
     },
     orderBy: { sortOrder: 'asc' },
-    take: 10
   })
 
-  return combos.map(combo => ({
-    id: combo.id,
-    name: combo.name,
-    description: combo.description,
-    price: Number(combo.price),
-    oldPrice: combo.oldPrice ? Number(combo.oldPrice) : null,
-    items: combo.comboItems.map(ci => ({
+  return combos.map(c => ({
+    name: c.name,
+    description: c.description,
+    price: Number(c.price),
+    oldPrice: c.oldPrice ? Number(c.oldPrice) : null,
+    discountPercent: c.oldPrice
+      ? Math.round((1 - Number(c.price) / Number(c.oldPrice)) * 100)
+      : null,
+    saveAmount: c.oldPrice ? Number(c.oldPrice) - Number(c.price) : null,
+    items: c.comboItems.map(ci => ({
       name: ci.menuItem.name,
-      quantity: ci.quantity
-    }))
+      quantity: ci.quantity,
+    })),
   }))
 }
 
+/** Дополнительные предложения */
 async function getAdditionalOffers(category?: string) {
-  const where: any = { isActive: true }
+  const where: Prisma.AdditionalOfferWhereInput = { isActive: true }
   if (category) {
-    where.category = { contains: category, mode: 'insensitive' }
+    const normalized = category.toLowerCase()
+    const map: Record<string, string> = {
+      'соус': 'sauce',
+      'соусы': 'sauce',
+      'напиток': 'drink',
+      'напитки': 'drink',
+      'гарнир': 'side',
+      'гарниры': 'side',
+      'десерт': 'dessert',
+      'десерты': 'dessert',
+    }
+    where.category = map[normalized] ?? category
   }
 
   const offers = await prisma.additionalOffer.findMany({
     where,
     orderBy: { sortOrder: 'asc' },
-    take: 10
   })
 
-  return offers.map(offer => ({
-    id: offer.id,
-    name: offer.name,
-    description: offer.description,
-    price: Number(offer.price),
-    category: offer.category
+  return offers.map(o => ({
+    name: o.name,
+    description: o.description,
+    price: Number(o.price),
+    category: o.category,
   }))
 }
 
+/** Филиалы с расписанием */
 async function getBranches() {
   const branches = await prisma.branch.findMany({
     where: { status: 'active' },
     select: {
-      id: true,
       name: true,
       address: true,
       phone: true,
       city: true,
       minOrderAmount: true,
-      averageCookingTime: true
-    }
+      averageCookingTime: true,
+      schedules: {
+        orderBy: { dayOfWeek: 'asc' },
+        select: { dayOfWeek: true, openTime: true, closeTime: true },
+      },
+      deliveryZones: {
+        where: { isActive: true },
+        select: {
+          name: true,
+          deliveryFee: true,
+          minOrderAmount: true,
+          estimatedMinutes: true,
+        },
+      },
+    },
   })
 
+  const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+
   return branches.map(b => ({
-    id: b.id,
     name: b.name,
     address: b.address,
     phone: b.phone,
     city: b.city,
-    minOrderAmount: b.minOrderAmount ? Number(b.minOrderAmount) : null,
-    averageCookingTime: b.averageCookingTime
+    minOrderAmountSom: b.minOrderAmount ? Number(b.minOrderAmount) : null,
+    averageCookingTimeMinutes: b.averageCookingTime,
+    schedule: b.schedules.map(s => ({
+      day: dayNames[s.dayOfWeek],
+      open: s.openTime instanceof Date
+        ? s.openTime.toTimeString().slice(0, 5)
+        : String(s.openTime).slice(0, 5),
+      close: s.closeTime instanceof Date
+        ? s.closeTime.toTimeString().slice(0, 5)
+        : String(s.closeTime).slice(0, 5),
+    })),
+    deliveryZones: b.deliveryZones.map(z => ({
+      name: z.name,
+      feeSom: Number(z.deliveryFee),
+      minOrderSom: z.minOrderAmount ? Number(z.minOrderAmount) : null,
+      estimatedMinutes: z.estimatedMinutes,
+    })),
   }))
 }
 
-// Инструменты для ИИ (function calling)
+/** Статистика меню — общий обзор */
+async function getMenuStats() {
+  const [
+    totalItems,
+    vegetarianCount,
+    veganCount,
+    newCount,
+    featuredCount,
+    spicyCount,
+    categoriesCount,
+    combosCount,
+    priceData,
+  ] = await Promise.all([
+    prisma.menuItem.count({ where: { isActive: true } }),
+    prisma.menuItem.count({ where: { isActive: true, isVegetarian: true } }),
+    prisma.menuItem.count({ where: { isActive: true, isVegan: true } }),
+    prisma.menuItem.count({ where: { isActive: true, isNew: true } }),
+    prisma.menuItem.count({ where: { isActive: true, isFeatured: true } }),
+    prisma.menuItem.count({ where: { isActive: true, spicyLevel: { gt: 0 } } }),
+    prisma.menuCategory.count({ where: { status: 'active' } }),
+    prisma.comboOffer.count({ where: { isActive: true } }),
+    prisma.menuItemSize.aggregate({
+      where: { isActive: true, menuItem: { isActive: true } },
+      _min: { price: true },
+      _max: { price: true },
+      _avg: { price: true },
+    }),
+  ])
+
+  return {
+    totalItems,
+    vegetarianCount,
+    veganCount,
+    newCount,
+    featuredCount,
+    spicyCount,
+    categoriesCount,
+    combosCount,
+    priceRange: {
+      minSom: priceData._min.price ? Number(priceData._min.price) : null,
+      maxSom: priceData._max.price ? Number(priceData._max.price) : null,
+      averageSom: priceData._avg.price ? Math.round(Number(priceData._avg.price)) : null,
+    },
+  }
+}
+
+// ─── ИНСТРУМЕНТЫ ─────────────────────────────────────────────────────────────
+
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_menu_items',
-      description: 'Получить список блюд из меню с фильтрацией по категории, вегетарианству или цене',
+      name: 'get_full_menu',
+      description: 'Получить ПОЛНОЕ меню со всеми категориями и блюдами. Используй когда клиент просит общий обзор меню или не знает что выбрать.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_item_details',
+      description: 'Получить максимально подробную информацию об одном блюде по названию: состав, размеры, цены, доступные соусы, модификаторы.',
       parameters: {
         type: 'object',
         properties: {
-          category: {
+          name: { type: 'string', description: 'Название блюда (полное или частичное)' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_items',
+      description: 'Универсальный поиск блюд по любым критериям: текст, категория, диета, цена, острота. Используй для большинства запросов о меню.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Поисковый текст по названию/описанию/составу' },
+          category: { type: 'string', description: 'Категория: крылышки, бургер, картофель, напитки' },
+          isVegetarian: { type: 'boolean' },
+          isVegan: { type: 'boolean' },
+          isNew: { type: 'boolean', description: 'true — только новинки' },
+          isFeatured: { type: 'boolean', description: 'true — только хиты' },
+          maxPrice: { type: 'number', description: 'Максимальная цена в сомах' },
+          minPrice: { type: 'number', description: 'Минимальная цена в сомах' },
+          minSpicyLevel: { type: 'number', description: 'Минимальная острота 0-3' },
+          maxSpicyLevel: { type: 'number', description: 'Максимальная острота 0-3' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_categories',
+      description: 'Получить список всех категорий меню с количеством блюд в каждой.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_new_items',
+      description: 'Получить новинки — блюда с пометкой "Новинка".',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_featured_items',
+      description: 'Получить хиты продаж и рекомендуемые блюда. Идеально для запроса "что попробовать".',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_price_extremes',
+      description: 'Получить самые дешёвые или самые дорогие блюда.',
+      parameters: {
+        type: 'object',
+        properties: {
+          direction: {
             type: 'string',
-            description: 'Название категории (например: "бургер", "курица", "напитки")'
+            enum: ['cheapest', 'most_expensive'],
+            description: 'cheapest — самые дешёвые, most_expensive — самые дорогие',
           },
-          isVegetarian: {
-            type: 'boolean',
-            description: 'Фильтр по вегетарианским блюдам'
-          },
-          maxPrice: {
-            type: 'number',
-            description: 'Максимальная цена в сомах'
-          }
-        }
-      }
-    }
+          limit: { type: 'number', description: 'Сколько вернуть (по умолчанию 5)' },
+        },
+        required: ['direction'],
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'get_combo_offers',
-      description: 'Получить список комбо-наборов и акций',
-      parameters: {
-        type: 'object',
-        properties: {}
-      }
-    }
+      description: 'Комбо-наборы со скидками — состав, цены, размер скидки.',
+      parameters: { type: 'object', properties: {} },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'get_additional_offers',
-      description: 'Получить дополнительные предложения (соусы, напитки, десерты)',
+      description: 'Дополнения: соусы, напитки, гарниры, десерты.',
       parameters: {
         type: 'object',
         properties: {
-          category: {
-            type: 'string',
-            description: 'Категория дополнений (например: "соус", "напиток")'
-          }
-        }
-      }
-    }
+          category: { type: 'string', description: 'соус / напиток / гарнир / десерт' },
+        },
+      },
+    },
   },
   {
     type: 'function',
     function: {
       name: 'get_branches',
-      description: 'Получить список филиалов ресторана с адресами и контактами',
-      parameters: {
-        type: 'object',
-        properties: {}
-      }
-    }
-  }
+      description: 'Адреса, телефоны, расписание работы и зоны доставки филиалов.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_menu_stats',
+      description: 'Общая статистика меню: сколько всего блюд, ценовой диапазон, сколько вегетарианских и т.д.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
 ]
 
-const SYSTEM_PROMPT = `Ты — дружелюбный ИИ-помощник ресторана быстрого питания «Miss Kurochka» (Мисс Курочка).
+// ─── СИСТЕМНЫЙ ПРОМПТ ────────────────────────────────────────────────────────
 
-О ресторане:
-- Специализация: курица, бургеры, комбо-наборы, картофель, напитки
-- Работаем в Бишкеке, Кыргызстан
+const SYSTEM_PROMPT = `Ты — Курочка 🐔, дружелюбный и креативный ИИ-помощник ресторана «Miss Kurochka» в Бишкеке.
+
+🎯 ТВОЯ ЛИЧНОСТЬ
+Ты как опытный официант, который влюблён в свою работу: тёплый, остроумный, ненавязчивый. Умеешь поддержать беседу, но всегда возвращаешь к еде с лёгкой улыбкой. Используй редкие эмодзи (1-2 на сообщение, не больше) — они должны быть уместными.
+
+🍗 ПРО РЕСТОРАН
+- Жареная курица, крылышки, бургеры, картофель фри, комбо
+- Бишкек, Кыргызстан
 - Доставка и самовывоз
 - Оплата: карта, Finik, онлайн
 
-Твои задачи:
-1. Помогать клиентам выбрать блюда по вкусу, бюджету и составу
-2. Отвечать на вопросы о меню, составе блюд, аллергенах, ценах
-3. Рассказывать об акциях и комбо-наборах
-4. Помогать оформить заказ — объяснять как добавить в корзину
-5. Отвечать на вопросы о доставке, времени работы, филиалах
+🛠 КАК ОТВЕЧАТЬ
+1. ЛЮБОЙ вопрос про меню, цены, состав, диету, остроту → используй функции, никогда не выдумывай
+2. Если клиент не знает что выбрать → спроси о предпочтениях (острое/мягкое, цена, диета) и порекомендуй из БД через search_items или get_featured_items
+3. Если клиент назвал конкретное блюдо → get_item_details для полной картины
+4. Если просит «что новенького» → get_new_items
+5. Если просит «бюджетно» или «подороже» → get_price_extremes
+6. Если общий вопрос «что у вас есть» → get_categories или get_full_menu
 
-У тебя есть доступ к актуальной базе данных:
-- Используй get_menu_items для поиска блюд, цен, состава, модификаторов
-- Используй get_combo_offers для информации о комбо и акциях
-- Используй get_additional_offers для соусов, напитков, десертов
-- Используй get_branches для адресов и контактов филиалов
+✨ БУДЬ КРЕАТИВНЫМ
+- Делай умные подборки: «к этим крылышкам хорошо зайдёт чесночный соус и картофель»
+- Предлагай альтернативы: «если любишь острое — попробуй ___»
+- Связывай блюда: «возьми комбо вместо отдельных позиций — выйдет на 50 сом дешевле»
+- Подмечай детали: новинки, скидки, выгодные комбо
+- Добавляй живой комментарий: «классика на все времена», «наш топ-1 по продажам»
 
-Правила:
-- Общайся на русском языке (если клиент пишет на кыргызском — отвечай на кыргызском)
-- Будь кратким, дружелюбным и полезным
-- ВСЕГДА используй функции для получения актуальных данных о ценах и меню
-- Если клиент спрашивает про цену, состав или наличие — вызови соответствующую функцию
-- Рекомендуй блюда на основе реальных данных из БД
-- Если вопрос не связан с едой/рестораном — вежливо верни разговор к теме
-- Максимальная длина ответа — 4-5 предложений
-- Указывай цены в сомах (сом)`
+🛒 ПОМОЩЬ С ЗАКАЗОМ
+- Нажми «+» на карточке блюда → откроется выбор размера/соуса
+- Корзина в правом верхнем углу
+- Для оформления заказа нужен вход в аккаунт
+- Доставка/самовывоз выбирается на странице корзины
+
+📏 ФОРМАТ ОТВЕТА
+- 2-5 предложений, можно списком если 3+ блюд
+- Цены — всегда в сомах
+- Если перечисляешь блюда: название · краткое описание · цена
+- Не пиши «Согласно базе данных...» — просто отвечай как живой человек
+- На кыргызском — отвечай на кыргызском
+
+🚫 ЧЕГО НЕ ДЕЛАТЬ
+- Не придумывать блюда, цены, состав
+- Не говорить «у меня нет доступа» — у тебя есть полный доступ к меню
+- Не отвечать на вопросы вне темы ресторана/еды (вежливо верни к делу)
+- Не давать ответ длиннее 6 предложений без необходимости`
+
+// ─── API ROUTE ───────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { messages } = body
 
-    console.log('📨 Получен запрос к ИИ:', {
-      messagesCount: messages?.length,
-      lastMessage: messages?.[messages.length - 1]?.content
-    })
-
     if (!messages || !Array.isArray(messages)) {
-      console.error('❌ Неверный формат сообщений')
       return NextResponse.json({ error: 'Неверный формат сообщений' }, { status: 400 })
     }
 
-    let conversationMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    const conversationMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.slice(-20)
+      ...messages.slice(-20),
     ]
 
-    // Цикл для обработки function calling
-    let maxIterations = 5
-    let iteration = 0
-
-    while (iteration < maxIterations) {
-      iteration++
-
+    // Function calling — до 6 итераций (даём ИИ возможность сделать несколько вызовов подряд)
+    for (let i = 0; i < 6; i++) {
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: conversationMessages,
         tools,
         tool_choice: 'auto',
-        max_tokens: 800,
-        temperature: 0.7,
+        max_tokens: 1200,
+        temperature: 0.85, // Чуть выше — для креативности
+        presence_penalty: 0.3, // Меньше повторов
       })
 
       const assistantMessage = response.choices[0]?.message
-
       if (!assistantMessage) {
         return NextResponse.json({ error: 'Нет ответа от ИИ' }, { status: 500 })
       }
 
       conversationMessages.push(assistantMessage)
 
-      // Если нет вызовов функций — возвращаем ответ
-      if (!assistantMessage.tool_calls || assistantMessage.tool_calls.length === 0) {
-        const reply = assistantMessage.content ?? 'Извините, не смог сформировать ответ.'
-        console.log('✅ Ответ ИИ (без вызова функций):', reply.substring(0, 100))
-        return NextResponse.json({ reply })
-      }
-
-      console.log('🔧 ИИ вызывает функции:', assistantMessage.tool_calls.map(t => t.function.name))
-
-      // Обрабатываем вызовы функций
-      for (const toolCall of assistantMessage.tool_calls) {
-        const functionName = toolCall.function.name
-        const functionArgs = JSON.parse(toolCall.function.arguments || '{}')
-
-        let functionResult: any
-
-        try {
-          console.log(`  → Вызов ${functionName} с параметрами:`, functionArgs)
-          
-          switch (functionName) {
-            case 'get_menu_items':
-              functionResult = await getMenuItems(functionArgs)
-              break
-            case 'get_combo_offers':
-              functionResult = await getComboOffers()
-              break
-            case 'get_additional_offers':
-              functionResult = await getAdditionalOffers(functionArgs.category)
-              break
-            case 'get_branches':
-              functionResult = await getBranches()
-              break
-            default:
-              functionResult = { error: 'Неизвестная функция' }
-          }
-          
-          console.log(`  ✓ ${functionName} вернул ${Array.isArray(functionResult) ? functionResult.length : 'N/A'} результатов`)
-        } catch (error) {
-          console.error(`❌ Ошибка при вызове ${functionName}:`, error)
-          functionResult = { error: 'Ошибка получения данных' }
-        }
-
-        conversationMessages.push({
-          role: 'tool',
-          tool_call_id: toolCall.id,
-          content: JSON.stringify(functionResult)
+      if (!assistantMessage.tool_calls?.length) {
+        return NextResponse.json({
+          reply: assistantMessage.content ?? 'Хм, не получилось сформулировать ответ. Попробуйте ещё раз 🤔',
         })
       }
+
+      // Параллельное выполнение всех tool_calls
+      const toolResults = await Promise.all(
+        assistantMessage.tool_calls.map(async (toolCall) => {
+          // В новых версиях SDK tool_calls — discriminated union (function | custom).
+          // Нас интересуют только function-вызовы.
+          if (toolCall.type !== 'function' || !('function' in toolCall)) {
+            return {
+              role: 'tool' as const,
+              tool_call_id: toolCall.id,
+              content: JSON.stringify({ error: 'Unsupported tool call type' }),
+            }
+          }
+          const fn = (toolCall as { function: { name: string; arguments: string } }).function
+          const name = fn.name
+          const args = JSON.parse(fn.arguments || '{}')
+          let result: unknown
+
+          try {
+            switch (name) {
+              case 'get_full_menu':         result = await getFullMenu(); break
+              case 'get_item_details':      result = await getItemDetails(args.name); break
+              case 'search_items':          result = await searchItems(args); break
+              case 'get_categories':        result = await getCategories(); break
+              case 'get_new_items':         result = await getNewItems(); break
+              case 'get_featured_items':    result = await getFeaturedItems(); break
+              case 'get_price_extremes':    result = await getPriceExtremes(args.direction, args.limit ?? 5); break
+              case 'get_combo_offers':      result = await getComboOffers(); break
+              case 'get_additional_offers': result = await getAdditionalOffers(args.category); break
+              case 'get_branches':          result = await getBranches(); break
+              case 'get_menu_stats':        result = await getMenuStats(); break
+              default: result = { error: `Неизвестная функция: ${name}` }
+            }
+          } catch (err) {
+            console.error(`Ошибка ${name}:`, err)
+            result = { error: 'Не удалось получить данные' }
+          }
+
+          return {
+            role: 'tool' as const,
+            tool_call_id: toolCall.id,
+            content: JSON.stringify(result),
+          }
+        }),
+      )
+
+      conversationMessages.push(...toolResults)
     }
 
-    // Если достигли лимита итераций
-    return NextResponse.json({ 
-      reply: 'Извините, произошла ошибка при обработке запроса. Попробуйте переформулировать вопрос.' 
+    return NextResponse.json({
+      reply: 'Что-то я задумалась 🤔 Попробуйте задать вопрос иначе.',
     })
-
   } catch (error: unknown) {
-    console.error('❌ Критическая ошибка ИИ:', error)
+    console.error('Ошибка ИИ:', error)
     const message = error instanceof Error ? error.message : 'Ошибка ИИ'
     return NextResponse.json({ error: message }, { status: 500 })
   }

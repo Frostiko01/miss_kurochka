@@ -1,76 +1,50 @@
-import { prisma } from "../lib/prisma";
-import bcrypt from "bcryptjs";
-import readline from "readline";
+/**
+ * Создание или обновление администратора
+ * Использование:
+ *   npx tsx scripts/create-admin.ts
+ *
+ * Или с параметрами через env:
+ *   ADMIN_EMAIL=admin@example.com ADMIN_PASSWORD=mypassword npx tsx scripts/create-admin.ts
+ */
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout,
-});
+import { prisma } from '../lib/prisma'
+import bcrypt from 'bcryptjs'
 
-function question(query: string): Promise<string> {
-  return new Promise((resolve) => {
-    rl.question(query, resolve);
-  });
+async function main() {
+  const email = process.env.ADMIN_EMAIL || 'admin@misskurochka.kg'
+  const password = process.env.ADMIN_PASSWORD || 'Admin123!'
+  const fullName = process.env.ADMIN_NAME || 'Администратор'
+
+  console.log(`\n🔧 Создание/обновление администратора...`)
+  console.log(`   Email: ${email}`)
+  console.log(`   Имя: ${fullName}`)
+
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  const admin = await prisma.user.upsert({
+    where: { email },
+    update: {
+      passwordHash,
+      role: 'admin',
+      status: 'active',
+      fullName,
+    },
+    create: {
+      email,
+      passwordHash,
+      role: 'admin',
+      status: 'active',
+      fullName,
+    },
+  })
+
+  console.log(`\n✅ Администратор готов:`)
+  console.log(`   ID: ${admin.id}`)
+  console.log(`   Email: ${admin.email}`)
+  console.log(`   Пароль: ${password}`)
+  console.log(`\n🔐 Войдите по адресу: /admin/signin`)
 }
 
-async function createAdmin() {
-  console.log("=== Создание администратора Miss Kurochka ===\n");
-
-  try {
-    const email = await question("Email администратора: ");
-    const password = await question("Пароль: ");
-    const fullName = await question("Полное имя: ");
-
-    if (!email || !password || !fullName) {
-      console.error("❌ Все поля обязательны!");
-      rl.close();
-      return;
-    }
-
-    // Проверяем, существует ли пользователь
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      console.error(`❌ Пользователь с email ${email} уже существует!`);
-      rl.close();
-      return;
-    }
-
-    // Хешируем пароль
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // Создаем администратора
-    const admin = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        fullName,
-        role: "admin",
-        status: "active",
-      },
-    });
-
-    console.log("\n✅ Администратор успешно создан!");
-    console.log(`ID: ${admin.id}`);
-    console.log(`Email: ${admin.email}`);
-    console.log(`Имя: ${admin.fullName}`);
-    console.log(`Роль: ${admin.role}`);
-
-    console.log("\n⚠️  Не забудьте настроить Telegram для 2FA:");
-    console.log("1. Создайте бота через @BotFather");
-    console.log("2. Получите свой Telegram User ID через @userinfobot");
-    console.log("3. Добавьте настройки в таблицу system_settings:");
-    console.log("   - ADMIN_TELEGRAM_USER_ID");
-    console.log("   - ADMIN_TELEGRAM_BOT_TOKEN");
-    console.log("\nПодробнее в ADMIN_PANEL.md");
-  } catch (error) {
-    console.error("❌ Ошибка при создании администратора:", error);
-  } finally {
-    rl.close();
-    await prisma.$disconnect();
-  }
-}
-
-createAdmin();
+main()
+  .catch(console.error)
+  .finally(() => prisma.$disconnect())

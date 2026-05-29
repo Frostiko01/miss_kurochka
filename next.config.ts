@@ -1,8 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Разрешаем ngrok-хост для HMR в dev-режиме
-  allowedDevOrigins: ['balcony-puppy-carless.ngrok-free.dev'],
+  // Включаем standalone режим для оптимизации Docker-образа
+  output: 'standalone',
+
+  // Разрешаем ngrok-хост и локальный IP для HMR в dev-режиме
+  allowedDevOrigins: [
+    'balcony-puppy-carless.ngrok-free.dev',
+    '192.168.0.165',
+    '192.168.0.165:3000',
+  ],
 
   // Настройки для работы с внешними модулями
   serverExternalPackages: [

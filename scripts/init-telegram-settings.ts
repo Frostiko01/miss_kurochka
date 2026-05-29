@@ -31,7 +31,6 @@ async function main() {
       create: {
         key: 'ADMIN_TELEGRAM_BOT_TOKEN',
         value: botToken,
-        description: 'Токен Telegram бота для отправки 2FA кодов администраторам',
       },
     });
 
@@ -42,7 +41,6 @@ async function main() {
       create: {
         key: 'ADMIN_TELEGRAM_USER_ID',
         value: userId,
-        description: 'Telegram User ID администратора для получения 2FA кодов',
       },
     });
 

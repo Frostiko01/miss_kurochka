@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { ReactNode } from "react";
+import { ShoppingCart, Building2, UtensilsCrossed, Ban, Users, DollarSign, Truck, Store } from "lucide-react";
 
 export type DashboardTheme = "branch" | "admin";
 
@@ -166,7 +168,14 @@ export default function DashboardView({
 
   const maxAmount = stats
     ? Math.max(...stats.salesByDay.map((d) => d.amount), 1)
-    : 1;
+    : 1
+  // Если выручки нет — используем ordersCount для визуализации
+  const maxOrders = stats
+    ? Math.max(...stats.salesByDay.map((d) => d.ordersCount), 1)
+    : 1
+  const useOrdersAsBar = stats
+    ? stats.salesByDay.every((d) => d.amount === 0)
+    : false
   const totalByType = stats
     ? stats.byOrderType.pickup + stats.byOrderType.delivery
     : 0;
@@ -237,7 +246,7 @@ export default function DashboardView({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <StatCard
           theme={t}
-          icon="🛒"
+          icon={<ShoppingCart className="w-5 h-5" />}
           label="Заказы сегодня"
           value={stats ? stats.todayOrders.toString() : "..."}
           accentColor="#60a5fa"
@@ -250,7 +259,7 @@ export default function DashboardView({
         />
         <StatCard
           theme={t}
-          icon="💰"
+          icon={<DollarSign className="w-5 h-5" />}
           label="Выручка сегодня"
           value={stats ? fmtMoney(stats.todayRevenue) : "..."}
           accentColor="#4ade80"
@@ -265,7 +274,7 @@ export default function DashboardView({
           <>
             <StatCard
               theme={t}
-              icon="👥"
+              icon={<Users className="w-5 h-5" />}
               label="Клиенты"
               value={stats ? stats.activeUsers.toLocaleString() : "..."}
               accentColor="#c084fc"
@@ -274,7 +283,7 @@ export default function DashboardView({
             />
             <StatCard
               theme={t}
-              icon="🏪"
+              icon={<Building2 className="w-5 h-5" />}
               label="Филиалы"
               value={stats ? stats.activeBranches.toString() : "..."}
               accentColor="#fb923c"
@@ -286,7 +295,7 @@ export default function DashboardView({
           <>
             <StatCard
               theme={t}
-              icon="🍗"
+              icon={<UtensilsCrossed className="w-5 h-5" />}
               label="Активные блюда"
               value={stats ? (stats.activeItems ?? 0).toString() : "..."}
               accentColor="#c084fc"
@@ -295,7 +304,7 @@ export default function DashboardView({
             />
             <StatCard
               theme={t}
-              icon="🚫"
+              icon={<Ban className="w-5 h-5" />}
               label="В стоп-листе"
               value={stats ? (stats.stopListItems ?? 0).toString() : "..."}
               accentColor="#f87171"
@@ -370,10 +379,13 @@ export default function DashboardView({
                 Продажи за 7 дней
               </h2>
               <p className="text-xs mt-1" style={{ color: t.textMuted }}>
-                {stats &&
-                  `Всего: ${fmtMoney(
-                    stats.salesByDay.reduce((s, d) => s + d.amount, 0),
-                  )}`}
+                {stats && (() => {
+                  const totalRevenue = stats.salesByDay.reduce((s, d) => s + d.amount, 0)
+                  const totalOrders = stats.salesByDay.reduce((s, d) => s + d.ordersCount, 0)
+                  if (totalRevenue > 0) return `Выручка: ${fmtMoney(totalRevenue)}`
+                  if (totalOrders > 0) return `Заказов: ${totalOrders} (ещё не завершены)`
+                  return 'Нет данных за период'
+                })()}
               </p>
             </div>
             <button
@@ -389,8 +401,8 @@ export default function DashboardView({
           </div>
           {loading ? (
             <SkeletonRows theme={t} />
-          ) : !stats || stats.salesByDay.every((d) => d.amount === 0) ? (
-            <EmptyChart theme={t} message="Нет продаж за период" />
+          ) : !stats || stats.salesByDay.every((d) => d.amount === 0 && d.ordersCount === 0) ? (
+            <EmptyChart theme={t} message="Нет заказов за период" />
           ) : (
             <div className="space-y-3">
               {stats.salesByDay.map((d, i) => (
@@ -411,17 +423,28 @@ export default function DashboardView({
                     <div
                       className="h-full transition-all duration-500 flex items-center justify-end pr-3 rounded-lg"
                       style={{
-                        width: `${Math.max((d.amount / maxAmount) * 100, d.amount > 0 ? 8 : 0)}%`,
+                        width: useOrdersAsBar
+                          ? `${Math.max((d.ordersCount / maxOrders) * 100, d.ordersCount > 0 ? 8 : 0)}%`
+                          : `${Math.max((d.amount / maxAmount) * 100, d.amount > 0 ? 8 : 0)}%`,
                         background:
                           theme === "branch"
                             ? "linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)"
                             : "linear-gradient(135deg, #4047ee 0%, #5a61f0 100%)",
+                        opacity: useOrdersAsBar ? 0.6 : 1,
                       }}
                     >
-                      {d.amount > 0 && (
-                        <span className="text-xs font-bold text-white whitespace-nowrap">
-                          {fmtMoney(d.amount)}
-                        </span>
+                      {useOrdersAsBar ? (
+                        d.ordersCount > 0 && (
+                          <span className="text-xs font-bold text-white whitespace-nowrap">
+                            {d.ordersCount} зак.
+                          </span>
+                        )
+                      ) : (
+                        d.amount > 0 && (
+                          <span className="text-xs font-bold text-white whitespace-nowrap">
+                            {fmtMoney(d.amount)}
+                          </span>
+                        )
                       )}
                     </div>
                   </div>
@@ -618,7 +641,7 @@ export default function DashboardView({
             <div className="space-y-4">
               <OrderTypeRow
                 theme={t}
-                icon="🚚"
+                icon={<Truck className="w-4 h-4" />}
                 label="Доставка"
                 count={stats.byOrderType.delivery}
                 total={totalByType}
@@ -626,7 +649,7 @@ export default function DashboardView({
               />
               <OrderTypeRow
                 theme={t}
-                icon="🏪"
+                icon={<Store className="w-4 h-4" />}
                 label="Самовывоз"
                 count={stats.byOrderType.pickup}
                 total={totalByType}
@@ -757,14 +780,13 @@ export default function DashboardView({
                     style={{ backgroundColor: t.cardAlt }}
                   >
                     <div
-                      className="text-2xl shrink-0"
-                      title={
-                        order.orderType === "delivery"
-                          ? "Доставка"
-                          : "Самовывоз"
-                      }
+                      className="shrink-0"
+                      style={{ color: order.orderType === "delivery" ? "#c084fc" : "#fb923c" }}
+                      title={order.orderType === "delivery" ? "Доставка" : "Самовывоз"}
                     >
-                      {order.orderType === "delivery" ? "🚚" : "🏪"}
+                      {order.orderType === "delivery"
+                        ? <Truck className="w-5 h-5" />
+                        : <Store className="w-5 h-5" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -836,7 +858,7 @@ function StatCard({
   subtitle,
 }: {
   theme: typeof themes.branch;
-  icon: string;
+  icon: ReactNode;
   label: string;
   value: string;
   accentColor: string;
@@ -851,24 +873,25 @@ function StatCard({
         border: `1px solid ${theme.border}`,
       }}
     >
-      <div className="flex items-start justify-between mb-3">
+      <div className="flex justify-center mb-4">
         <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl"
+          className="w-11 h-11 rounded-xl flex items-center justify-center"
           style={{
             backgroundColor: `${accentColor}20`,
+            color: accentColor,
           }}
         >
           {icon}
         </div>
       </div>
       <p
-        className="text-xs font-bold uppercase mb-1.5"
+        className="text-xs font-bold uppercase mb-1.5 text-center"
         style={{ color: theme.textMuted }}
       >
         {label}
       </p>
       <p
-        className="text-3xl font-black truncate"
+        className="text-3xl font-black truncate text-center"
         style={{ color: theme.text }}
       >
         {loading ? (
@@ -879,7 +902,7 @@ function StatCard({
       </p>
       {subtitle && (
         <p
-          className="text-xs font-medium mt-1.5"
+          className="text-xs font-medium mt-1.5 text-center"
           style={{ color: theme.textMuted }}
         >
           {subtitle}
@@ -976,7 +999,7 @@ function OrderTypeRow({
   color,
 }: {
   theme: typeof themes.branch;
-  icon: string;
+  icon: ReactNode;
   label: string;
   count: number;
   total: number;
@@ -987,7 +1010,7 @@ function OrderTypeRow({
     <div>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-xl">{icon}</span>
+          <span style={{ color }}>{icon}</span>
           <span
             className="text-sm font-semibold"
             style={{ color: theme.text }}

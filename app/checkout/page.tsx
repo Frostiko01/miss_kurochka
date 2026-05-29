@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Truck, Store, CreditCard, ArrowLeft, Plus, CheckCircle2 } from 'lucide-react'
 import DeliveryMap from '@/components/DeliveryMap'
+import Spinner from '@/components/Spinner'
 
 interface Address {
   id: string
@@ -118,7 +119,7 @@ export default function CheckoutPage() {
       const data = await response.json()
       if (response.ok) {
         await fetch('/api/cart', { method: 'DELETE' })
-        router.push(`/orders/${data.order.id}`)
+        router.push(`/orders/${data.order.id}/receipt`)
       } else {
         alert(data.error || 'Ошибка создания заказа')
       }
@@ -160,7 +161,7 @@ export default function CheckoutPage() {
     return (
       <div className="min-h-screen bg-[var(--bg-muted)] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-10 h-10 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <Spinner size="lg" className="mx-auto mb-3" />
           <p className="text-sm text-[var(--fg-muted)] font-semibold">Загрузка...</p>
         </div>
       </div>

@@ -20,15 +20,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const sortBy = searchParams.get("sortBy") || "createdAt";
+    const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
     const where: any = {};
     if (search) where.name = { contains: search, mode: "insensitive" };
     if (status !== "all") where.isActive = status === "active";
 
+    // Строим orderBy
+    let orderBy: any = { createdAt: sortOrder };
+    if (sortBy === "name") orderBy = { name: sortOrder };
+
     const menuItems = await prisma.menuItem.findMany({
       where,
       include: includeMenuItem,
-      orderBy: { createdAt: "desc" },
+      orderBy,
     });
 
     // Конвертируем Decimal → Number

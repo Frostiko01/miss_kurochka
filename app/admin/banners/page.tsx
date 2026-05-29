@@ -354,6 +354,7 @@ export default function AdminBannersPage() {
                 <ImageUpload
                   value={form.imageUrl}
                   onChange={(url) => setForm({ ...form, imageUrl: url })}
+                  folder="banners"
                 />
                 {form.imageUrl && (
                   <div className="mt-3 rounded-xl overflow-hidden h-32">

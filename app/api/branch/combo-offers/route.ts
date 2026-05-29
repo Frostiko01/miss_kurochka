@@ -12,9 +12,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "all";
+    const typeFilter = searchParams.get("type") || "all";
 
     const where: any = {};
     if (status !== "all") where.isActive = status === "active";
+    if (typeFilter === "regular") where.type = "regular";
+    else if (typeFilter === "mini") where.type = "mini";
 
     const combos = await prisma.comboOffer.findMany({
       where,
@@ -49,7 +52,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder } = body;
+    const { name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder, type } = body;
 
     if (!name || !price || !imageUrl) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -68,6 +71,7 @@ export async function POST(request: NextRequest) {
         imageUrl: imageUrl.trim(),
         isActive: isActive !== undefined ? isActive : true,
         sortOrder: sortOrder || 0,
+        type: type === "mini" ? "mini" : "regular",
         comboItems: {
           create: menuItemIds.map((menuItemId: string, index: number) => ({
             menuItemId,

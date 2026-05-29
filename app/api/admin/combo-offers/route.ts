@@ -12,14 +12,26 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "all";
+    const typeFilter = searchParams.get("type") || "all";
+    const search = searchParams.get("search") || "";
+    const sortBy = searchParams.get("sortBy") || "sortOrder";
+    const sortOrder = (searchParams.get("sortOrder") || "asc") as "asc" | "desc";
 
     const where: any = {};
     if (status === "active") where.isActive = true;
     else if (status === "inactive") where.isActive = false;
+    if (typeFilter === "regular") where.type = "regular";
+    else if (typeFilter === "mini") where.type = "mini";
+    if (search) where.name = { contains: search, mode: "insensitive" };
+
+    let orderBy: any = [{ sortOrder: sortOrder }, { createdAt: "desc" }];
+    if (sortBy === "name") orderBy = { name: sortOrder };
+    else if (sortBy === "price") orderBy = { price: sortOrder };
+    else if (sortBy === "createdAt") orderBy = { createdAt: sortOrder };
 
     const combos = await prisma.comboOffer.findMany({
       where,
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+      orderBy,
       include: {
         comboItems: {
           orderBy: { sortOrder: "asc" },
@@ -33,6 +45,7 @@ export async function GET(request: NextRequest) {
     // Нормализуем: items — массив названий для совместимости с UI
     const normalized = combos.map((combo) => ({
       ...combo,
+      type: combo.type,
       items: combo.comboItems.map((ci) => ci.menuItem.name),
     }));
 
@@ -53,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder } = body;
+    const { name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder, type } = body;
 
     if (!name || !price || !imageUrl) {
       return NextResponse.json({ error: "Name, price, and image are required" }, { status: 400 });
@@ -72,6 +85,7 @@ export async function POST(request: NextRequest) {
         imageUrl: imageUrl.trim(),
         isActive: isActive !== undefined ? isActive : true,
         sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : 0,
+        type: type === 'mini' ? 'mini' : 'regular',
         comboItems: {
           create: menuItemIds.map((menuItemId: string, index: number) => ({
             menuItemId,
@@ -107,7 +121,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder } = body;
+    const { id, name, description, menuItemIds, price, oldPrice, imageUrl, isActive, sortOrder, type } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Combo ID is required" }, { status: 400 });
@@ -124,6 +138,7 @@ export async function PUT(request: NextRequest) {
         imageUrl: imageUrl && imageUrl.trim() !== "" ? imageUrl.trim() : undefined,
         isActive,
         sortOrder: sortOrder !== undefined ? parseInt(sortOrder) : undefined,
+        type: type === 'mini' ? 'mini' : 'regular',
       },
     });
 

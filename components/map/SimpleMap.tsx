@@ -18,6 +18,27 @@ interface SimpleMapProps {
   className?: string
 }
 
+// Форматирует адрес из Nominatim addressdetails — без страны, индекса и координат
+function formatAddress(addr: Record<string, string>): string {
+  const parts: string[] = []
+  // Улица + номер дома
+  if (addr.road) {
+    parts.push(addr.house_number ? `${addr.road}, ${addr.house_number}` : addr.road)
+  } else if (addr.pedestrian) {
+    parts.push(addr.house_number ? `${addr.pedestrian}, ${addr.house_number}` : addr.pedestrian)
+  } else if (addr.neighbourhood) {
+    parts.push(addr.neighbourhood)
+  }
+  // Район
+  if (addr.suburb) parts.push(addr.suburb)
+  // Город
+  if (addr.city) parts.push(addr.city)
+  else if (addr.town) parts.push(addr.town)
+  else if (addr.village) parts.push(addr.village)
+
+  return parts.length > 0 ? parts.join(', ') : (addr.display_name ?? '')
+}
+
 export default function SimpleMap({ 
   onLocationSelect, 
   initialLocation = { lat: 42.8746, lng: 74.5698 }, // Бишкек
@@ -28,6 +49,7 @@ export default function SimpleMap({
   const markerRef = useRef<L.Marker | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isMounted, setIsMounted] = useState(false)
 
   // Функция обратного геокодирования
   const reverseGeocode = async (lat: number, lng: number): Promise<string> => {
@@ -42,16 +64,14 @@ export default function SimpleMap({
       
       const data = await response.json()
       
-      if (data.display_name) {
-        // Форматируем адрес для лучшего отображения
-        const address = data.display_name
-        return address.length > 100 ? address.substring(0, 100) + '...' : address
+      if (data.address) {
+        return formatAddress(data.address)
       }
       
-      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      return data.display_name?.split(',').slice(0, 3).join(',').trim() ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`
     } catch (error) {
       console.warn('Ошибка геокодирования:', error)
-      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`
     }
   }
 
@@ -78,7 +98,7 @@ export default function SimpleMap({
             onLocationSelect({ 
               lat: latitude, 
               lng: longitude, 
-              address: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` 
+              address: 'Текущее местоположение'
             })
           }
         }
@@ -97,112 +117,132 @@ export default function SimpleMap({
     )
   }
 
+  // Убеждаемся, что компонент смонтирован
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
 
-    try {
-      // Инициализация карты
-      const map = L.map(mapRef.current, {
-        center: [initialLocation.lat, initialLocation.lng],
-        zoom: 13,
-        zoomControl: true,
-        attributionControl: true,
-      })
+  useEffect(() => {
+    if (!isMounted || !mapRef.current || mapInstanceRef.current) return
 
-      // Добавляем простые тайлы OpenStreetMap
-      const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
-      })
-
-      tileLayer.on('tileload', () => {
-        console.log('Тайлы OpenStreetMap загружены успешно')
-        setIsLoading(false)
-        setError(null)
-      })
-
-      tileLayer.on('tileerror', (e) => {
-        console.error('Ошибка загрузки тайлов:', e)
-        setError('Ошибка загрузки карты')
-        setIsLoading(false)
-      })
-
-      tileLayer.addTo(map)
-
-      // Добавляем маркер
-      const marker = L.marker([initialLocation.lat, initialLocation.lng], { 
-        draggable: true 
-      }).addTo(map)
-
-      // Обработчик клика по карте
-      map.on('click', async (e) => {
-        const { lat, lng } = e.latlng
-        marker.setLatLng([lat, lng])
-        
-        try {
-          const address = await reverseGeocode(lat, lng)
-          onLocationSelect({ lat, lng, address })
-        } catch (error) {
-          console.error('Ошибка геокодирования:', error)
-          const address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-          onLocationSelect({ lat, lng, address })
-        }
-      })
-
-      // Обработчик перетаскивания маркера
-      marker.on('dragend', async (e) => {
-        const { lat, lng } = e.target.getLatLng()
-        
-        try {
-          const address = await reverseGeocode(lat, lng)
-          onLocationSelect({ lat, lng, address })
-        } catch (error) {
-          console.error('Ошибка геокодирования:', error)
-          const address = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
-          onLocationSelect({ lat, lng, address })
-        }
-      })
-
-      mapInstanceRef.current = map
-      markerRef.current = marker
-
-      // Получаем начальный адрес
-      reverseGeocode(initialLocation.lat, initialLocation.lng)
-        .then(address => {
-          onLocationSelect({ 
-            lat: initialLocation.lat, 
-            lng: initialLocation.lng, 
-            address 
-          })
-        })
-        .catch(() => {
-          onLocationSelect({ 
-            lat: initialLocation.lat, 
-            lng: initialLocation.lng, 
-            address: `${initialLocation.lat.toFixed(6)}, ${initialLocation.lng.toFixed(6)}` 
-          })
-        })
-
-      // Таймаут для снятия индикатора загрузки, если тайлы не загрузились
-      setTimeout(() => {
-        if (isLoading) {
-          setIsLoading(false)
-        }
-      }, 10000)
-
-    } catch (err) {
-      console.error('Ошибка инициализации карты:', err)
-      setError('Ошибка инициализации карты')
-      setIsLoading(false)
+    // Проверка готовности DOM
+    if (!mapRef.current.offsetParent && mapRef.current.offsetWidth === 0) {
+      console.warn('Map container not ready yet, skipping initialization')
+      return
     }
 
+    // Небольшая задержка для гарантии готовности DOM
+    const initTimeout = setTimeout(() => {
+      if (!mapRef.current || mapInstanceRef.current) return
+
+      try {
+        // Инициализация карты
+        const map = L.map(mapRef.current, {
+          center: [initialLocation.lat, initialLocation.lng],
+          zoom: 13,
+          zoomControl: true,
+          attributionControl: true,
+        })
+
+        // Добавляем простые тайлы OpenStreetMap
+        const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap contributors'
+        })
+
+        tileLayer.on('tileload', () => {
+          console.log('Тайлы OpenStreetMap загружены успешно')
+          setIsLoading(false)
+          setError(null)
+        })
+
+        tileLayer.on('tileerror', (e) => {
+          console.error('Ошибка загрузки тайлов:', e)
+          setError('Ошибка загрузки карты')
+          setIsLoading(false)
+        })
+
+        tileLayer.addTo(map)
+
+        // Добавляем маркер
+        const marker = L.marker([initialLocation.lat, initialLocation.lng], { 
+          draggable: true 
+        }).addTo(map)
+
+        // Обработчик клика по карте
+        map.on('click', async (e) => {
+          const { lat, lng } = e.latlng
+          marker.setLatLng([lat, lng])
+          
+          try {
+            const address = await reverseGeocode(lat, lng)
+            onLocationSelect({ lat, lng, address })
+          } catch (error) {
+            console.error('Ошибка геокодирования:', error)
+            onLocationSelect({ lat, lng, address: 'Адрес не определён' })
+          }
+        })
+
+        // Обработчик перетаскивания маркера
+        marker.on('dragend', async (e) => {
+          const { lat, lng } = e.target.getLatLng()
+          
+          try {
+            const address = await reverseGeocode(lat, lng)
+            onLocationSelect({ lat, lng, address })
+          } catch (error) {
+            console.error('Ошибка геокодирования:', error)
+            onLocationSelect({ lat, lng, address: 'Адрес не определён' })
+          }
+        })
+
+        mapInstanceRef.current = map
+        markerRef.current = marker
+
+        // Получаем начальный адрес
+        reverseGeocode(initialLocation.lat, initialLocation.lng)
+          .then(address => {
+            onLocationSelect({ 
+              lat: initialLocation.lat, 
+              lng: initialLocation.lng, 
+              address 
+            })
+          })
+          .catch(() => {
+            onLocationSelect({ 
+              lat: initialLocation.lat, 
+              lng: initialLocation.lng, 
+              address: 'Адрес не определён'
+            })
+          })
+
+        // Таймаут для снятия индикатора загрузки, если тайлы не загрузились
+        setTimeout(() => {
+          if (isLoading) {
+            setIsLoading(false)
+          }
+        }, 10000)
+
+      } catch (err) {
+        console.error('Ошибка инициализации карты:', err)
+        setError('Ошибка инициализации карты')
+        setIsLoading(false)
+      }
+    }, 100) // Задержка 100мс для готовности DOM
+
     return () => {
+      clearTimeout(initTimeout)
       if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove()
+        try {
+          mapInstanceRef.current.remove()
+        } catch (error) {
+          console.error('Error removing map:', error)
+        }
         mapInstanceRef.current = null
       }
     }
-  }, [])
+  }, [isMounted])
 
   return (
     <div className={`relative ${className}`}>

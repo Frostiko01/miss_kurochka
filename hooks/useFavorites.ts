@@ -8,7 +8,7 @@ export function useFavorites() {
   const [ids, setIds] = useState<string[]>([])
   const [mounted, setMounted] = useState(false)
 
-  // Читаем из localStorage при монтировании (один раз)
+  // Читаем из localStorage при монтировании
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
@@ -16,12 +16,11 @@ export function useFavorites() {
         const parsed = JSON.parse(stored)
         if (Array.isArray(parsed)) setIds(parsed)
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
     setMounted(true)
   }, [])
 
+  // Добавить/убрать из избранного
   const toggle = useCallback((id: string) => {
     setIds(prev => {
       const next = prev.includes(id)
@@ -29,9 +28,7 @@ export function useFavorites() {
         : [...prev, id]
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {
-        // ignore
-      }
+      } catch {}
       return next
     })
   }, [])
@@ -41,8 +38,6 @@ export function useFavorites() {
     [ids]
   )
 
-  // Стабильный ref для has/size — не создаём новый объект на каждый рендер
-  // SideMenu использует favorites.size и favorites.has(id)
   const idsRef = useRef(ids)
   idsRef.current = ids
 
@@ -53,7 +48,6 @@ export function useFavorites() {
   })
 
   return {
-    // Стабильный объект — не вызывает лишних ре-рендеров в зависимостях
     favorites: favoritesRef.current as unknown as Set<string> & { size: number },
     ids,
     toggle,

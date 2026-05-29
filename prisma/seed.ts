@@ -200,16 +200,15 @@ async function main() {
         en: 'Crispy wings with spices',
         ky: 'Даамдуу татымдуу канаттар'
       },
-      price: 350,
-      weightGrams: 250,
       cookingTimeMinutes: 15,
-      calories: 450,
-      proteins: 28,
-      fats: 32,
-      carbohydrates: 12,
       spicyLevel: 2,
       isActive: true,
       isFeatured: true,
+      sizes: {
+        create: [
+          { name: '250 г', price: 350, weightGrams: 250, sortOrder: 0 },
+        ],
+      },
       modifiers: {
         create: [
           { modifierGroupId: sauceGroup.id, sortOrder: 1 }
@@ -238,16 +237,15 @@ async function main() {
         en: 'Juicy burger with chicken patty',
         ky: 'Тоок котлетасы менен даамдуу бургер'
       },
-      price: 280,
-      weightGrams: 320,
       cookingTimeMinutes: 12,
-      calories: 520,
-      proteins: 32,
-      fats: 24,
-      carbohydrates: 48,
       spicyLevel: 1,
       isActive: true,
       isNew: true,
+      sizes: {
+        create: [
+          { name: '320 г', price: 280, weightGrams: 320, sortOrder: 0 },
+        ],
+      },
       modifiers: {
         create: [
           { modifierGroupId: sauceGroup.id, sortOrder: 1 },
@@ -272,12 +270,13 @@ async function main() {
         ky: 'Кока-Кола'
       },
       description: 'Освежающий напиток 0.5л',
-      price: 80,
-      volumeMl: 500,
       cookingTimeMinutes: 1,
-      calories: 210,
-      carbohydrates: 54,
       isActive: true,
+      sizes: {
+        create: [
+          { name: '0.5 л', price: 80, weightGrams: 500, sortOrder: 0 },
+        ],
+      },
       images: {
         create: [
           { imageUrl: '/images/cola.jpg', isPrimary: true }

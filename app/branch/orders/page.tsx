@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Toast from "@/components/admin/Toast";
+import { Truck, Store, CreditCard, Globe, Smartphone, Clock, CheckCircle, XCircle, Package, Loader2 } from "lucide-react";
 
 interface OrderItem {
   id: string;
@@ -40,15 +41,15 @@ interface Order {
 
 const STATUS_META: Record<
   string,
-  { label: string; bg: string; text: string; icon: string }
+  { label: string; bg: string; text: string; dot: string }
 > = {
-  pending: { label: "Новый", bg: "rgba(251, 191, 36, 0.2)", text: "#fbbf24", icon: "🟡" },
-  confirmed: { label: "Подтверждён", bg: "rgba(59, 130, 246, 0.2)", text: "#60a5fa", icon: "🔵" },
-  preparing: { label: "Готовится", bg: "rgba(249, 115, 22, 0.2)", text: "#fb923c", icon: "🟠" },
-  ready: { label: "Готов", bg: "rgba(34, 197, 94, 0.2)", text: "#4ade80", icon: "🟢" },
-  delivering: { label: "У курьера", bg: "rgba(168, 85, 247, 0.2)", text: "#c084fc", icon: "🚚" },
-  completed: { label: "Завершён", bg: "rgba(16, 185, 129, 0.2)", text: "#34d399", icon: "✅" },
-  cancelled: { label: "Отменён", bg: "rgba(239, 68, 68, 0.2)", text: "#f87171", icon: "❌" },
+  pending:   { label: "Новый",        bg: "rgba(251, 191, 36, 0.2)",  text: "#fbbf24", dot: "#fbbf24" },
+  confirmed: { label: "Подтверждён",  bg: "rgba(59, 130, 246, 0.2)",  text: "#60a5fa", dot: "#60a5fa" },
+  preparing: { label: "Готовится",    bg: "rgba(249, 115, 22, 0.2)",  text: "#fb923c", dot: "#fb923c" },
+  ready:     { label: "Готов",        bg: "rgba(34, 197, 94, 0.2)",   text: "#4ade80", dot: "#4ade80" },
+  delivering:{ label: "У курьера",    bg: "rgba(168, 85, 247, 0.2)",  text: "#c084fc", dot: "#c084fc" },
+  completed: { label: "Завершён",     bg: "rgba(16, 185, 129, 0.2)",  text: "#34d399", dot: "#34d399" },
+  cancelled: { label: "Отменён",      bg: "rgba(239, 68, 68, 0.2)",   text: "#f87171", dot: "#f87171" },
 };
 
 // Возвращает следующее действие для заказа в зависимости от статуса и типа
@@ -63,6 +64,7 @@ function getNextActions(order: Order): NextAction[] {
   const actions: NextAction[] = [];
   switch (order.status) {
     case "pending":
+      // Принять → автоматически перейдёт в preparing
       actions.push({
         label: "Принять",
         toStatus: "confirmed",
@@ -71,15 +73,9 @@ function getNextActions(order: Order): NextAction[] {
       });
       break;
     case "confirmed":
-      actions.push({
-        label: "Готовится",
-        toStatus: "preparing",
-        color: "#f97316",
-        icon: "M3 12a9 9 0 0118 0 9 9 0 01-18 0zm9-5v5l3 3",
-      });
-      break;
     case "preparing":
       if (order.orderType === "delivery") {
+        // Доставка: передать курьеру
         actions.push({
           label: "Передан курьеру",
           toStatus: "delivering",
@@ -87,8 +83,9 @@ function getNextActions(order: Order): NextAction[] {
           icon: "M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2",
         });
       } else {
+        // Самовывоз: готово — ждём клиента
         actions.push({
-          label: "Готов",
+          label: "Готово",
           toStatus: "ready",
           color: "#22c55e",
           icon: "M5 13l4 4L19 7",
@@ -96,6 +93,7 @@ function getNextActions(order: Order): NextAction[] {
       }
       break;
     case "delivering":
+      // Доставка: курьер доставил — завершить
       actions.push({
         label: "Завершить",
         toStatus: "completed",
@@ -104,19 +102,23 @@ function getNextActions(order: Order): NextAction[] {
       });
       break;
     case "ready":
-      actions.push({
-        label: "Выдан клиенту",
-        toStatus: "completed",
-        color: "#10b981",
-        icon: "M5 13l4 4L19 7",
-      });
+      // Самовывоз: клиент забрал — завершить
+      if (order.orderType === "pickup") {
+        actions.push({
+          label: "Завершить",
+          toStatus: "completed",
+          color: "#10b981",
+          icon: "M5 13l4 4L19 7",
+        });
+      }
       break;
   }
   return actions;
 }
 
 function canCancel(order: Order): boolean {
-  return ["pending", "confirmed", "preparing"].includes(order.status);
+  // Филиал может отменить только новый заказ (до принятия)
+  return order.status === "pending";
 }
 
 const fmtTime = (iso: string) => {
@@ -139,9 +141,9 @@ const fmtRelative = (iso: string) => {
 
 const getPaymentMethodText = (method: string) => {
   const m: Record<string, string> = {
-    card: "💳 Карта",
-    online: "🌐 Онлайн",
-    finik: "📱 Finik",
+    card: "Карта",
+    online: "Онлайн",
+    finik: "Finik",
   };
   return m[method] || method;
 };
@@ -234,6 +236,12 @@ export default function BranchOrdersPage() {
           type: "success",
         });
         await fetchOrders(false);
+
+        // Автоматические переходы:
+        // confirmed → preparing (сразу начинаем готовить)
+        if (newStatus === "confirmed") {
+          setTimeout(() => handleStatusChange(orderId, "preparing"), 300);
+        }
       } else {
         setToast({
           message: data.error || "Ошибка при обновлении статуса",
@@ -353,27 +361,29 @@ export default function BranchOrdersPage() {
           <div className="flex flex-wrap gap-2">
             {(
               [
-                { value: "all", label: "Все" },
-                { value: "pending", label: "🟡 Новые" },
-                { value: "confirmed", label: "🔵 Подтверждённые" },
-                { value: "preparing", label: "🟠 Готовятся" },
-                { value: "ready", label: "🟢 Готовы" },
-                { value: "delivering", label: "🚚 У курьера" },
-                { value: "completed", label: "✅ Завершённые" },
-                { value: "cancelled", label: "❌ Отменённые" },
+                { value: "all",        label: "Все",             dot: null },
+                { value: "pending",    label: "Новые",           dot: "#fbbf24" },
+                { value: "confirmed",  label: "Подтверждённые",  dot: "#60a5fa" },
+                { value: "preparing",  label: "Готовятся",       dot: "#fb923c" },
+                { value: "ready",      label: "Готовы",          dot: "#4ade80" },
+                { value: "delivering", label: "У курьера",       dot: "#c084fc" },
+                { value: "completed",  label: "Завершённые",     dot: "#34d399" },
+                { value: "cancelled",  label: "Отменённые",      dot: "#f87171" },
               ] as const
             ).map((tab) => (
               <button
                 key={tab.value}
                 onClick={() => setStatusFilter(tab.value)}
-                className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+                className="px-4 py-2 rounded-lg text-sm font-bold transition-all inline-flex items-center gap-1.5"
                 style={{
-                  backgroundColor:
-                    statusFilter === tab.value ? "#7C8CA5" : "#0B0F14",
+                  backgroundColor: statusFilter === tab.value ? "#7C8CA5" : "#0B0F14",
                   color: statusFilter === tab.value ? "#fff" : "#98A2B3",
                   border: `1px solid ${statusFilter === tab.value ? "#7C8CA5" : "#2A3442"}`,
                 }}
               >
+                {tab.dot && (
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tab.dot }} />
+                )}
                 {tab.label}
               </button>
             ))}
@@ -458,17 +468,6 @@ export default function BranchOrdersPage() {
                       >
                         {order.orderNumber}
                       </div>
-                      {isNew && (
-                        <span
-                          className="text-[10px] font-black uppercase px-1.5 py-0.5 rounded animate-pulse"
-                          style={{
-                            backgroundColor: "#fbbf24",
-                            color: "#000",
-                          }}
-                        >
-                          NEW
-                        </span>
-                      )}
                     </div>
                     <div
                       className="text-xs font-bold"
@@ -483,7 +482,10 @@ export default function BranchOrdersPage() {
                         color: "#98A2B3",
                       }}
                     >
-                      {order.orderType === "delivery" ? "🚚 Доставка" : "🏪 Самовывоз"}
+                      {order.orderType === "delivery"
+                        ? <><Truck className="w-3 h-3" /> Доставка</>
+                        : <><Store className="w-3 h-3" /> Самовывоз</>
+                      }
                     </div>
                   </div>
 
@@ -544,7 +546,10 @@ export default function BranchOrdersPage() {
                         color: statusMeta.text,
                       }}
                     >
-                      <span>{statusMeta.icon}</span>
+                      <span
+                        className="w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: statusMeta.dot }}
+                      />
                       {statusMeta.label}
                     </span>
                   </div>
@@ -582,6 +587,17 @@ export default function BranchOrdersPage() {
                     </button>
                   ))}
 
+                  {/* Индикатор автоматической готовки */}
+                  {(order.status === "confirmed" || order.status === "preparing") && order.orderType !== "delivery" && (
+                    <div
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
+                      style={{ backgroundColor: "rgba(249,115,22,0.15)", color: "#fb923c" }}
+                    >
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Готовится...
+                    </div>
+                  )}
+
                   {canCancel(order) && (
                     <button
                       onClick={() => handleCancel(order.id)}
@@ -618,7 +634,7 @@ export default function BranchOrdersPage() {
 
       {/* Order Details Modal */}
       {showDetailsModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: 'rgba(11,15,20,0.82)', backdropFilter: 'blur(4px)' }}>
           <div
             className="rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
             style={{ backgroundColor: "#1A212B" }}
@@ -688,10 +704,10 @@ export default function BranchOrdersPage() {
                   </div>
                   <div className="flex justify-between">
                     <span style={{ color: "#98A2B3" }}>Тип:</span>
-                    <span className="font-bold text-white">
+                    <span className="font-bold text-white inline-flex items-center gap-1">
                       {selectedOrder.orderType === "delivery"
-                        ? "🚚 Доставка"
-                        : "🏪 Самовывоз"}
+                        ? <><Truck className="w-3.5 h-3.5" /> Доставка</>
+                        : <><Store className="w-3.5 h-3.5" /> Самовывоз</>}
                     </span>
                   </div>
                   {selectedOrder.customerComment && (

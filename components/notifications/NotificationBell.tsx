@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 
 interface Notification {
   id: string;
@@ -81,6 +82,7 @@ export default function NotificationBell({
 }: Props) {
   const t = themes[theme];
   const router = useRouter();
+  const { status: sessionStatus } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
@@ -89,21 +91,23 @@ export default function NotificationBell({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastSeenIdRef = useRef<string | null>(null);
+  const sessionStatusRef = useRef(sessionStatus);
+  useEffect(() => { sessionStatusRef.current = sessionStatus; }, [sessionStatus]);
 
-  const fetchNotifications = async () => {
+  const doFetch = async (signal?: AbortSignal) => {
+    if (sessionStatusRef.current !== "authenticated") return;
     try {
-      const res = await fetch(apiUrl);
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(apiUrl, signal ? { signal } : undefined);
       if (!res.ok) {
-        // Тихо игнорируем — иначе при 500 UI ломается каждые 15 сек
+        const data = await res.json().catch(() => ({}));
         console.warn("Notifications:", data?.error ?? `HTTP ${res.status}`);
         return;
       }
+      const data = await res.json().catch(() => ({}));
       const list: Notification[] = data.notifications || [];
       setNotifications(list);
       setUnreadCount(data.unreadCount || 0);
 
-      // Проверка появления новых уведомлений (звуковой сигнал)
       if (list.length > 0) {
         const newest = list[0];
         if (
@@ -111,26 +115,30 @@ export default function NotificationBell({
           newest.id !== lastSeenIdRef.current &&
           !newest.isRead
         ) {
-          // Появилось новое — играем звук и анимируем
           setHasNewArrived(true);
-          try {
-            audioRef.current?.play().catch(() => {});
-          } catch {}
+          try { audioRef.current?.play().catch(() => {}); } catch {}
           setTimeout(() => setHasNewArrived(false), 2000);
         }
         lastSeenIdRef.current = newest.id;
       }
-    } catch (e) {
-      console.error("Notifications fetch error:", e);
+    } catch (e: any) {
+      if (e?.name !== "AbortError") {
+        console.warn("Notifications:", e?.message ?? e);
+      }
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, POLL_INTERVAL);
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiUrl]);
+    if (sessionStatus !== "authenticated") return;
+    const controller = new AbortController();
+    doFetch(controller.signal);
+    const interval = setInterval(() => doFetch(controller.signal), POLL_INTERVAL);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiUrl, sessionStatus]);
 
   // Закрытие при клике вне дропдауна
   useEffect(() => {
