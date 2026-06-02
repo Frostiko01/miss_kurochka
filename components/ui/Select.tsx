@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useId } from 'react'
-import { ChevronDown, Check } from 'lucide-react'
+import { ChevronDown, Check, MapPin } from 'lucide-react'
 
 export interface SelectOption {
   value: string
@@ -19,9 +19,10 @@ interface SelectProps {
    * - undefined / false — светлая (пользовательский интерфейс)
    * - 'admin' — тёмно-синяя (#050c26 триггер, #181f38 дропдаун)
    * - 'branch' — тёмно-серая (#1A212B триггер, #202937 дропдаун)
+   * - 'premium' — современный премиальный стиль для лендинга
    * - true — алиас для 'branch' (обратная совместимость)
    */
-  dark?: boolean | 'admin' | 'branch'
+  dark?: boolean | 'admin' | 'branch' | 'premium'
   disabled?: boolean
 }
 
@@ -61,6 +62,56 @@ export default function Select({
   const handleSelect = (val: string) => {
     onChange(val)
     setOpen(false)
+  }
+
+  // ── Premium вариант ────────────────────────────────────────────────────────
+  if (dark === 'premium') {
+    return (
+      <div ref={containerRef} className={`relative ${className}`} id={id}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => !disabled && setOpen((v) => !v)}
+          className="flex items-center gap-3 px-5 h-[56px] rounded-[18px] text-sm font-semibold bg-white text-gray-700 hover:bg-gray-50 transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <MapPin className="w-5 h-5 text-gray-900" />
+          <span className="flex-1 text-left truncate">
+            {selected ? selected.label : placeholder}
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 text-gray-500 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {open && (
+          <div className="absolute z-50 w-full min-w-[280px] mt-2 rounded-2xl bg-white border border-gray-200 shadow-2xl overflow-hidden animate-fadeIn">
+            <div className="max-h-[400px] overflow-y-auto py-2 scrollbar-thin">
+              {options.map((opt) => {
+                const isSelected = opt.value === value
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelect(opt.value)}
+                    className={`
+                      w-full flex items-center justify-between gap-3
+                      px-5 py-3.5 text-sm text-left transition-all duration-150
+                      ${isSelected
+                        ? 'bg-[var(--brand-soft)] text-[var(--brand)] font-bold'
+                        : 'text-gray-700 hover:bg-gray-50 font-medium'
+                      }
+                    `}
+                  >
+                    <span className="flex-1 truncate">{opt.label}</span>
+                    {isSelected && <Check className="w-4 h-4 shrink-0 text-[var(--brand)]" />}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   // ── Цветовые схемы ─────────────────────────────────────────────────────────

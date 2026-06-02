@@ -8,12 +8,14 @@ interface LanguageSwitcherProps {
   currentLocale: Locale
   onLocaleChange: (locale: Locale) => void
   className?: string
+  premium?: boolean
 }
 
 export default function LanguageSwitcher({
   currentLocale,
   onLocaleChange,
   className = '',
+  premium = false,
 }: LanguageSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -27,6 +29,45 @@ export default function LanguageSwitcher({
     if (isOpen) document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [isOpen])
+
+  if (premium) {
+    return (
+      <div ref={ref} className={`relative ${className}`}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 px-5 h-[56px] rounded-[18px] text-sm font-semibold bg-black/20 backdrop-blur-md border border-white/20 text-white hover:bg-black/30 transition-all duration-300 shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
+        >
+          <span className="uppercase font-bold tracking-wide">{currentLocale}</span>
+          <ChevronDown
+            className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 mt-2 bg-white border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden z-50 min-w-[180px] animate-fadeIn">
+            {locales.map((locale) => (
+              <button
+                key={locale}
+                onClick={() => {
+                  onLocaleChange(locale)
+                  setIsOpen(false)
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-semibold transition ${
+                  currentLocale === locale
+                    ? 'bg-[var(--brand-soft)] text-[var(--brand)]'
+                    : 'text-[var(--fg)] hover:bg-[var(--bg-muted)]'
+                }`}
+              >
+                <span className="text-lg leading-none">{localeFlags[locale]}</span>
+                <span className="flex-1 text-left">{localeNames[locale]}</span>
+                {currentLocale === locale && <Check className="w-4 h-4" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div ref={ref} className={`relative ${className}`}>

@@ -470,15 +470,21 @@ export default function Home() {
                       { value: '', label: 'Все филиалы' },
                       ...branches.map((b) => ({ value: b.id, label: b.name })),
                     ]}
-                    className="w-[180px]"
+                    className="w-[220px]"
+                    dark="premium"
                   />
                 </div>
               )}
 
-              <LanguageSwitcher currentLocale={locale} onLocaleChange={changeLocale} className="hidden sm:block" />
+              <LanguageSwitcher 
+                currentLocale={locale} 
+                onLocaleChange={changeLocale} 
+                className="hidden sm:block" 
+                premium={true}
+              />
 
               <div className="hidden lg:block">
-                <UserMenu onAuthClick={() => setShowAuthModal(true)} />
+                <UserMenu onAuthClick={() => setShowAuthModal(true)} premium={true} />
               </div>
 
               <button
@@ -1004,7 +1010,7 @@ export default function Home() {
                 <div className="relative">
                   <div className="aspect-square rounded-3xl overflow-hidden bg-[var(--bg-muted)] group">
                     <img
-                      src="https://images.unsplash.com/photo-1608039829572-78524f79c4c7?w=1200&q=90"
+                      src="/about-wings-assortment.jpg"
                       alt="Премиальное ассорти куриных крылышек"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />

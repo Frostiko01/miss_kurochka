@@ -8,9 +8,10 @@ import { LogOut, User, Package, Settings, ChevronDown } from "lucide-react";
 interface UserMenuProps {
   mobile?: boolean;
   onAuthClick?: () => void;
+  premium?: boolean;
 }
 
-export default function UserMenu({ mobile = false, onAuthClick }: UserMenuProps) {
+export default function UserMenu({ mobile = false, onAuthClick, premium = false }: UserMenuProps) {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -39,6 +40,19 @@ export default function UserMenu({ mobile = false, onAuthClick }: UserMenuProps)
         </button>
       );
     }
+    
+    if (premium) {
+      return (
+        <button 
+          onClick={onAuthClick} 
+          className="flex items-center gap-2.5 px-6 h-[56px] rounded-[18px] text-sm font-bold bg-gradient-to-r from-[#FF3B1F] to-[#FF5A1F] text-white hover:shadow-[0_8px_24px_rgba(255,59,31,0.4)] transition-all duration-300 shadow-[0_4px_16px_rgba(255,59,31,0.3)]"
+        >
+          <User className="w-5 h-5" />
+          <span>Войти</span>
+        </button>
+      );
+    }
+    
     return (
       <button onClick={onAuthClick} className="btn btn-secondary btn-sm">
         Войти
@@ -110,7 +124,84 @@ export default function UserMenu({ mobile = false, onAuthClick }: UserMenuProps)
     );
   }
 
-  // Авторизован, десктоп
+  // Авторизован, десктоп (премиум)
+  if (premium) {
+    return (
+      <div ref={ref} className="relative">
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2.5 px-6 h-[56px] rounded-[18px] text-sm font-bold bg-gradient-to-r from-[#FF3B1F] to-[#FF5A1F] text-white hover:shadow-[0_8px_24px_rgba(255,59,31,0.4)] transition-all duration-300 shadow-[0_4px_16px_rgba(255,59,31,0.3)]"
+        >
+          {session.user.avatarUrl ? (
+            <img
+              src={session.user.avatarUrl}
+              alt={session.user.fullName}
+              className="h-7 w-7 rounded-full object-cover border-2 border-white/30"
+            />
+          ) : (
+            <div className="h-7 w-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-sm border-2 border-white/30">
+              {initials}
+            </div>
+          )}
+          <span className="max-w-[100px] truncate">{session.user.fullName.split(' ')[0]}</span>
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-[var(--border)] shadow-2xl py-1.5 z-50 animate-fadeIn">
+            <div className="px-4 py-3 border-b border-[var(--border)]">
+              <p className="text-sm font-bold truncate">{session.user.fullName}</p>
+              <p className="text-xs text-[var(--fg-subtle)] truncate mt-0.5">{session.user.email}</p>
+              <span className="badge badge-brand mt-2">{roleLabel}</span>
+            </div>
+
+            <div className="py-1">
+              <Link
+                href="/profile"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+              >
+                <User className="w-4 h-4 text-[var(--fg-muted)]" />
+                Профиль
+              </Link>
+              <Link
+                href="/orders"
+                onClick={() => setIsOpen(false)}
+                className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+              >
+                <Package className="w-4 h-4 text-[var(--fg-muted)]" />
+                Мои заказы
+              </Link>
+              {session.user.role === "admin" && (
+                <Link
+                  href="/admin"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[var(--fg)] hover:bg-[var(--bg-muted)]"
+                >
+                  <Settings className="w-4 h-4 text-[var(--fg-muted)]" />
+                  Админ-панель
+                </Link>
+              )}
+            </div>
+
+            <div className="border-t border-[var(--border)] py-1">
+              <button
+                onClick={() => {
+                  setIsOpen(false);
+                  signOut({ callbackUrl: "/" });
+                }}
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
+              >
+                <LogOut className="w-4 h-4" />
+                Выйти
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Авторизован, десктоп (обычный)
   return (
     <div ref={ref} className="relative">
       <button
