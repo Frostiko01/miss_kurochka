@@ -470,21 +470,15 @@ export default function Home() {
                       { value: '', label: 'Все филиалы' },
                       ...branches.map((b) => ({ value: b.id, label: b.name })),
                     ]}
-                    className="w-[220px]"
-                    dark="premium"
+                    className="w-[180px]"
                   />
                 </div>
               )}
 
-              <LanguageSwitcher 
-                currentLocale={locale} 
-                onLocaleChange={changeLocale} 
-                className="hidden sm:block" 
-                premium={true}
-              />
+              <LanguageSwitcher currentLocale={locale} onLocaleChange={changeLocale} className="hidden sm:block" />
 
               <div className="hidden lg:block">
-                <UserMenu onAuthClick={() => setShowAuthModal(true)} premium={true} />
+                <UserMenu onAuthClick={() => setShowAuthModal(true)} />
               </div>
 
               <button
@@ -1010,7 +1004,7 @@ export default function Home() {
                 <div className="relative">
                   <div className="aspect-square rounded-3xl overflow-hidden bg-[var(--bg-muted)] group">
                     <img
-                      src="/about-wings-assortment.jpg"
+                      src="https://images.unsplash.com/photo-1608039829572-78524f79c4c7?w=1200&q=90"
                       alt="Премиальное ассорти куриных крылышек"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
@@ -1137,6 +1131,15 @@ export default function Home() {
           <p className="text-xs text-white/30 text-center">
             © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
           </p>
+          <div className="flex items-center justify-center gap-3 mt-3 text-xs">
+            <Link href="/privacy-policy" className="text-white/50 hover:text-white transition">
+              Политика конфиденциальности
+            </Link>
+            <span className="text-white/20">•</span>
+            <Link href="/terms-of-service" className="text-white/50 hover:text-white transition">
+              Условия использования
+            </Link>
+          </div>
         </div>
       </footer>
 
@@ -1211,6 +1214,15 @@ export default function Home() {
             <p className="text-sm text-white/30 text-center">
               © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
             </p>
+            <div className="flex items-center justify-center gap-4 mt-4 text-sm">
+              <Link href="/privacy-policy" className="text-white/60 hover:text-white transition">
+                Политика конфиденциальности
+              </Link>
+              <span className="text-white/30">•</span>
+              <Link href="/terms-of-service" className="text-white/60 hover:text-white transition">
+                Условия использования
+              </Link>
+            </div>
           </div>
         </div>
       </footer>
