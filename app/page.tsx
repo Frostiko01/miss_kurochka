@@ -15,7 +15,7 @@ import MobileHome from '@/components/mobile/MobileHome'
 import {
   Flame, ChevronRight, Phone, Clock, MapPin, Plus, Minus,
   Menu as MenuIcon, X, Sparkles, Truck, Award, Heart,
-  Send, ShieldCheck, Timer, Star, ShoppingCart, MessageCircle, Mail,
+  Send, ShieldCheck, Timer, Star, ShoppingCart, MessageCircle, Mail, User,
 } from 'lucide-react'
 
 interface LandingMenuItem {
@@ -456,31 +456,88 @@ export default function Home() {
             </nav>
 
             <div className="flex items-center gap-3">
+              {/* 1. Кнопка "Все филиалы" - белый фон, черный текст, иконка геолокации, стрелка */}
               {branches.length > 0 && (
-                <div className="relative flex items-center">
+                <div className="relative">
                   {nearestBranchDetected && selectedBranch && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 z-10" />
                   )}
-                  <Select
-                    value={selectedBranch || ''}
-                    onChange={(val) => {
-                      setSelectedBranch(val || null)
-                      setNearestBranchDetected(false)
+                  <button
+                    onClick={() => {
+                      // Логика выбора филиала (можно добавить dropdown)
+                      const nextIndex = selectedBranch 
+                        ? (branches.findIndex(b => b.id === selectedBranch) + 1) % branches.length
+                        : 0;
+                      setSelectedBranch(branches[nextIndex]?.id || null);
+                      setNearestBranchDetected(false);
                     }}
-                    options={[
-                      { value: '', label: 'Все филиалы' },
-                      ...branches.map((b) => ({ value: b.id, label: b.name })),
-                    ]}
-                    className="w-[180px]"
-                  />
+                    className="flex items-center gap-2.5 px-5 bg-white text-black rounded-[18px] font-bold text-sm transition-all hover:shadow-lg active:scale-[0.98]"
+                    style={{
+                      height: '52px',
+                      boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
+                    }}
+                  >
+                    <MapPin className="w-4.5 h-4.5" style={{ strokeWidth: 2.5 }} />
+                    <span className="max-w-[140px] truncate">
+                      {selectedBranch 
+                        ? branches.find(b => b.id === selectedBranch)?.name || 'Все филиалы'
+                        : 'Все филиалы'}
+                    </span>
+                    <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
                 </div>
               )}
 
-              <LanguageSwitcher currentLocale={locale} onLocaleChange={changeLocale} className="hidden sm:block" />
+              {/* 2. Кнопка переключения языка - Glassmorphism */}
+              <button
+                onClick={() => {
+                  const locales = ['ru', 'kg', 'en'] as const;
+                  const currentIndex = locales.indexOf(locale as 'ru' | 'kg' | 'en');
+                  const nextLocale = locales[(currentIndex + 1) % locales.length];
+                  changeLocale(nextLocale);
+                }}
+                className="flex items-center gap-2 px-4 font-bold text-sm text-white transition-all hover:bg-white/20 active:scale-[0.98]"
+                style={{
+                  height: '52px',
+                  borderRadius: '18px',
+                  background: 'rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                }}
+              >
+                <span className="uppercase tracking-wider">
+                  {locale === 'ru' ? 'RU' : locale === 'kg' ? 'КГ' : 'EN'}
+                </span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-              <div className="hidden lg:block">
-                <UserMenu onAuthClick={() => setShowAuthModal(true)} />
-              </div>
+              {/* 3. Кнопка "Войти" - красно-оранжевый градиент */}
+              {session ? (
+                <div className="hidden lg:block">
+                  <UserMenu onAuthClick={() => setShowAuthModal(true)} />
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="hidden lg:flex items-center gap-2.5 px-5 text-white font-bold text-sm transition-all hover:shadow-lg active:scale-[0.98]"
+                  style={{
+                    height: '52px',
+                    borderRadius: '18px',
+                    background: 'linear-gradient(135deg, #ff4d00 0%, #d62300 100%)',
+                    boxShadow: '0 6px 20px rgba(214, 35, 0, 0.3)',
+                  }}
+                >
+                  <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Войти
+                </button>
+              )}
 
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -1062,8 +1119,8 @@ export default function Home() {
         </main>
       </div>
 
-      {/* MOBILE FOOTER — только на мобиле, над bottom nav */}
-      <footer className="md:hidden bg-[#0a0e1a] text-white px-5 pt-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}>
+      {/* MOBILE FOOTER — только на мобиле */}
+      <footer className="md:hidden bg-[#0a0e1a] text-white px-5 pt-8 pb-8">
         {/* Бренд */}
         <div className="flex items-center gap-3 mb-6">
           <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="rounded-lg" />
@@ -1197,7 +1254,7 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* FOOTER — только на десктопе. На мобиле есть Bottom Nav и подстраницы. */}
+      {/* FOOTER — только на десктопе */}
       <footer id="contact" className="hidden md:block bg-[#0a0e1a] text-white pt-16 pb-8">
         <div className="container-page">
           <div className="grid grid-cols-12 gap-8 mb-12">

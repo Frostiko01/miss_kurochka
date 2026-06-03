@@ -8,7 +8,7 @@ import BottomNavigation from './BottomNavigation'
 /**
  * Глобальная мобильная обёртка.
  * - Показывает Bottom Navigation на основных потребительских экранах
- * - Прячется в админке, в кабинете филиала, на auth-страницах, в корзине/чекауте
+ * - Прячется на лендинге (/), в админке, в кабинете филиала, на auth-страницах, в корзине/чекауте
  * - Поднимает контент над фиксированной нижней панелью с safe-area
  */
 const HIDDEN_PREFIXES = [
@@ -27,7 +27,11 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   const [cartCount, setCartCount] = useState(0)
 
   const hidden = useMemo(
-    () => HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)),
+    () => 
+      // Прячем на лендинге (только корневой путь)
+      pathname === '/' ||
+      // И на всех остальных скрытых префиксах
+      HIDDEN_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`)),
     [pathname],
   )
 
