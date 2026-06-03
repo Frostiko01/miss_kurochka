@@ -15,7 +15,7 @@ import MobileHome from '@/components/mobile/MobileHome'
 import {
   Flame, ChevronRight, Phone, Clock, MapPin, Plus, Minus,
   Menu as MenuIcon, X, Sparkles, Truck, Award, Heart,
-  Send, ShieldCheck, Timer, Star, ShoppingCart,
+  Send, ShieldCheck, Timer, Star, ShoppingCart, MessageCircle, Mail,
 } from 'lucide-react'
 
 interface LandingMenuItem {
@@ -412,7 +412,7 @@ export default function Home() {
       <div className="hidden md:flex md:flex-col md:flex-1">
         {/* HEADER */}
         <header
-          className={`sticky top-0 z-50 transition-all duration-300 ${
+          className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
             scrolled
               ? 'bg-white/90 backdrop-blur-xl border-b border-[var(--border)] shadow-sm'
               : 'bg-transparent'
@@ -520,7 +520,7 @@ export default function Home() {
           )}
         </header>
 
-        <main className="flex-1 -mt-[68px]">
+        <main className="flex-1">
           {/* HERO */}
           <section
             id="hero"
@@ -555,7 +555,7 @@ export default function Home() {
               ))}
             </div>
 
-            <div className="container-page relative z-10 w-full pt-24 pb-16">
+            <div className="container-page relative z-10 w-full pt-32 pb-16">
               <div className="max-w-2xl">
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/15 backdrop-blur-md border border-white/30 text-white text-xs font-bold mb-6 animate-fade-in">
                   <Sparkles className="w-3.5 h-3.5" />
@@ -1063,7 +1063,7 @@ export default function Home() {
       </div>
 
       {/* MOBILE FOOTER — только на мобиле, над bottom nav */}
-      <footer className="md:hidden bg-[#0f0f10] text-white px-5 pt-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}>
+      <footer className="md:hidden bg-[#0a0e1a] text-white px-5 pt-8" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}>
         {/* Бренд */}
         <div className="flex items-center gap-3 mb-6">
           <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="rounded-lg" />
@@ -1073,156 +1073,356 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Филиалы */}
-        {branches.length > 0 && (
-          <div className="space-y-5 mb-6">
-            {branches.map((branch: LandingBranch) => (
-              <div key={branch.id} className="border-b border-white/10 pb-5 last:border-0">
-                <p className="text-sm font-bold text-white mb-2">{branch.name}</p>
-                <div className="space-y-1.5 mb-3">
-                  <div className="flex items-start gap-2 text-xs text-white/60">
-                    <MapPin className="w-3.5 h-3.5 shrink-0 mt-0.5 text-[var(--brand-light)]" />
-                    <span>{cleanAddress(branch.address ?? '')}</span>
-                  </div>
-                  {branch.phone && (
-                    <a href={`tel:${branch.phone}`} className="flex items-center gap-2 text-xs text-white/70">
-                      <Phone className="w-3.5 h-3.5 shrink-0 text-[var(--brand-light)]" />
-                      {branch.phone}
-                    </a>
-                  )}
-                </div>
-                {/* WhatsApp кнопка */}
-                {branch.phone && (
-                  <a
-                    href={`https://wa.me/${branch.phone.replace(/\D/g, '')}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white"
-                    style={{ background: '#25D366' }}
-                  >
-                    <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                    WhatsApp
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Instagram */}
-        <div className="flex gap-2 mb-6">
-          <a
-            href="https://instagram.com/miss.kurochka"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-white"
-            style={{ background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
-            aria-label="Instagram"
-          >
-            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
-            </svg>
-            @miss.kurochka
-          </a>
-        </div>
-
-        <div className="border-t border-white/10 pt-4">
-          <p className="text-xs text-white/30 text-center">
-            © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
+        {/* Контакт */}
+        <div className="mb-6">
+          <p className="text-xs font-semibold text-white/40 mb-2 flex items-center gap-1.5">
+            <MessageCircle className="w-3 h-3" />
+            Отдел продаж
           </p>
-          <div className="flex items-center justify-center gap-3 mt-3 text-xs">
-            <Link href="/privacy-policy" className="text-white/50 hover:text-white transition">
-              Политика конфиденциальности
-            </Link>
-            <span className="text-white/20">•</span>
-            <Link href="/terms-of-service" className="text-white/50 hover:text-white transition">
-              Условия использования
-            </Link>
+          {branches.length > 0 && branches[0].phone && (
+            <a 
+              href={`tel:${branches[0].phone}`}
+              className="text-base font-bold text-white block mb-1"
+            >
+              {branches[0].phone}
+            </a>
+          )}
+        </div>
+
+        {/* Меню навигации */}
+        <div className="grid grid-cols-2 gap-6 mb-6">
+          {/* Меню */}
+          <div>
+            <h3 className="text-white font-bold text-xs mb-3">Меню</h3>
+            <ul className="space-y-2">
+              <li>
+                <a href="#menu" className="text-xs text-white/60">Основное меню</a>
+              </li>
+              <li>
+                <a href="#combo" className="text-xs text-white/60">Комбо</a>
+              </li>
+              <li>
+                <Link href="/cart" className="text-xs text-white/60">Корзина</Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* О компании */}
+          <div>
+            <h3 className="text-white font-bold text-xs mb-3">О компании</h3>
+            <ul className="space-y-2">
+              <li>
+                <Link href="/privacy-policy" className="text-xs text-white/60">Политика</Link>
+              </li>
+              <li>
+                <Link href="/terms-of-service" className="text-xs text-white/60">Условия</Link>
+              </li>
+              <li>
+                <a href="#contact" className="text-xs text-white/60">Контакты</a>
+              </li>
+            </ul>
           </div>
         </div>
-      </footer>
 
-      {/* FOOTER — только на десктопе. На мобиле есть Bottom Nav и подстраницы. */}
-      <footer id="contact" className="hidden md:block bg-[#0f0f10] text-white pt-16 pb-8">
-        <div className="container-page">
-          {/* Бренд */}
-          <div className="flex items-center gap-3 mb-8">
-            <Image src="/logo.png" alt="Miss Kurochka" width={48} height={48} className="rounded-lg" />
-            <div>
-              <p className="text-xl font-black">Miss Kurochka</p>
-              <p className="text-sm text-white/50">Самая вкусная курочка</p>
-            </div>
-          </div>
+        {/* Подписка */}
+        <button 
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold text-white mb-6 transition-all active:scale-95"
+          style={{ 
+            background: 'linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%)',
+            boxShadow: '0 4px 12px rgba(214, 35, 0, 0.3)'
+          }}
+          onClick={() => {
+            console.log('Подписка на рассылку');
+          }}
+        >
+          <Mail className="w-3.5 h-3.5" />
+          Подписаться на рассылку
+        </button>
 
-          {/* Филиалы */}
-          {branches.length > 0 && (
-            <div className="space-y-6 mb-8">
-              {branches.map((branch: LandingBranch) => (
-                <div key={branch.id} className="border-b border-white/10 pb-6 last:border-0">
-                  <p className="text-base font-bold text-white mb-3">{branch.name}</p>
-                  <div className="space-y-2 mb-4">
-                    <div className="flex items-start gap-2 text-sm text-white/60">
-                      <MapPin className="w-4 h-4 shrink-0 mt-0.5 text-[var(--brand-light)]" />
-                      <span>{cleanAddress(branch.address ?? '')}</span>
-                    </div>
-                    {branch.phone && (
-                      <a href={`tel:${branch.phone}`} className="flex items-center gap-2 text-sm text-white/70 hover:text-[var(--brand-light)] transition">
-                        <Phone className="w-4 h-4 shrink-0 text-[var(--brand-light)]" />
-                        {branch.phone}
-                      </a>
-                    )}
-                  </div>
-                  {/* WhatsApp кнопка */}
-                  {branch.phone && (
-                    <a
-                      href={`https://wa.me/${branch.phone.replace(/\D/g, '')}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white hover:opacity-90 transition"
-                      style={{ background: '#25D366' }}
-                    >
-                      <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                      </svg>
-                      WhatsApp
-                    </a>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Instagram */}
-          <div className="flex gap-3 mb-8">
+        {/* Разделитель */}
+        <div className="border-t border-white/10 pt-4 mb-4">
+          {/* Социальные сети */}
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <span className="text-[10px] text-white/40">Мы в соцсетях</span>
+            
+            {/* Instagram */}
             <a
               href="https://instagram.com/miss.kurochka"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold text-white hover:opacity-90 transition"
-              style={{ background: 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)' }}
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(255, 255, 255, 0.05)' }}
               aria-label="Instagram"
             >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
                 <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
               </svg>
-              @miss.kurochka
+            </a>
+
+            {/* WhatsApp */}
+            {branches.length > 0 && branches[0].phone && (
+              <a
+                href={`https://wa.me/${branches[0].phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+                aria-label="WhatsApp"
+              >
+                <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                </svg>
+              </a>
+            )}
+
+            {/* Telegram */}
+            <a
+              href="https://t.me/misskurochka"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(255, 255, 255, 0.05)' }}
+              aria-label="Telegram"
+            >
+              <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18.717-.962 4.038-1.36 5.356-.168.558-.5.745-.82.763-.696.064-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.781-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.329-.913.489-1.302.481-.428-.008-1.252-.242-1.865-.442-.752-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.477-1.635.099-.002.321.023.465.14.122.099.155.232.171.325.016.093.036.305.02.471z"/>
+              </svg>
             </a>
           </div>
 
+          {/* Копирайт */}
+          <p className="text-[10px] text-white/30 text-center">
+            © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
+          </p>
+        </div>
+      </footer>
+
+      {/* FOOTER — только на десктопе. На мобиле есть Bottom Nav и подстраницы. */}
+      <footer id="contact" className="hidden md:block bg-[#0a0e1a] text-white pt-16 pb-8">
+        <div className="container-page">
+          <div className="grid grid-cols-12 gap-8 mb-12">
+            {/* Левая колонка: Бренд + контакты */}
+            <div className="col-span-12 lg:col-span-4">
+              {/* Бренд */}
+              <div className="flex items-center gap-3 mb-6">
+                <Image src="/logo.png" alt="Miss Kurochka" width={48} height={48} className="rounded-lg" />
+                <div>
+                  <p className="text-xl font-black text-white">Miss Kurochka</p>
+                  <p className="text-sm text-white/50">Самая вкусная курочка</p>
+                </div>
+              </div>
+
+              {/* Отдел продаж */}
+              <div className="mb-6">
+                <p className="text-xs font-semibold text-white/40 mb-3 flex items-center gap-2">
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  Отдел продаж
+                </p>
+                {branches.length > 0 && branches[0].phone && (
+                  <a 
+                    href={`tel:${branches[0].phone}`}
+                    className="text-lg font-bold text-white hover:text-[var(--brand-light)] transition block mb-1"
+                  >
+                    {branches[0].phone}
+                  </a>
+                )}
+                <a 
+                  href="https://wa.me/996700123456"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition mt-2"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  miss_kurochka_chat
+                </a>
+              </div>
+
+              {/* Подписка на рассылку */}
+              <button className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-all"
+                style={{ 
+                  background: 'linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%)',
+                  boxShadow: '0 4px 12px rgba(214, 35, 0, 0.3)'
+                }}
+                onClick={() => {
+                  // Открыть модальное окно подписки (если есть)
+                  console.log('Подписка на рассылку');
+                }}
+              >
+                <Mail className="w-4 h-4" />
+                Подписаться на рассылку
+              </button>
+            </div>
+
+            {/* Колонка: Меню */}
+            <div className="col-span-6 lg:col-span-2">
+              <h3 className="text-white font-bold text-sm mb-4">Меню</h3>
+              <ul className="space-y-2.5">
+                <li>
+                  <a href="#menu" className="text-sm text-white/60 hover:text-white transition">
+                    Основное меню
+                  </a>
+                </li>
+                <li>
+                  <a href="#combo" className="text-sm text-white/60 hover:text-white transition">
+                    Комбо-предложения
+                  </a>
+                </li>
+                <li>
+                  <a href="#additional" className="text-sm text-white/60 hover:text-white transition">
+                    Дополнительно
+                  </a>
+                </li>
+                <li>
+                  <Link href="/cart" className="text-sm text-white/60 hover:text-white transition">
+                    Корзина
+                  </Link>
+                </li>
+              </ul>
+            </div>
+
+            {/* Колонка: Наши филиалы */}
+            <div className="col-span-6 lg:col-span-3">
+              <h3 className="text-white font-bold text-sm mb-4">Наши филиалы</h3>
+              <ul className="space-y-2.5">
+                {branches.slice(0, 3).map((branch: LandingBranch) => (
+                  <li key={branch.id}>
+                    <button
+                      onClick={() => {
+                        // Открыть модальное окно филиалов или прокрутить к карте
+                        document.getElementById('branches')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="text-sm text-white/60 hover:text-white transition text-left"
+                    >
+                      {branch.name}
+                    </button>
+                  </li>
+                ))}
+                {branches.length > 3 && (
+                  <li>
+                    <button
+                      onClick={() => {
+                        document.getElementById('branches')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="text-sm font-semibold text-[var(--brand-light)] hover:text-white transition"
+                    >
+                      Все филиалы
+                    </button>
+                  </li>
+                )}
+              </ul>
+            </div>
+
+            {/* Колонка: О компании */}
+            <div className="col-span-6 lg:col-span-2">
+              <h3 className="text-white font-bold text-sm mb-4">О компании</h3>
+              <ul className="space-y-2.5">
+                <li>
+                  <Link href="/about" className="text-sm text-white/60 hover:text-white transition">
+                    О нас
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/privacy-policy" className="text-sm text-white/60 hover:text-white transition">
+                    Политика конфиденциальности
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/terms-of-service" className="text-sm text-white/60 hover:text-white transition">
+                    Условия использования
+                  </Link>
+                </li>
+                <li>
+                  <a href="#contact" className="text-sm text-white/60 hover:text-white transition">
+                    Контакты
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Разделитель */}
           <div className="border-t border-white/10 pt-6">
-            <p className="text-sm text-white/30 text-center">
-              © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
-            </p>
-            <div className="flex items-center justify-center gap-4 mt-4 text-sm">
-              <Link href="/privacy-policy" className="text-white/60 hover:text-white transition">
-                Политика конфиденциальности
-              </Link>
-              <span className="text-white/30">•</span>
-              <Link href="/terms-of-service" className="text-white/60 hover:text-white transition">
-                Условия использования
-              </Link>
+            <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+              {/* Копирайт */}
+              <p className="text-sm text-white/40">
+                © {new Date().getFullYear()} Miss Kurochka. Все права защищены.
+              </p>
+
+              {/* Социальные сети */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white/40 mr-2">Мы в социальных сетях</span>
+                
+                {/* Instagram */}
+                <a
+                  href="https://instagram.com/miss.kurochka"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                  aria-label="Instagram"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'linear-gradient(135deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  }}
+                >
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                  </svg>
+                </a>
+
+                {/* WhatsApp */}
+                {branches.length > 0 && branches[0].phone && (
+                  <a
+                    href={`https://wa.me/${branches[0].phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                    style={{ 
+                      background: 'rgba(255, 255, 255, 0.05)',
+                      backdropFilter: 'blur(10px)'
+                    }}
+                    aria-label="WhatsApp"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#25D366';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                    }}
+                  >
+                    <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                    </svg>
+                  </a>
+                )}
+
+                {/* Telegram (опционально) */}
+                <a
+                  href="https://t.me/misskurochka"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110"
+                  style={{ 
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    backdropFilter: 'blur(10px)'
+                  }}
+                  aria-label="Telegram"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#0088cc';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                  }}
+                >
+                  <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
+                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161c-.18.717-.962 4.038-1.36 5.356-.168.558-.5.745-.82.763-.696.064-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.781-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.329-.913.489-1.302.481-.428-.008-1.252-.242-1.865-.442-.752-.244-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.831-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.477-1.635.099-.002.321.023.465.14.122.099.155.232.171.325.016.093.036.305.02.471z"/>
+                  </svg>
+                </a>
+              </div>
             </div>
           </div>
         </div>
