@@ -180,7 +180,7 @@ git commit -m "feat: add Timeweb App Platform deployment configuration"
 # Отправьте в репозиторий
 git push origin main
 ```
-frfrefre
+
 ### Следующий шаг:
 
 Откройте [QUICK_START.md](./QUICK_START.md) и следуйте инструкциям!
