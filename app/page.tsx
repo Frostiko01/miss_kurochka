@@ -161,6 +161,33 @@ export default function Home() {
     } catch {}
   }
 
+  const fetchMiniCombos = async () => {
+    try {
+      const response = await fetch('/api/mini-combos')
+      const data = await response.json()
+      if (response.ok && data.combos) {
+        const formattedMiniCombos = data.combos.map((combo: {
+          id: string
+          name: string
+          description?: string | null
+          items: string[]
+          price: number | string
+          oldPrice?: number | string | null
+          imageUrl?: string | null
+        }) => ({
+          id: combo.id,
+          name: combo.name,
+          description: combo.description,
+          items: combo.items,
+          price: Number(combo.price),
+          oldPrice: combo.oldPrice ? Number(combo.oldPrice) : null,
+          image: combo.imageUrl ?? null,
+        }))
+        setMiniComboDeals(formattedMiniCombos)
+      }
+    } catch {}
+  }
+
   const detectNearestBranch = () => {
     if (!navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
@@ -192,6 +219,7 @@ export default function Home() {
       if (saved) setSelectedBranch(saved)
       else detectNearestBranch()
       fetchCombos()
+      fetchMiniCombos()
       fetchBranches()
       fetchPopular()
     })
@@ -832,6 +860,132 @@ export default function Home() {
                           <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--brand)] text-white text-[11px] font-extrabold">
                             <Flame className="w-3 h-3" />
                             Комбо
+                          </span>
+                          {discount > 0 && (
+                            <span className="absolute top-3 right-3 px-2 py-1 rounded-full bg-amber-400 text-amber-900 text-xs font-extrabold">
+                              −{discount}%
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="p-4 flex flex-col flex-1">
+                          <h3
+                            className="text-base font-extrabold mb-2 leading-tight cursor-pointer hover:text-[var(--brand)] transition-colors line-clamp-1"
+                            onClick={() => setSelectedCombo(combo)}
+                          >
+                            {combo.name}
+                          </h3>
+
+                          <ul className="space-y-1 mb-4 flex-1">
+                            {combo.items.slice(0, 3).map((item: string, i: number) => (
+                              <li key={i} className="flex items-center text-xs text-[var(--fg-muted)]">
+                                <span className="w-1 h-1 bg-[var(--brand)] rounded-full mr-2 flex-shrink-0" />
+                                <span className="truncate">{item}</span>
+                              </li>
+                            ))}
+                            {combo.items.length > 3 && (
+                              <li
+                                className="text-xs text-[var(--brand)] font-semibold cursor-pointer"
+                                onClick={() => setSelectedCombo(combo)}
+                              >
+                                +{combo.items.length - 3} ещё...
+                              </li>
+                            )}
+                          </ul>
+
+                          <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
+                            <div>
+                              {combo.oldPrice && (
+                                <div className="text-xs text-[var(--fg-subtle)] line-through font-semibold">
+                                  {combo.oldPrice} сом
+                                </div>
+                              )}
+                              <div className="text-xl font-black text-[var(--brand)] leading-none">
+                                {combo.price} <span className="text-xs font-bold text-[var(--fg-muted)]">сом</span>
+                              </div>
+                            </div>
+
+                            {qty > 0 ? (
+                              <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
+                                <button
+                                  onClick={() => cartRef && updateCartItemQuantity(cartRef.cartItemId, qty - 1)}
+                                  className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="font-bold text-sm text-white min-w-[20px] text-center">{qty}</span>
+                                <button
+                                  onClick={() => addComboToCart(combo.id)}
+                                  className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => addComboToCart(combo.id)}
+                                className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition shadow-sm"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </article>
+                    )
+                  })}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* MINI COMBO */}
+          {miniComboDeals.length > 0 && (
+            <section id="mini-combo" className="py-16 sm:py-20 bg-white">
+              <div className="container-page">
+                <div className="flex items-end justify-between mb-6 sm:mb-8 flex-wrap gap-3">
+                  <div>
+                    <span className="badge badge-brand mb-3">
+                      <Sparkles className="w-3 h-3" />
+                      Мини-комбо
+                    </span>
+                    <h2 className="text-2xl sm:text-3xl md:text-5xl font-black tracking-tight">
+                      Быстрые перекусы
+                    </h2>
+                    <p className="text-sm text-[var(--fg-muted)] mt-2 max-w-md">
+                      Идеально для одного — вкусно и экономно
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                  {miniComboDeals.map((combo) => {
+                    const cartRef = comboItems[combo.id]
+                    const qty = cartRef?.quantity ?? 0
+                    const discount = combo.oldPrice ? Math.round((1 - combo.price / combo.oldPrice) * 100) : 0
+
+                    return (
+                      <article
+                        key={combo.id}
+                        className="group bg-white rounded-2xl border border-[var(--border)] hover:border-[var(--brand)]/30 hover:shadow-lg transition-all duration-300 overflow-hidden flex flex-col"
+                      >
+                        <div
+                          className="aspect-square relative overflow-hidden bg-[var(--bg-muted)] cursor-pointer"
+                          onClick={() => setSelectedCombo(combo)}
+                        >
+                          {combo.image ? (
+                            <img
+                              src={combo.image}
+                              alt={combo.name}
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-6xl">🍗</div>
+                          )}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+                          <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--brand)] text-white text-[11px] font-extrabold">
+                            <Sparkles className="w-3 h-3" />
+                            Мини
                           </span>
                           {discount > 0 && (
                             <span className="absolute top-3 right-3 px-2 py-1 rounded-full bg-amber-400 text-amber-900 text-xs font-extrabold">
