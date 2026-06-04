@@ -111,14 +111,15 @@ export default function SignUpPage() {
               <div>
                 <label htmlFor="fullName" className="label">Имя</label>
                 <div className="relative">
-                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                  <User className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                   <input
                     id="fullName"
                     type="text"
                     required
                     value={formData.fullName}
                     onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                    className="input pl-9"
+                    className="input w-full"
+                    style={{ paddingLeft: '40px' }}
                     placeholder="Иван Иванов"
                   />
                 </div>
@@ -127,7 +128,7 @@ export default function SignUpPage() {
               <div>
                 <label htmlFor="email" className="label">Email</label>
                 <div className="relative">
-                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                  <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                   <input
                     id="email"
                     type="email"
@@ -135,7 +136,8 @@ export default function SignUpPage() {
                     required
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="input pl-9"
+                    className="input w-full"
+                    style={{ paddingLeft: '40px' }}
                     placeholder="your@email.com"
                   />
                 </div>
@@ -144,7 +146,7 @@ export default function SignUpPage() {
               <div>
                 <label htmlFor="password" className="label">Пароль</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                   <input
                     id="password"
                     type="password"
@@ -152,7 +154,8 @@ export default function SignUpPage() {
                     required
                     value={formData.password}
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="input pl-9"
+                    className="input w-full"
+                    style={{ paddingLeft: '40px' }}
                     placeholder="Минимум 8 символов"
                   />
                 </div>
@@ -161,7 +164,7 @@ export default function SignUpPage() {
               <div>
                 <label htmlFor="confirmPassword" className="label">Подтвердите пароль</label>
                 <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                  <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                   <input
                     id="confirmPassword"
                     type="password"
@@ -169,7 +172,8 @@ export default function SignUpPage() {
                     required
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                    className="input pl-9"
+                    className="input w-full"
+                    style={{ paddingLeft: '40px' }}
                     placeholder="••••••••"
                   />
                 </div>

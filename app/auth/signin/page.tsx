@@ -198,7 +198,7 @@ function SignInContent() {
                 <div>
                   <label htmlFor="email" className="label">Email</label>
                   <div className="relative">
-                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                    <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                     <input
                       id="email"
                       name="email"
@@ -207,7 +207,8 @@ function SignInContent() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      className="input pl-9"
+                      className="input w-full"
+                      style={{ paddingLeft: '40px' }}
                       placeholder="your@email.com"
                     />
                   </div>
@@ -224,7 +225,7 @@ function SignInContent() {
                     </Link>
                   </div>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                     <input
                       id="password"
                       name="password"
@@ -233,7 +234,8 @@ function SignInContent() {
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      className="input pl-9"
+                      className="input w-full"
+                      style={{ paddingLeft: '40px' }}
                       placeholder="••••••••"
                     />
                   </div>

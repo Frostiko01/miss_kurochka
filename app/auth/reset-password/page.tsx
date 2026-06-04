@@ -143,14 +143,15 @@ function ResetPasswordContent() {
                 <div>
                   <label htmlFor="newPassword" className="label">Новый пароль</label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                     <input
                       id="newPassword"
                       type="password"
                       required
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      className="input pl-9"
+                      className="input w-full"
+                      style={{ paddingLeft: '40px' }}
                       placeholder="Минимум 8 символов"
                     />
                   </div>
@@ -158,14 +159,15 @@ function ResetPasswordContent() {
                 <div>
                   <label htmlFor="confirmPassword" className="label">Подтвердите пароль</label>
                   <div className="relative">
-                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)]" />
+                    <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fg-subtle)] pointer-events-none z-10" />
                     <input
                       id="confirmPassword"
                       type="password"
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="input pl-9"
+                      className="input w-full"
+                      style={{ paddingLeft: '40px' }}
                       placeholder="••••••••"
                     />
                   </div>
