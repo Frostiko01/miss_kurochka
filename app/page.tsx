@@ -493,8 +493,8 @@ export default function Home() {
               {/* 2. Кнопка переключения языка - Glassmorphism */}
               <button
                 onClick={() => {
-                  const locales = ['ru', 'kg', 'en'] as const;
-                  const currentIndex = locales.indexOf(locale as 'ru' | 'kg' | 'en');
+                  const locales = ['ru', 'kg'] as const;
+                  const currentIndex = locales.indexOf(locale);
                   const nextLocale = locales[(currentIndex + 1) % locales.length];
                   changeLocale(nextLocale);
                 }}

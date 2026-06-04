@@ -3,9 +3,17 @@ import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPEN_AI,
-})
+// Ленивая инициализация OpenAI клиента
+let openaiInstance: OpenAI | null = null
+
+function getOpenAI(): OpenAI {
+  if (!openaiInstance) {
+    openaiInstance = new OpenAI({
+      apiKey: process.env.OPEN_AI,
+    })
+  }
+  return openaiInstance
+}
 
 // ─── ФУНКЦИИ ДОСТУПА К БД ────────────────────────────────────────────────────
 
@@ -668,6 +676,7 @@ export async function POST(request: NextRequest) {
 
     // Function calling — до 6 итераций (даём ИИ возможность сделать несколько вызовов подряд)
     for (let i = 0; i < 6; i++) {
+      const openai = getOpenAI()
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: conversationMessages,

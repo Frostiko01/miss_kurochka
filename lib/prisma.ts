@@ -15,6 +15,21 @@ const globalForPrisma = globalThis as unknown as {
  */
 function buildPoolConfig(): PoolConfig {
   const url = process.env.DATABASE_URL ?? ''
+  
+  // Если DATABASE_URL пустой или не задан (например, во время сборки), используем fallback
+  if (!url || url.trim() === '') {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[lib/prisma] DATABASE_URL not set, using fallback config')
+    }
+    return {
+      user: 'postgres',
+      password: '12345',
+      host: 'localhost',
+      port: 5432,
+      database: 'miss_kurochka',
+    }
+  }
+  
   try {
     const parsed = new URL(url)
     return {
