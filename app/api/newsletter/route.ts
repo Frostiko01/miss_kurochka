@@ -17,8 +17,9 @@ export async function POST(request: NextRequest) {
     // Валидация
     const validation = newsletterSchema.safeParse(body)
     if (!validation.success) {
+      const firstError = validation.error.errors[0]
       return NextResponse.json(
-        { error: validation.error.errors[0].message },
+        { error: firstError?.message || 'Ошибка валидации данных' },
         { status: 400 }
       )
     }
