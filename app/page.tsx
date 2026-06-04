@@ -8,6 +8,7 @@ import Link from 'next/link'
 import LanguageSwitcher from '@/components/LanguageSwitcher'
 import UserMenu from '@/components/UserMenu'
 import AuthModal from '@/components/AuthModal'
+import NewsletterModal from '@/components/NewsletterModal'
 import { useTranslations } from '@/app/i18n/hooks/useTranslations'
 import MenuItemModal from '@/components/MenuItemModal'
 import Select from '@/components/ui/Select'
@@ -81,6 +82,7 @@ export default function Home() {
   const comboDragScrollLeft = useRef(0)
   const comboPaused = useRef(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showNewsletterModal, setShowNewsletterModal] = useState(false)
   const [comboDeals, setComboDeals] = useState<LandingCombo[]>([])
   const [miniComboDeals, setMiniComboDeals] = useState<LandingCombo[]>([])
   const [popularItems, setPopularItems] = useState<LandingMenuItem[]>([])
@@ -1342,9 +1344,7 @@ export default function Home() {
             background: 'linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%)',
             boxShadow: '0 4px 12px rgba(214, 35, 0, 0.3)'
           }}
-          onClick={() => {
-            console.log('Подписка на рассылку');
-          }}
+          onClick={() => setShowNewsletterModal(true)}
         >
           <Mail className="w-3.5 h-3.5" />
           Подписаться на рассылку
@@ -1449,15 +1449,12 @@ export default function Home() {
               </div>
 
               {/* Подписка на рассылку */}
-              <button className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-all"
+              <button className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-all hover:opacity-90 active:scale-95"
                 style={{ 
                   background: 'linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%)',
                   boxShadow: '0 4px 12px rgba(214, 35, 0, 0.3)'
                 }}
-                onClick={() => {
-                  // Открыть модальное окно подписки (если есть)
-                  console.log('Подписка на рассылку');
-                }}
+                onClick={() => setShowNewsletterModal(true)}
               >
                 <Mail className="w-4 h-4" />
                 Подписаться на рассылку
@@ -1528,9 +1525,9 @@ export default function Home() {
               <h3 className="text-white font-bold text-sm mb-4">О компании</h3>
               <ul className="space-y-2.5">
                 <li>
-                  <Link href="/about" className="text-sm text-white/60 hover:text-white transition">
+                  <a href="#about" className="text-sm text-white/60 hover:text-white transition">
                     О нас
-                  </Link>
+                  </a>
                 </li>
                 <li>
                   <Link href="/privacy-policy" className="text-sm text-white/60 hover:text-white transition">
@@ -1641,6 +1638,7 @@ export default function Home() {
 
       {/* Modals */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
+      <NewsletterModal isOpen={showNewsletterModal} onClose={() => setShowNewsletterModal(false)} />
       <MenuItemModal
         item={selectedMenuItem}
         isOpen={showItemModal}
