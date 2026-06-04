@@ -89,6 +89,11 @@
 - Комментарии и примеры
 - Важные замечания
 
+**⚠️ ВАЖНО для NextAuth v5:**
+- `AUTH_URL` - должен быть установлен в `https://miss-kurochka.com` для production
+- `AUTH_TRUST_HOST` - установите в `true` для работы за прокси/CDN
+- `NEXTAUTH_URL` - также должен совпадать с production URL
+
 ### 🚫 .gitignore
 **Обновлено:** Добавлен `.env.docker`  
 **Назначение:** Защита от случайного коммита секретов

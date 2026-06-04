@@ -34,6 +34,8 @@ COPY . .
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
 ENV NEXTAUTH_URL="http://localhost:3000"
 ENV NEXTAUTH_SECRET="build-time-secret-key-min-32-chars"
+ENV AUTH_URL="http://localhost:3000"
+ENV AUTH_TRUST_HOST="true"
 ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ENV OPEN_AI="sk-build-time-fake-key"
 ENV GOOGLE_CLIENT_ID="build-time-client-id"
