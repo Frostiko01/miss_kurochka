@@ -129,7 +129,11 @@ export default function MenuItemModal({ item, isOpen, onClose, onAddToCart }: Me
         <div className="p-5 sm:p-6">
           <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight mb-1.5">{item.name}</h2>
           {item.description && (
-            <p className="text-sm text-[var(--fg-muted)] mb-4 leading-relaxed">{item.description}</p>
+            <div className="text-sm text-[var(--fg-muted)] mb-4 leading-relaxed space-y-2">
+              {item.description.split(/(?=[🍟🍖🧀🧅🍗🌶️🧄🥓])/g).filter(Boolean).map((para: string, idx: number) => (
+                <p key={idx}>{para.trim()}</p>
+              ))}
+            </div>
           )}
 
           {/* Бейджи */}

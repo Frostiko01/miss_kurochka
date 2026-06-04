@@ -114,9 +114,14 @@ export default function MenuList({ categories, language = 'ru' }: MenuListProps)
                           </h3>
 
                           {item.description && (
-                            <p className="text-gray-600 text-sm mb-4 line-clamp-2">
-                              {getI18nText(asI18n(item.descriptionI18n), item.description, language)}
-                            </p>
+                            <div className="text-gray-600 text-sm mb-4 line-clamp-3 space-y-1">
+                              {getI18nText(asI18n(item.descriptionI18n), item.description, language)
+                                .split(/(?=[🍟🍖🧀🧅🍗🌶️🧄🥓])/g)
+                                .filter(Boolean)
+                                .map((para: string, idx: number) => (
+                                  <p key={idx}>{para.trim()}</p>
+                                ))}
+                            </div>
                           )}
 
                           {/* Details */}
