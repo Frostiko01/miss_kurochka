@@ -1288,18 +1288,23 @@ export default function Home() {
 
         {/* Контакт */}
         <div className="mb-6">
-          <p className="text-xs font-semibold text-white/40 mb-2 flex items-center gap-1.5">
+          <p className="text-xs font-semibold text-white/40 mb-3 flex items-center gap-1.5">
             <MessageCircle className="w-3 h-3" />
-            Отдел продаж
+            Наши филиалы
           </p>
-          {branches.length > 0 && branches[0].phone && (
-            <a 
-              href={`tel:${branches[0].phone}`}
-              className="text-base font-bold text-white block mb-1"
-            >
-              {branches[0].phone}
-            </a>
-          )}
+          {branches.slice(0, 2).map((branch: LandingBranch) => (
+            <div key={branch.id} className="mb-2">
+              <p className="text-[10px] text-white/50">{branch.name}</p>
+              {branch.phone && (
+                <a 
+                  href={`tel:${branch.phone}`}
+                  className="text-sm font-bold text-white block"
+                >
+                  {branch.phone}
+                </a>
+              )}
+            </div>
+          ))}
         </div>
 
         {/* Меню навигации */}
@@ -1309,10 +1314,21 @@ export default function Home() {
             <h3 className="text-white font-bold text-xs mb-3">Меню</h3>
             <ul className="space-y-2">
               <li>
-                <a href="#menu" className="text-xs text-white/60">Основное меню</a>
+                <Link href="/menu" className="text-xs text-white/60">
+                  Основное меню
+                </Link>
               </li>
               <li>
-                <a href="#combo" className="text-xs text-white/60">Комбо</a>
+                <a 
+                  href="#combo" 
+                  className="text-xs text-white/60"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('combo')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Комбо
+                </a>
               </li>
               <li>
                 <Link href="/cart" className="text-xs text-white/60">Корзина</Link>
@@ -1325,13 +1341,34 @@ export default function Home() {
             <h3 className="text-white font-bold text-xs mb-3">О компании</h3>
             <ul className="space-y-2">
               <li>
+                <a 
+                  href="#about" 
+                  className="text-xs text-white/60"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  О нас
+                </a>
+              </li>
+              <li>
                 <Link href="/privacy-policy" className="text-xs text-white/60">Политика</Link>
               </li>
               <li>
                 <Link href="/terms-of-service" className="text-xs text-white/60">Условия</Link>
               </li>
               <li>
-                <a href="#contact" className="text-xs text-white/60">Контакты</a>
+                <a 
+                  href="#contact" 
+                  className="text-xs text-white/60"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >
+                  Контакты
+                </a>
               </li>
             </ul>
           </div>
@@ -1427,25 +1464,21 @@ export default function Home() {
               <div className="mb-6">
                 <p className="text-xs font-semibold text-white/40 mb-3 flex items-center gap-2">
                   <MessageCircle className="w-3.5 h-3.5" />
-                  Отдел продаж
+                  Наши контакты
                 </p>
-                {branches.length > 0 && branches[0].phone && (
-                  <a 
-                    href={`tel:${branches[0].phone}`}
-                    className="text-lg font-bold text-white hover:text-[var(--brand-light)] transition block mb-1"
-                  >
-                    {branches[0].phone}
-                  </a>
-                )}
-                <a 
-                  href="https://wa.me/996700123456"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition mt-2"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  miss_kurochka_chat
-                </a>
+                {branches.slice(0, 2).map((branch: LandingBranch, index: number) => (
+                  <div key={branch.id} className={index > 0 ? 'mt-3' : ''}>
+                    <p className="text-xs text-white/50 mb-1">{branch.name}</p>
+                    {branch.phone && (
+                      <a 
+                        href={`tel:${branch.phone}`}
+                        className="text-base font-bold text-white hover:text-[var(--brand-light)] transition block"
+                      >
+                        {branch.phone}
+                      </a>
+                    )}
+                  </div>
+                ))}
               </div>
 
               {/* Подписка на рассылку */}
@@ -1466,18 +1499,32 @@ export default function Home() {
               <h3 className="text-white font-bold text-sm mb-4">Меню</h3>
               <ul className="space-y-2.5">
                 <li>
-                  <a href="#menu" className="text-sm text-white/60 hover:text-white transition">
+                  <Link href="/menu" className="text-sm text-white/60 hover:text-white transition">
                     Основное меню
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#combo" className="text-sm text-white/60 hover:text-white transition">
+                  <a 
+                    href="#combo" 
+                    className="text-sm text-white/60 hover:text-white transition"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('combo')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
                     Комбо-предложения
                   </a>
                 </li>
                 <li>
-                  <a href="#additional" className="text-sm text-white/60 hover:text-white transition">
-                    Дополнительно
+                  <a 
+                    href="#popular" 
+                    className="text-sm text-white/60 hover:text-white transition"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('popular')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
+                    Популярное
                   </a>
                 </li>
                 <li>
@@ -1494,27 +1541,30 @@ export default function Home() {
               <ul className="space-y-2.5">
                 {branches.slice(0, 3).map((branch: LandingBranch) => (
                   <li key={branch.id}>
-                    <button
-                      onClick={() => {
-                        // Открыть модальное окно филиалов или прокрутить к карте
-                        document.getElementById('branches')?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="text-sm text-white/60 hover:text-white transition text-left"
-                    >
-                      {branch.name}
-                    </button>
+                    <div className="text-left w-full group">
+                      <div className="font-semibold text-sm text-white/80 group-hover:text-white transition">{branch.name}</div>
+                      {branch.phone && (
+                        <a 
+                          href={`tel:${branch.phone}`}
+                          className="text-xs text-white/40 hover:text-[var(--brand-light)] transition block mt-0.5"
+                        >
+                          {branch.phone}
+                        </a>
+                      )}
+                      {branch.address && (
+                        <p className="text-xs text-white/30 mt-0.5">{cleanAddress(branch.address)}</p>
+                      )}
+                    </div>
                   </li>
                 ))}
                 {branches.length > 3 && (
                   <li>
-                    <button
-                      onClick={() => {
-                        document.getElementById('branches')?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="text-sm font-semibold text-[var(--brand-light)] hover:text-white transition"
+                    <Link
+                      href="/branches"
+                      className="text-sm font-semibold text-[var(--brand-light)] hover:text-white transition inline-block"
                     >
-                      Все филиалы
-                    </button>
+                      Все филиалы →
+                    </Link>
                   </li>
                 )}
               </ul>
@@ -1525,7 +1575,14 @@ export default function Home() {
               <h3 className="text-white font-bold text-sm mb-4">О компании</h3>
               <ul className="space-y-2.5">
                 <li>
-                  <a href="#about" className="text-sm text-white/60 hover:text-white transition">
+                  <a 
+                    href="#about" 
+                    className="text-sm text-white/60 hover:text-white transition"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('about')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
                     О нас
                   </a>
                 </li>
@@ -1540,7 +1597,14 @@ export default function Home() {
                   </Link>
                 </li>
                 <li>
-                  <a href="#contact" className="text-sm text-white/60 hover:text-white transition">
+                  <a 
+                    href="#contact" 
+                    className="text-sm text-white/60 hover:text-white transition"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >
                     Контакты
                   </a>
                 </li>
