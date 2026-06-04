@@ -1062,8 +1062,8 @@ export default function Home() {
                 <div className="relative">
                   <div className="aspect-square rounded-3xl overflow-hidden bg-[var(--bg-muted)] group">
                     <img
-                      src="https://images.unsplash.com/photo-1608039829572-78524f79c4c7?w=1200&q=90"
-                      alt="Премиальное ассорти куриных крылышек"
+                      src="/about-wings-assortment.jpg"
+                      alt="Премиальное ассорти куриных крылышек Miss Kurochka"
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
                   </div>
