@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { Search, ShoppingBag, Plus, Minus, X } from 'lucide-react'
+import { Search, ShoppingBag, Plus, Minus, X, Home } from 'lucide-react'
+import Link from 'next/link'
+import Image from 'next/image'
 import MobileMenuScreen from '@/components/mobile/MobileMenuScreen'
 import MenuItemModal from '@/components/MenuItemModal'
 import AuthModal from '@/components/AuthModal'
+import UserMenu from '@/components/UserMenu'
 import Spinner from '@/components/Spinner'
 
 interface MenuItem {
@@ -183,9 +186,44 @@ export default function MenuPage() {
       </div>
 
       {/* Desktop */}
-      <div className="hidden md:block min-h-screen bg-[var(--bg-muted)]">
-        {/* Header */}
-        <header className="sticky top-0 z-40 bg-white border-b border-[var(--border)] shadow-sm">
+      <div className="hidden md:flex md:flex-col min-h-screen bg-[var(--bg-muted)]">
+        {/* Navigation Header */}
+        <header className="sticky top-0 z-50 bg-white border-b border-[var(--border)] shadow-sm">
+          <div className="max-w-7xl mx-auto px-6 py-3">
+            <div className="flex items-center justify-between">
+              {/* Logo */}
+              <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition">
+                <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="rounded-lg" />
+                <div>
+                  <p className="text-lg font-black text-[var(--fg)]">Miss Kurochka</p>
+                  <p className="text-[10px] text-[var(--fg-muted)] font-semibold">Самая вкусная курочка</p>
+                </div>
+              </Link>
+
+              {/* Navigation */}
+              <nav className="flex items-center gap-6">
+                <Link href="/" className="flex items-center gap-2 text-sm font-semibold text-[var(--fg-muted)] hover:text-[var(--brand)] transition">
+                  <Home className="w-4 h-4" />
+                  Главная
+                </Link>
+                <Link href="/menu" className="text-sm font-semibold text-[var(--brand)]">
+                  Меню
+                </Link>
+                <Link href="/cart" className="text-sm font-semibold text-[var(--fg-muted)] hover:text-[var(--brand)] transition">
+                  Корзина
+                </Link>
+              </nav>
+
+              {/* User Menu */}
+              <div className="flex items-center gap-3">
+                <UserMenu onAuthClick={() => setShowAuthModal(true)} />
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Menu Header */}
+        <div className="bg-white border-b border-[var(--border)]">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -232,7 +270,7 @@ export default function MenuPage() {
               </div>
             </div>
           </div>
-        </header>
+        </div>
 
         {/* Content */}
         <div className="max-w-7xl mx-auto px-6 py-8">
@@ -245,7 +283,7 @@ export default function MenuPage() {
             <div className="flex gap-8">
               {/* Sidebar - Categories */}
               <aside className="w-64 flex-shrink-0">
-                <div className="sticky top-24">
+                <div className="sticky top-32">
                   <h2 className="text-sm font-bold text-[var(--fg-muted)] uppercase mb-3">Категории</h2>
                   <nav className="space-y-1">
                     <button
