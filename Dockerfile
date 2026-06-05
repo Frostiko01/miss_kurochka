@@ -1,13 +1,29 @@
 # ============================================
 # Dockerfile для Miss Kurochka (Next.js 16)
 # Оптимизирован для Timeweb App Platform
+#
+# Используется Debian-based образ node:20-slim вместо Alpine.
+# Причина: сборочная сеть Timeweb стабильно не может достучаться
+# до dl-cdn.alpinelinux.org (DNS: transient error), из-за чего
+# apk не скачивает индекс пакетов и падает с "no such package".
+# Debian тянет пакеты с deb.debian.org, glibc уже встроен
+# (libc6-compat не нужен), а openssl ставится из репозитория Debian.
 # ============================================
 
 # Этап 1: Установка зависимостей
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
 
-# Устанавливаем необходимые системные зависимости
-RUN apk add --no-cache libc6-compat openssl
+# openssl нужен Prisma; ca-certificates — для HTTPS.
+# Retry на случай временных сетевых сбоев при сборке.
+RUN set -eux; \
+    ok=0; \
+    for i in 1 2 3 4 5; do \
+      if apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates; then ok=1; break; fi; \
+      echo "apt-get: попытка $i не удалась, повтор через 5с..."; \
+      sleep 5; \
+    done; \
+    [ "$ok" = "1" ]; \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -19,9 +35,20 @@ RUN npm ci --legacy-peer-deps
 
 # ============================================
 # Этап 2: Сборка приложения
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
+
+# openssl нужен Prisma на этапе generate/build
+RUN set -eux; \
+    ok=0; \
+    for i in 1 2 3 4 5; do \
+      if apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates; then ok=1; break; fi; \
+      echo "apt-get: попытка $i не удалась, повтор через 5с..."; \
+      sleep 5; \
+    done; \
+    [ "$ok" = "1" ]; \
+    rm -rf /var/lib/apt/lists/*
 
 # Копируем node_modules из предыдущего этапа
 COPY --from=deps /app/node_modules ./node_modules
@@ -63,26 +90,42 @@ RUN npm run build
 
 # ============================================
 # Этап 3: Production образ
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
 
-# Устанавливаем необходимые системные зависимости для production
-RUN apk add --no-cache openssl
+# openssl нужен Prisma в рантайме
+RUN set -eux; \
+    ok=0; \
+    for i in 1 2 3 4 5; do \
+      if apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates; then ok=1; break; fi; \
+      echo "apt-get: попытка $i не удалась, повтор через 5с..."; \
+      sleep 5; \
+    done; \
+    [ "$ok" = "1" ]; \
+    rm -rf /var/lib/apt/lists/*
 
 # Создаем пользователя для безопасности
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid nodejs nextjs
 
 # Копируем необходимые файлы из builder
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Копируем Prisma схему и миграции для возможности запуска миграций
+# Копируем Prisma схему, конфиг и миграции для синхронизации БД при старте
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
+
+# Копируем entrypoint-скрипт и делаем исполняемым
+COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
+RUN chmod +x ./docker-entrypoint.sh
 
 # Устанавливаем права доступа
 RUN chown -R nextjs:nodejs /app
@@ -99,5 +142,5 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# Запускаем приложение
-CMD ["node", "server.js"]
+# Запускаем приложение через entrypoint (синхронизация БД + старт)
+CMD ["./docker-entrypoint.sh"]

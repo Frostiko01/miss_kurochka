@@ -1,0 +1,6 @@
+# Гарантируем LF для shell-скриптов — иначе контейнер не запустит entrypoint
+*.sh text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Прочие текстовые файлы — нормализованные переносы строк
+* text=auto
