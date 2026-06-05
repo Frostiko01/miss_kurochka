@@ -116,14 +116,18 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Копируем Prisma схему, конфиг и миграции для синхронизации БД при старте
+# Копируем Prisma схему и миграции для синхронизации БД при старте.
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
-COPY --from=builder /app/node_modules/.bin ./node_modules/.bin
+
+# Копируем ПОЛНЫЙ node_modules из builder.
+# Причина: entrypoint выполняет `prisma db push` для синхронизации схемы БД.
+# CLI Prisma 7 при старте подтягивает @prisma/config и его зависимости
+# (c12, effect, jiti, deepmerge-ts, empathic), которые лежат в корне
+# node_modules. Частичное копирование (.prisma/@prisma/prisma) их теряло,
+# из-за чего db push молча падал, схема БД оставалась устаревшей, и запросы
+# к корзине возвращали 500. Полный node_modules гарантирует наличие и CLI,
+# и сгенерированного клиента, и корректного Linux-движка (собран на Debian).
+COPY --from=builder /app/node_modules ./node_modules
 
 # Копируем entrypoint-скрипт и делаем исполняемым
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
