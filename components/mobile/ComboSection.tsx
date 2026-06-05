@@ -18,6 +18,10 @@ interface Props {
   onComboClick: (combo: ComboItem) => void
   onAddCombo: (id: string) => void
   onRemoveCombo: (cartItemId: string, qty: number) => void
+  /** Заголовок секции (по умолчанию «Комбо») */
+  title?: string
+  /** Текст бейджа над заголовком (по умолчанию «Выгодно») */
+  badge?: string
 }
 
 export default function ComboSection({
@@ -26,6 +30,8 @@ export default function ComboSection({
   onComboClick,
   onAddCombo,
   onRemoveCombo,
+  title = 'Комбо',
+  badge = 'Выгодно',
 }: Props) {
   if (combos.length === 0) return null
 
@@ -38,9 +44,9 @@ export default function ComboSection({
             style={{ backgroundColor: 'var(--brand-soft)', color: 'var(--brand)' }}
           >
             <Flame className="w-3 h-3" />
-            Выгодно
+            {badge}
           </span>
-          <h2 className="text-xl font-extrabold tracking-tight mt-1.5">Комбо</h2>
+          <h2 className="text-xl font-extrabold tracking-tight mt-1.5">{title}</h2>
         </div>
       </div>
 

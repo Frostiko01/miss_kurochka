@@ -61,8 +61,8 @@ function cleanAddress(address: string): string {
 interface CartApiItem {
   id: string
   quantity: number
-  menuItem?: { id: string } | null
-  comboOffer?: { id: string } | null
+  menuItem?: { id: string; price?: number | string } | null
+  comboOffer?: { id: string; price?: number | string } | null
 }
 
 interface CartApiResponse {
@@ -93,20 +93,25 @@ export default function Home() {
   const [showItemModal, setShowItemModal] = useState(false)
   const [cartItems, setCartItems] = useState<{ [key: string]: { quantity: number; cartItemId: string } }>({})
   const [comboItems, setComboItems] = useState<{ [key: string]: { quantity: number; cartItemId: string } }>({})
+  const [mobileCartTotal, setMobileCartTotal] = useState(0)
   const [selectedCombo, setSelectedCombo] = useState<LandingCombo | null>(null)
 
   const syncCart = (cartData: CartApiResponse | null | undefined) => {
     const itemsMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
     const combosMap: { [key: string]: { quantity: number; cartItemId: string } } = {}
+    let total = 0
     cartData?.items?.forEach((item) => {
       if (item.menuItem) {
         itemsMap[item.menuItem.id] = { quantity: item.quantity, cartItemId: item.id }
+        total += Number(item.menuItem.price ?? 0) * item.quantity
       } else if (item.comboOffer) {
         combosMap[item.comboOffer.id] = { quantity: item.quantity, cartItemId: item.id }
+        total += Number(item.comboOffer.price ?? 0) * item.quantity
       }
     })
     setCartItems(itemsMap)
     setComboItems(combosMap)
+    setMobileCartTotal(total)
   }
 
   // Модалка регистрации при первом входе (только для гостей)
@@ -238,6 +243,7 @@ export default function Home() {
       Promise.resolve().then(() => {
         setCartItems({})
         setComboItems({})
+        setMobileCartTotal(0)
       })
       return
     }
@@ -421,10 +427,12 @@ export default function Home() {
           activeCategory="all"
           items={popularItems}
           combos={comboDeals}
+          miniCombos={miniComboDeals}
           cartItems={cartItems}
           comboItems={comboItems}
           cartCount={Object.values(cartItems).reduce((s, c) => s + c.quantity, 0)
             + Object.values(comboItems).reduce((s, c) => s + c.quantity, 0)}
+          cartTotal={mobileCartTotal}
           onBranchChange={(id) => setSelectedBranch(id)}
           onCategoryChange={() => {}}
           onItemClick={handleItemClick}

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
-import { Search, ChevronRight, Sparkles } from 'lucide-react'
+import { Search, ChevronRight, Sparkles, ShoppingBag } from 'lucide-react'
 
 import MobileHeader from './MobileHeader'
 import SidebarDrawer from './SidebarDrawer'
@@ -27,9 +27,11 @@ interface Props {
   activeCategory: string
   items: ProductCardItem[]
   combos: ComboItem[]
+  miniCombos: ComboItem[]
   cartItems: Record<string, { quantity: number; cartItemId: string }>
   comboItems: Record<string, { quantity: number; cartItemId: string }>
   cartCount: number
+  cartTotal: number
   onBranchChange: (id: string | null) => void
   onCategoryChange: (id: string) => void
   onItemClick: (item: ProductCardItem) => void
@@ -125,6 +127,17 @@ export default function MobileHome(props: Props) {
           onRemoveCombo={props.onRemoveCombo}
         />
 
+        {/* Mini Combos */}
+        <ComboSection
+          combos={props.miniCombos}
+          cartByComboId={props.comboItems}
+          onComboClick={props.onComboClick}
+          onAddCombo={props.onAddCombo}
+          onRemoveCombo={props.onRemoveCombo}
+          title="Мини-комбо"
+          badge="Быстрый перекус"
+        />
+
         {/* Categories — только если переданы */}
         {props.categories.length > 0 && (
           <div>
@@ -178,6 +191,34 @@ export default function MobileHome(props: Props) {
 
         {/* Recent orders убраны — история заказов доступна в разделе "Заказы" */}
       </main>
+
+      {/* Плавающая корзина — ярлык с ценой, ведёт в корзину */}
+      {props.cartCount > 0 && (
+        <button
+          onClick={() => router.push('/cart')}
+          className="fixed left-4 right-4 z-40 flex items-center gap-3 px-4 py-3 rounded-2xl text-white shadow-lg active:scale-[0.98] transition-transform"
+          style={{
+            bottom: 'calc(env(safe-area-inset-bottom, 0) + 76px)',
+            background:
+              'linear-gradient(135deg, var(--brand) 0%, var(--brand-dark) 100%)',
+            boxShadow: '0 12px 32px rgba(214,35,0,0.28)',
+          }}
+        >
+          <span className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+            <ShoppingBag className="w-[18px] h-[18px]" />
+          </span>
+          <span className="flex-1 text-left">
+            <span className="block text-[10px] font-bold uppercase tracking-wider opacity-85">
+              В корзине {props.cartCount}{' '}
+              {props.cartCount === 1 ? 'товар' : 'товаров'}
+            </span>
+            <span className="block text-sm font-extrabold">
+              Оформить · {props.cartTotal} сом
+            </span>
+          </span>
+          <span className="text-base font-extrabold">→</span>
+        </button>
+      )}
     </>
   )
 }
