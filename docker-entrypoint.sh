@@ -33,3 +33,4 @@ fi
 
 echo "==> Запуск приложения..."
 exec node server.js
+
