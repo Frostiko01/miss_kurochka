@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Nunito } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -10,8 +11,18 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
+  applicationName: "Miss Kurochka",
   title: "Miss Kurochka - Самая вкусная курочка",
   description: "Заказывайте вкусную курицу, бургеры и напитки онлайн. Быстрая доставка и самовывоз.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Miss Kurochka",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   icons: {
     icon: [
       { url: '/favicon.ico', sizes: '48x48', type: 'image/x-icon' },
@@ -24,12 +35,12 @@ export const metadata: Metadata = {
   },
 };
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  viewportFit: "cover" as const,
-  themeColor: "#ffffff",
+  viewportFit: "cover",
+  themeColor: "#d62300",
 };
 
 export default function RootLayout({
@@ -54,6 +65,7 @@ export default function RootLayout({
         <Providers>
           {children}
         </Providers>
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

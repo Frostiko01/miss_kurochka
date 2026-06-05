@@ -71,6 +71,7 @@ export default function HomePage() {
   const [menuCategories, setMenuCategories] = useState<any[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string>("all");
   const [combos, setCombos] = useState<any[]>([]);
+  const [miniCombos, setMiniCombos] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [cartTotal, setCartTotal] = useState(0);
@@ -156,7 +157,14 @@ export default function HomePage() {
     try {
       const res = await fetch("/api/combo-offers");
       const data = await res.json();
-      if (res.ok) setCombos(data.combos?.slice(0, 4) ?? []);
+      if (res.ok) {
+        const all = data.combos ?? [];
+        // Разделяем по типу: обычные комбо и мини-комбо
+        const regular = all.filter((c: any) => c.type !== "mini");
+        const mini = all.filter((c: any) => c.type === "mini");
+        setCombos(regular.slice(0, 4));
+        setMiniCombos(mini);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -597,6 +605,115 @@ export default function HomePage() {
                       <span className="badge badge-brand shrink-0">
                         <Flame className="w-3 h-3" />
                         Выгодно
+                      </span>
+                    </div>
+                    {combo.items && Array.isArray(combo.items) && (
+                      <ul className="space-y-0.5 mb-3 flex-1">
+                        {combo.items
+                          .slice(0, 3)
+                          .map((item: string, i: number) => (
+                            <li
+                              key={i}
+                              className="text-xs text-[var(--fg-muted)] flex items-center gap-1.5"
+                            >
+                              <span className="w-1 h-1 bg-[var(--brand)] rounded-full shrink-0" />
+                              <span className="truncate">{item}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                    <div className="flex items-center justify-between mt-auto">
+                      <div>
+                        {combo.oldPrice && (
+                          <p className="text-[10px] text-[var(--fg-subtle)] line-through">
+                            {combo.oldPrice} сом
+                          </p>
+                        )}
+                        <p className="text-base font-extrabold text-[var(--brand)]">
+                          {combo.price} сом
+                        </p>
+                      </div>
+                      {(() => {
+                        const cartRef = comboCartItems[combo.id];
+                        const qty = cartRef?.quantity ?? 0;
+                        return qty > 0 ? (
+                          <div className="flex items-center gap-0.5 bg-[var(--brand)] rounded-full p-0.5">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateCartItemById(cartRef.cartItemId, qty - 1);
+                              }}
+                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                              aria-label="Уменьшить"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="font-bold text-xs text-white min-w-[16px] text-center">
+                              {qty}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                addComboToCart(combo.id);
+                              }}
+                              className="w-7 h-7 flex items-center justify-center text-white hover:bg-white/20 rounded-full transition"
+                              aria-label="Увеличить"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => addComboToCart(combo.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand)] hover:text-white transition"
+                            aria-label="Добавить в корзину"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ── MINI COMBOS ── */}
+        {miniCombos.length > 0 && (
+          <section>
+            <SectionHeader
+              title="Мини-комбо"
+              icon={<Sparkles className="w-4 h-4" />}
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {miniCombos.map((combo) => (
+                <div
+                  key={combo.id}
+                  className="card card-hover overflow-hidden flex relative"
+                >
+                  <div className="w-28 sm:w-36 shrink-0 bg-[var(--bg-muted)]">
+                    {combo.imageUrl ? (
+                      <img
+                        src={combo.imageUrl}
+                        alt={combo.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-3xl">
+                        🍗
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-4 flex flex-col flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-2 pr-6">
+                      <h3 className="text-sm font-extrabold leading-tight">
+                        {combo.name}
+                      </h3>
+                      <span className="badge badge-brand shrink-0">
+                        <Sparkles className="w-3 h-3" />
+                        Мини
                       </span>
                     </div>
                     {combo.items && Array.isArray(combo.items) && (
