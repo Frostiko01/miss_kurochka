@@ -30,7 +30,8 @@ interface Category {
   id: string
   name: string
   imageUrl?: string | null
-  menuItems: MenuItem[]
+  menuItems?: MenuItem[]
+  items?: MenuItem[] // API возвращает items
 }
 
 interface CartItem {
@@ -56,16 +57,38 @@ export default function MenuPage() {
     fetch('/api/menu')
       .then((r) => r.json())
       .then((data) => {
-        const grouped = data.grouped as Record<string, Category[]> | undefined
-        if (grouped) {
-          const allCats: Category[] = [
+        console.log('Menu API response:', data) // Для отладки
+        
+        // Проверяем, есть ли grouped
+        if (data.grouped) {
+          const grouped = data.grouped as Record<string, any[]>
+          const allCats = [
             ...(grouped.regular ?? []),
+            ...(grouped.combo ?? []),
             ...(grouped.mini_combo ?? []),
-          ].filter((c) => c.menuItems && c.menuItems.length > 0)
-          setCategories(allCats)
+          ]
+            .map((c: any) => ({
+              ...c,
+              menuItems: c.items || c.menuItems || [], // Нормализуем данные
+            }))
+            .filter((c: any) => c.menuItems && c.menuItems.length > 0)
+          
+          console.log('Loaded categories:', allCats.length, 'categories') // Для отладки
+          setCategories(allCats as Category[])
+        } else if (data.categories) {
+          // Fallback: если нет grouped, используем categories напрямую
+          const cats = (data.categories as any[])
+            .map((c: any) => ({
+              ...c,
+              menuItems: c.items || c.menuItems || [],
+            }))
+            .filter((c: any) => c.menuItems && c.menuItems.length > 0)
+          setCategories(cats as Category[])
         }
       })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('Error loading menu:', err)
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -166,7 +189,7 @@ export default function MenuPage() {
 
   const filteredCategories = categories.map(cat => ({
     ...cat,
-    menuItems: cat.menuItems.filter(item =>
+    menuItems: (cat.items || cat.menuItems || []).filter(item =>
       item.name.toLowerCase().includes(search.toLowerCase())
     )
   })).filter(cat => cat.menuItems.length > 0)
@@ -297,20 +320,23 @@ export default function MenuPage() {
                       Все блюда
                       <span className="float-right text-xs opacity-70">{allItems.length}</span>
                     </button>
-                    {categories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setActiveCategory(cat.id)}
-                        className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
-                          activeCategory === cat.id
-                            ? 'bg-[var(--brand)] text-white'
-                            : 'text-[var(--fg)] hover:bg-[var(--bg-muted)]'
-                        }`}
-                      >
-                        {cat.name}
-                        <span className="float-right text-xs opacity-70">{cat.menuItems.length}</span>
-                      </button>
-                    ))}
+                    {categories.map((cat) => {
+                      const itemCount = (cat.items || cat.menuItems || []).length
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => setActiveCategory(cat.id)}
+                          className={`w-full text-left px-4 py-2.5 rounded-lg text-sm font-semibold transition ${
+                            activeCategory === cat.id
+                              ? 'bg-[var(--brand)] text-white'
+                              : 'text-[var(--fg)] hover:bg-[var(--bg-muted)]'
+                          }`}
+                        >
+                          {cat.name}
+                          <span className="float-right text-xs opacity-70">{itemCount}</span>
+                        </button>
+                      )
+                    })}
                   </nav>
                 </div>
               </aside>
