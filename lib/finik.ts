@@ -284,87 +284,154 @@ export async function createFinikPayment(data: CreatePaymentData): Promise<strin
   }
   if (signature) headers['signature'] = signature
 
-  console.log('🚀 Creating Finik payment:', {
-    url,
+  // Уникальный идентификатор для сквозного трейсинга платежа в логах
+  const traceId = crypto.randomUUID().slice(0, 8)
+  const bodyString = JSON.stringify(body)
+
+  const log = (emoji: string, msg: string, extra?: Record<string, unknown>) => {
+    const base = `[FINIK ${traceId}] ${emoji} ${msg}`
+    if (extra) console.log(base, JSON.stringify(extra))
+    else console.log(base)
+  }
+
+  log('🧾', 'Параметры платежа', {
     env: FINIK_ENV,
+    url,
     amount: data.amount,
     workId: data.workId,
+    paymentId,
+    appUrl: APP_URL,
+    accountId: FINIK_ACCOUNT_ID ? '***' + FINIK_ACCOUNT_ID.slice(-6) : 'missing',
+    apiKey: FINIK_API_KEY ? '***' + FINIK_API_KEY.slice(-4) : 'missing',
     hasSignature: !!signature,
     timestamp,
-    headers: {
-      ...headers,
-      'x-api-key': headers['x-api-key'] ? '***' + headers['x-api-key'].slice(-4) : 'missing',
-    },
-    bodyPreview: {
-      Amount: body.Amount,
-      CardType: body.CardType,
-      PaymentId: body.PaymentId,
-      accountId: body.Data.accountId,
-    }
+    bodyBytes: bodyString.length,
   })
 
-  let response
-  try {
-    console.log('📤 Sending request to Finik...')
-    response = await fetch(url, {
-      method: requestData.httpMethod,
-      headers,
-      body: JSON.stringify(body),
-      redirect: 'manual',
+  // Полный body печатаем отдельно (без секретов) — поможет при разборе с Finik
+  log('📦', 'Тело запроса', {
+    Amount: body.Amount,
+    CardType: body.CardType,
+    PaymentId: body.PaymentId,
+    RedirectUrl: body.RedirectUrl,
+    CancelUrl: body.CancelUrl,
+    Data: {
+      ...body.Data,
+      accountId: body.Data.accountId ? '***' + String(body.Data.accountId).slice(-6) : undefined,
+    },
+  })
+
+  // Повтор при сбое шлюза Finik (502/503/504) или сетевой ошибке.
+  // Их backend периодически падает с 502 — короткий retry часто спасает платёж.
+  const MAX_ATTEMPTS = 3
+  const RETRY_DELAY_MS = 1500
+  const RETRYABLE_STATUSES = [502, 503, 504]
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+  let response: Response | undefined
+  let lastErrorText = ''
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const attemptStart = Date.now()
+    log('📤', `Отправка запроса в Finik (попытка ${attempt}/${MAX_ATTEMPTS})...`)
+
+    try {
+      response = await fetch(url, {
+        method: requestData.httpMethod,
+        headers,
+        body: bodyString,
+        redirect: 'manual',
+      })
+    } catch (fetchError) {
+      const ms = Date.now() - attemptStart
+      log('❌', `Сетевая ошибка за ${ms}мс`, {
+        message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
+        attempt,
+      })
+      if (attempt < MAX_ATTEMPTS) {
+        log('⏳', `Повтор через ${RETRY_DELAY_MS}мс...`)
+        await sleep(RETRY_DELAY_MS)
+        continue
+      }
+      throw new Error(
+        `Failed to connect to Finik API: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`,
+      )
+    }
+
+    const ms = Date.now() - attemptStart
+    log('📡', `Ответ Finik за ${ms}мс`, {
+      status: response.status,
+      statusText: response.statusText,
+      location: response.headers.get('location')?.slice(0, 100) ?? null,
+      contentType: response.headers.get('content-type'),
     })
-    console.log('✅ Request sent successfully')
-  } catch (fetchError) {
-    console.error('❌ Fetch error details:', {
-      error: fetchError,
-      message: fetchError instanceof Error ? fetchError.message : 'Unknown error',
-      stack: fetchError instanceof Error ? fetchError.stack : undefined,
-      url,
-      method: requestData.httpMethod,
+
+    // Успешный редирект — платёжная страница готова
+    if (response.status === 302 || response.status === 301) {
+      const paymentUrl = response.headers.get('location')
+      if (!paymentUrl) {
+        log('❌', 'Редирект без Location — URL платежа не найден')
+        throw new Error('Payment URL not found in Finik response')
+      }
+      if (paymentUrl.includes('status=failed')) {
+        log('⚠️', 'URL платежа содержит status=failed', { paymentUrl })
+      }
+      log('✅', 'Платёж создан, получен URL платёжной страницы', { paymentUrl: paymentUrl.slice(0, 120) })
+      return paymentUrl
+    }
+
+    // JSON-ответ с url (некоторые версии API)
+    if (response.ok) {
+      try {
+        const json = await response.json()
+        log('📦', 'JSON-ответ Finik', json)
+        const possibleUrl = (json?.url ?? json?.paymentUrl ?? json?.location) as string | undefined
+        if (possibleUrl) {
+          log('✅', 'Платёж создан (URL из JSON)', { paymentUrl: possibleUrl.slice(0, 120) })
+          return possibleUrl
+        }
+        log('⚠️', 'JSON-ответ без URL платежа')
+      } catch {
+        log('⚠️', 'Не удалось разобрать JSON-ответ')
+      }
+    }
+
+    lastErrorText = await response.text().catch(() => '')
+    log('❌', 'Finik вернул ошибку', {
+      status: response.status,
+      statusText: response.statusText,
+      body: lastErrorText.slice(0, 300),
+      attempt,
     })
+
+    // Повторяем только при сбое шлюза
+    if (RETRYABLE_STATUSES.includes(response.status) && attempt < MAX_ATTEMPTS) {
+      log('⏳', `Сбой шлюза Finik (${response.status}), повтор через ${RETRY_DELAY_MS}мс...`)
+      await sleep(RETRY_DELAY_MS)
+      continue
+    }
+    break
+  }
+
+  if (!response) {
+    throw new Error('Finik API: нет ответа после всех попыток')
+  }
+
+  log('🛑', `Платёж не создан после ${MAX_ATTEMPTS} попыток`, {
+    finalStatus: response.status,
+  })
+
+  // 502/503/504 — сбой на стороне платёжного шлюза Finik (их backend упал),
+  // запрос и подпись корректны. Сообщаем об этом отдельно, чтобы не путать
+  // с ошибкой конфигурации на нашей стороне.
+  if (RETRYABLE_STATUSES.includes(response.status)) {
     throw new Error(
-      `Failed to connect to Finik API: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`,
+      `Платёжный сервис Finik временно недоступен (HTTP ${response.status}). ` +
+      `Это сбой на стороне Finik — повторите оплату позже или обратитесь в поддержку Finik.`,
     )
   }
 
-  console.log('📡 Finik API Response:', {
-    status: response.status,
-    statusText: response.statusText,
-    headers: Object.fromEntries(response.headers.entries()),
-  })
-
-  // Finik отвечает 302 с URL платёжной страницы в Location
-  if (response.status === 302 || response.status === 301) {
-    const paymentUrl = response.headers.get('location')
-    if (!paymentUrl) {
-      throw new Error('Payment URL not found in Finik response')
-    }
-    if (paymentUrl.includes('status=failed')) {
-      console.error('Finik payment URL contains status=failed:', paymentUrl)
-    }
-    return paymentUrl
-  }
-
-  // Некоторые версии могут вернуть JSON с url
-  if (response.ok) {
-    try {
-      const json = await response.json()
-      console.log('📦 Finik JSON Response:', json)
-      const possibleUrl = (json?.url ?? json?.paymentUrl ?? json?.location) as
-        | string
-        | undefined
-      if (possibleUrl) return possibleUrl
-    } catch {}
-  }
-
-  const errorText = await response.text().catch(() => '')
-  console.error('❌ Finik payment creation failed:', {
-    status: response.status,
-    statusText: response.statusText,
-    error: errorText,
-    requestBody: body,
-    requestHeaders: headers,
-  })
-  throw new Error(`Finik payment creation failed (${response.status}): ${errorText}`)
+  throw new Error(`Finik payment creation failed (${response.status}): ${lastErrorText}`)
 }
 
 /**

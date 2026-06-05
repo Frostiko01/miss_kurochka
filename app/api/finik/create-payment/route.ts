@@ -22,11 +22,21 @@ import { pickBestBranch } from '@/lib/branchSelector'
 const FIXED_AMOUNT = 5
 
 export async function POST(request: NextRequest) {
+  const reqId = Math.random().toString(36).slice(2, 8)
+  const t0 = Date.now()
+  const plog = (msg: string, extra?: Record<string, unknown>) => {
+    const base = `[PAY ${reqId}] ${msg} (+${Date.now() - t0}мс)`
+    if (extra) console.log(base, JSON.stringify(extra))
+    else console.log(base)
+  }
   try {
+    plog('▶️ Старт создания платежа')
     const session = await auth()
     if (!session?.user?.id) {
+      plog('⛔ Не авторизован')
       return NextResponse.json({ error: 'Не авторизован' }, { status: 401 })
     }
+    plog('👤 Пользователь авторизован', { userId: session.user.id })
 
     const body = await request.json()
     const {
@@ -98,8 +108,10 @@ export async function POST(request: NextRequest) {
     })
 
     if (!cart || cart.items.length === 0) {
+      plog('🛒 Корзина пуста')
       return NextResponse.json({ error: 'Корзина пуста' }, { status: 400 })
     }
+    plog('🛒 Корзина получена', { cartId: cart.id, itemsCount: cart.items.length, orderType })
 
     // Подбор филиала
     const picked = await pickBestBranch({
@@ -118,8 +130,10 @@ export async function POST(request: NextRequest) {
         })
       }
     }
+    plog('🏬 Филиал определён', { branchId, picked: picked?.branchId ?? null })
 
     if (!branchId) {
+      plog('⛔ Филиал не определён')
       return NextResponse.json(
         { error: 'Не удалось определить филиал. Пожалуйста, попробуйте снова.' },
         { status: 400 },
@@ -241,6 +255,8 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    plog('💰 Сумма заказа посчитана', { orderNumber, totalAmount, itemsInOrder: orderItemsData.length })
+
     // Создаём заказ со статусом pending — он ещё не виден филиалу как "оплаченный".
     // Платёж пока тоже pending — переключим на completed в webhook.
     const order = await prisma.order.create({
@@ -273,11 +289,12 @@ export async function POST(request: NextRequest) {
         payments: true,
       },
     })
+    plog('📝 Заказ создан в БД (pending)', { orderId: order.id, orderNumber: order.orderNumber })
 
     // Создаём платёж в Finik. Цена ФИКСИРОВАННАЯ — 5 сом.
     let paymentUrl: string
     try {
-      console.log('🔄 Attempting to create Finik payment...')
+      plog('🔄 Вызываем createFinikPayment...', { amount: FIXED_AMOUNT, orderId: order.id })
       paymentUrl = await createFinikPayment({
         amount: FIXED_AMOUNT,
         workId: order.id,
@@ -286,29 +303,39 @@ export async function POST(request: NextRequest) {
       })
       console.log('✅ Finik payment created successfully:', paymentUrl)
     } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      plog('❌ Ошибка создания платежа Finik', { message: msg, orderId: order.id })
       console.error('❌ Failed to create Finik payment:', {
         error: e,
-        message: e instanceof Error ? e.message : 'Unknown error',
+        message: msg,
         stack: e instanceof Error ? e.stack : undefined,
         orderId: order.id,
         orderNumber: order.orderNumber,
       })
-      
+
       // Откатываем заказ если не получилось создать платёж
       await prisma.order
         .delete({ where: { id: order.id } })
+        .then(() => plog('↩️ Заказ откатан (удалён) после ошибки платежа', { orderId: order.id }))
         .catch((deleteError) => {
+          plog('⚠️ Не удалось удалить заказ после ошибки платежа', { orderId: order.id })
           console.error('Failed to delete order after payment error:', deleteError)
         })
-      console.error('[finik/create-payment] Failed to create Finik payment:', e)
+      // Если упал сам шлюз Finik (502/503/504) — отдаём 503 с понятным текстом,
+      // чтобы фронт показал «сервис оплаты недоступен», а не общую ошибку.
+      const isGatewayDown = /Finik временно недоступен|HTTP 50[234]/.test(msg)
+      plog('🔚 Возврат ошибки клиенту', { status: isGatewayDown ? 503 : 500, isGatewayDown })
       return NextResponse.json(
         {
-          error: 'Не удалось создать платёж. Попробуйте позже.',
-          details: e instanceof Error ? e.message : 'Unknown error',
+          error: isGatewayDown
+            ? 'Платёжный сервис временно недоступен. Попробуйте оплатить позже.'
+            : 'Не удалось создать платёж. Попробуйте позже.',
+          details: msg,
         },
-        { status: 500 },
+        { status: isGatewayDown ? 503 : 500 },
       )
     }
+    plog('✅ Платёж Finik создан, есть URL', { orderId: order.id })
 
     // Уведомляем филиал и админа о новом (но ещё не оплаченном) заказе
     const itemsCount = order.items.reduce((s, it) => s + it.quantity, 0)
@@ -323,6 +350,8 @@ export async function POST(request: NextRequest) {
       orderType: order.orderType as 'pickup' | 'delivery',
       itemsCount,
     })
+    plog('🔔 Уведомление о новом заказе отправлено')
+    plog('🏁 Готово, отдаём paymentUrl клиенту')
 
     return NextResponse.json({
       success: true,
@@ -332,6 +361,7 @@ export async function POST(request: NextRequest) {
       amount: FIXED_AMOUNT,
     })
   } catch (error) {
+    plog('💥 Необработанная ошибка', { message: error instanceof Error ? error.message : 'Unknown error' })
     console.error('Error creating Finik payment:', error)
     return NextResponse.json(
       {
