@@ -132,6 +132,7 @@ model MenuItem {
   updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   cartItems          CartItem[]
   comboItems         ComboOfferItem[]
+  miniComboItems     MiniComboItem[]
   images             MenuItemImage[]
   modifiers          MenuItemModifier[]
   sizes              MenuItemSize[]
@@ -272,10 +273,12 @@ model CartItem {
   createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
   comboOfferId String?            @map("combo_offer_id") @db.Uuid
+  miniComboId  String?            @map("mini_combo_id") @db.Uuid
   modifiers    CartItemModifier[]
   spices       CartItemSpice[]
   cart         Cart               @relation(fields: [cartId], references: [id], onDelete: Cascade)
   comboOffer   ComboOffer?        @relation(fields: [comboOfferId], references: [id], onDelete: Cascade)
+  miniCombo    MiniCombo?         @relation(fields: [miniComboId], references: [id], onDelete: Cascade)
   menuItem     MenuItem?          @relation(fields: [menuItemId], references: [id])
   size         MenuItemSize?      @relation(fields: [sizeId], references: [id])
 
@@ -342,9 +345,11 @@ model OrderItem {
   itemComment  String?             @map("item_comment")
   createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   comboOfferId String?             @map("combo_offer_id") @db.Uuid
+  miniComboId  String?             @map("mini_combo_id") @db.Uuid
   itemName     String              @map("item_name") @db.VarChar(300)
   modifiers    OrderItemModifier[]
   comboOffer   ComboOffer?         @relation(fields: [comboOfferId], references: [id])
+  miniCombo    MiniCombo?          @relation(fields: [miniComboId], references: [id])
   menuItem     MenuItem?           @relation(fields: [menuItemId], references: [id])
   order        Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -705,4 +710,36 @@ model NewsletterSubscriber {
   updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("newsletter_subscribers")
+}
+
+model MiniCombo {
+  id          String          @id @default(uuid()) @db.Uuid
+  name        String          @db.VarChar(300)
+  nameI18n    Json?           @map("name_i18n")
+  description String?
+  price       Decimal         @db.Decimal(10, 2)
+  oldPrice    Decimal?        @map("old_price") @db.Decimal(10, 2)
+  imageUrl    String          @map("image_url")
+  isActive    Boolean         @default(true) @map("is_active")
+  sortOrder   Int             @default(0) @map("sort_order")
+  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime        @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cartItems   CartItem[]
+  items       MiniComboItem[]
+  orderItems  OrderItem[]
+
+  @@map("mini_combos")
+}
+
+model MiniComboItem {
+  id          String    @id @default(uuid()) @db.Uuid
+  miniComboId String    @map("mini_combo_id") @db.Uuid
+  menuItemId  String    @map("menu_item_id") @db.Uuid
+  quantity    Int       @default(1) @db.SmallInt
+  sortOrder   Int       @default(0) @map("sort_order") @db.SmallInt
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  miniCombo   MiniCombo @relation(fields: [miniComboId], references: [id], onDelete: Cascade)
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@map("mini_combo_items")
 }
