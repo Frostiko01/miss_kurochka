@@ -15,6 +15,8 @@ export async function GET(request: NextRequest) {
     const branchId = searchParams.get("branchId") || "all";
 
     const where: any = {};
+    // Скрываем неоплаченные finik-заказы из админ-панели тоже.
+    where.NOT = { paymentMethod: "finik", status: "pending" };
 
     if (search) {
       where.OR = [
@@ -80,7 +82,10 @@ export async function GET(request: NextRequest) {
         take: 200,
       }),
       prisma.order.count({
-        where: { status: { in: ["pending", "confirmed"] } },
+        where: {
+          status: { in: ["pending", "confirmed"] },
+          NOT: { paymentMethod: "finik", status: "pending" },
+        },
       }),
     ]);
 

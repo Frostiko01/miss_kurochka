@@ -5,6 +5,7 @@ import {
   isTimestampValid,
   FinikWebhookData,
 } from '@/lib/finik'
+import { notifyNewOrder } from '@/lib/notifications'
 
 /**
  * POST /api/finik/webhook
@@ -113,11 +114,23 @@ export async function POST(request: NextRequest) {
         })
         wlog('💳 Платёж обновлён на completed', { updated: payRes.count })
 
+        // Защита от повторной обработки одного и того же webhook (Finik
+        // ретраит при отсутствии 2xx). Если платёж уже был completed —
+        // payRes.count === 0, дальнейшие действия не нужны.
+        if (payRes.count === 0) {
+          wlog('ℹ️ Платёж уже был обработан ранее — пропускаем уведомление и обновление')
+          return NextResponse.json({ success: true, alreadyProcessed: true })
+        }
+
         // 2. Подтверждаем заказ — теперь филиал видит его как оплаченный
         // и может начинать готовить
-        await prisma.order.update({
+        const confirmedOrder = await prisma.order.update({
           where: { id: workId },
           data: { status: 'confirmed' },
+          include: {
+            items: true,
+            branch: { select: { id: true, name: true } },
+          },
         })
         wlog('📦 Заказ переведён в confirmed', { orderId: workId })
 
@@ -128,6 +141,28 @@ export async function POST(request: NextRequest) {
         if (cart) {
           await prisma.cartItem.deleteMany({ where: { cartId: cart.id } })
           wlog('🛒 Корзина очищена', { cartId: cart.id })
+        }
+
+        // 4. Уведомляем филиал и админа — заказ оплачен и готов к производству
+        try {
+          const itemsCount = confirmedOrder.items.reduce((s, it) => s + it.quantity, 0)
+          await notifyNewOrder({
+            orderId: confirmedOrder.id,
+            orderNumber: confirmedOrder.orderNumber,
+            branchId: confirmedOrder.branchId,
+            branchName: confirmedOrder.branch?.name,
+            customerName: confirmedOrder.customerName,
+            customerPhone: confirmedOrder.customerPhone,
+            totalAmount: Number(confirmedOrder.totalAmount),
+            orderType: confirmedOrder.orderType as 'pickup' | 'delivery',
+            itemsCount,
+          })
+          wlog('🔔 Уведомление о новом оплаченном заказе отправлено')
+        } catch (notifyError) {
+          // Уведомление не критично для платежа — логируем и идём дальше
+          wlog('⚠️ Не удалось отправить уведомление', {
+            message: notifyError instanceof Error ? notifyError.message : 'Unknown',
+          })
         }
 
         wlog('🎉 ОПЛАТА УСПЕШНА', { order: workId, amount: body.amount, tx: body.transactionId })
@@ -148,7 +183,13 @@ export async function POST(request: NextRequest) {
             where: { orderId: workId, status: 'pending' },
             data: { status: 'failed' },
           })
-          wlog('🔴 Платёж помечен как failed', { order: workId, updated: failRes.count })
+          // Заказ тоже помечаем как cancelled, чтобы он не висел в pending
+          // и не мешал клиенту повторить попытку оплаты новым заказом.
+          await prisma.order.updateMany({
+            where: { id: workId, status: 'pending' },
+            data: { status: 'cancelled', cancelledAt: new Date() },
+          })
+          wlog('🔴 Платёж и заказ помечены как failed/cancelled', { order: workId, updated: failRes.count })
           console.error(
             `[finik/webhook] PAYMENT_FAILED · order=${workId} · tx=${body.transactionId}`,
           )

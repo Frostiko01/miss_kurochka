@@ -373,9 +373,10 @@ export async function createFinikPayment(data: CreatePaymentData): Promise<strin
         log('❌', 'Редирект без Location — URL платежа не найден')
         throw new Error('Payment URL not found in Finik response')
       }
-      if (paymentUrl.includes('status=failed')) {
-        log('⚠️', 'URL платежа содержит status=failed', { paymentUrl })
-      }
+      // ВАЖНО: URL платежа Finik ВСЕГДА содержит подстроку `status=failed`,
+      // потому что внутри лежит параметр `failure_redirect_url=...&status=failed`.
+      // Это URL, на который Finik отправит пользователя ПРИ неудаче — не индикатор сбоя.
+      // Поэтому проверять `paymentUrl.includes('status=failed')` бессмысленно.
       log('✅', 'Платёж создан, получен URL платёжной страницы', { paymentUrl: paymentUrl.slice(0, 120) })
       return paymentUrl
     }

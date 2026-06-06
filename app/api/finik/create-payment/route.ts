@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createFinikPayment } from '@/lib/finik'
-import { notifyNewOrder } from '@/lib/notifications'
 import { pickBestBranch } from '@/lib/branchSelector'
 
 /**
@@ -337,20 +336,8 @@ export async function POST(request: NextRequest) {
     }
     plog('✅ Платёж Finik создан, есть URL', { orderId: order.id })
 
-    // Уведомляем филиал и админа о новом (но ещё не оплаченном) заказе
-    const itemsCount = order.items.reduce((s, it) => s + it.quantity, 0)
-    await notifyNewOrder({
-      orderId: order.id,
-      orderNumber: order.orderNumber,
-      branchId: order.branchId,
-      branchName: order.branch?.name,
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      totalAmount: Number(order.totalAmount),
-      orderType: order.orderType as 'pickup' | 'delivery',
-      itemsCount,
-    })
-    plog('🔔 Уведомление о новом заказе отправлено')
+    // Уведомление филиала ОТЛОЖЕНО до момента успешной оплаты (см. webhook).
+    // До оплаты заказ pending и не должен показываться филиалу как новый.
     plog('🏁 Готово, отдаём paymentUrl клиенту')
 
     return NextResponse.json({

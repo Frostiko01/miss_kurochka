@@ -26,6 +26,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "100");
 
     const where: any = { branchId: branchUser.branchId };
+    // Скрываем неоплаченные finik-заказы — пока не пришёл webhook с подтверждением,
+    // заказ не должен показываться филиалу.
+    where.NOT = { paymentMethod: "finik", status: "pending" };
     if (search) {
       where.OR = [
         { orderNumber: { contains: search, mode: "insensitive" } },
@@ -85,6 +88,8 @@ export async function GET(request: NextRequest) {
         where: {
           branchId: branchUser.branchId,
           status: { in: ["pending", "confirmed"] },
+          // Тот же фильтр и для счётчика «новых»
+          NOT: { paymentMethod: "finik", status: "pending" },
         },
       }),
     ]);
