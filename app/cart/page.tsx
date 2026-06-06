@@ -149,25 +149,35 @@ export default function CartPage() {
     }
 
     const selected = savedAddresses.find(a => a.id === selectedAddressId)
-    const lat =
-      (selected as any)?.latitude !== undefined
-        ? Number((selected as any).latitude)
-        : addressForm.coordinates?.lat
-    const lng =
-      (selected as any)?.longitude !== undefined
-        ? Number((selected as any).longitude)
-        : addressForm.coordinates?.lng
+
+    // Берём координаты только если они валидные. ВАЖНО: в БД координаты могут быть
+    // null (адрес введён вручную без карты). Number(null) === 0 — это ломало подбор
+    // (0,0 = Гвинейский залив, ~8757 км от Бишкека). Поэтому строго проверяем число.
+    const toValidCoord = (v: unknown): number | null => {
+      if (v === null || v === undefined || v === '') return null
+      const n = Number(v)
+      return Number.isFinite(n) && n !== 0 ? n : null
+    }
+
+    const selLat = selected ? toValidCoord((selected as any).latitude) : null
+    const selLng = selected ? toValidCoord((selected as any).longitude) : null
+    const formLat = toValidCoord(addressForm.coordinates?.lat)
+    const formLng = toValidCoord(addressForm.coordinates?.lng)
+
+    // Координаты валидны только если есть И широта, И долгота
+    const lat = selLat !== null && selLng !== null ? selLat : formLat
+    const lng = selLat !== null && selLng !== null ? selLng : formLng
     const addressLine = selected?.addressLine ?? addressForm.addressLine
 
-    if (!addressLine && !lat) return
+    if (!addressLine && lat === null) return
 
     setLoadingNearest(true)
     fetch('/api/branches/nearest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        latitude: lat ?? null,
-        longitude: lng ?? null,
+        latitude: lat,
+        longitude: lng,
         addressLine: addressLine ?? null,
       }),
     })

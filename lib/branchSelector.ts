@@ -32,9 +32,10 @@ export async function geocodeAddress(address: string): Promise<Coord | null> {
       ? address
       : `${address}, Бишкек`
 
+    // structured=false: обычный поиск; добавляем город и страну для точности.
     const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
       enrichedQuery,
-    )}&limit=1&accept-language=ru&countrycodes=kg`
+    )}&limit=1&accept-language=ru&countrycodes=kg&addressdetails=0`
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 5000)
@@ -61,6 +62,12 @@ export async function geocodeAddress(address: string): Promise<Coord | null> {
     const lat = parseFloat(data[0].lat)
     const lng = parseFloat(data[0].lon)
     if (isNaN(lat) || isNaN(lng)) return null
+    // Проверяем, что результат в пределах Кыргызстана (Nominatim иногда
+    // возвращает совпадения из других стран при нечётком адресе)
+    if (lat < 39 || lat > 44 || lng < 69 || lng > 81) {
+      console.warn('[geocodeAddress] Result out of KG bounds:', lat, lng, 'for', enrichedQuery)
+      return null
+    }
     console.log('[geocodeAddress] Geocoded:', enrichedQuery, '→', lat, lng)
     return { lat, lng }
   } catch (e) {
@@ -91,6 +98,22 @@ function findNearestBranch(
 
   if (!best) return null
   return { branchId: best.id, distanceKm: best.distance, reason }
+}
+
+/**
+ * Проверяет, что координата валидна и находится в разумных пределах Кыргызстана.
+ * Отсекает (0,0) и явный мусор, из-за которого подбор филиала ломался
+ * (например, Number(null) === 0 давал ~8757 км до Бишкека).
+ */
+function isValidKgCoord(coord: Coord | null | undefined): coord is Coord {
+  if (!coord) return false
+  const { lat, lng } = coord
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
+  if (lat === 0 || lng === 0) return false
+  // Границы Кыргызстана с запасом
+  if (lat < 39 || lat > 44) return false
+  if (lng < 69 || lng > 81) return false
+  return true
 }
 
 interface PickBranchArgs {
@@ -140,8 +163,10 @@ export async function pickBestBranch(
     }
   }
 
-  // 2) Поиск ближайшего по координатам
-  let coord: Coord | null = args.customerCoord ?? null
+  // 2) Поиск ближайшего по координатам (только если они валидны)
+  let coord: Coord | null = isValidKgCoord(args.customerCoord)
+    ? args.customerCoord
+    : null
 
   if (coord) {
     const nearest = findNearestBranch(coord, branches, 'nearest_by_coord')
@@ -155,8 +180,9 @@ export async function pickBestBranch(
 
   // 3) Если координат нет — геокодируем текст адреса
   if (!coord && args.addressText) {
-    coord = await geocodeAddress(args.addressText)
-    if (coord) {
+    const geocoded = await geocodeAddress(args.addressText)
+    if (isValidKgCoord(geocoded)) {
+      coord = geocoded
       const nearest = findNearestBranch(coord, branches, 'nearest_by_geocode')
       if (nearest) {
         console.log(
