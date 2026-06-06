@@ -109,13 +109,14 @@ export default function HomePage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      Promise.all([
-        fetchPopularItems(),
-        fetchCombos(),
-        fetchRecentOrders(),
-        fetchCart(),
-        fetchBranches(),
-      ]).finally(() => setLoading(false));
+      // Меню — главный контент. Снимаем спиннер сразу после него,
+      // не дожидаясь второстепенных данных (комбо, заказы, корзина, филиалы).
+      fetchPopularItems().finally(() => setLoading(false));
+      // Остальное грузим параллельно в фоне
+      fetchCombos();
+      fetchRecentOrders();
+      fetchCart();
+      fetchBranches();
     }
   }, [status]);
 

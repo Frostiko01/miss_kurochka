@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { pickBestBranch } from "@/lib/branchSelector";
+import { cached } from "@/lib/serverCache";
 
 // Отключаем статическое кэширование Next.js — роут динамический (читает searchParams)
 export const dynamic = "force-dynamic";
@@ -33,106 +34,110 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Один объединённый запрос вместо двух последовательных
-    const categories = await prisma.menuCategory.findMany({
-      where: { status: "active" },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        nameI18n: true,
-        description: true,
-        imageUrl: true,
-        type: true,
-        sortOrder: true,
-        branchId: true,
-        branch: { select: { id: true, name: true } },
-        menuItems: {
-          where: { isActive: true },
-          select: {
-            id: true,
-            name: true,
-            nameI18n: true,
-            description: true,
-            descriptionI18n: true,
-            cookingTimeMinutes: true,
-            ingredients: true,
-            spicyLevel: true,
-            isVegetarian: true,
-            isVegan: true,
-            isFeatured: true,
-            isNew: true,
-            images: {
-              orderBy: { isPrimary: "desc" },
-              select: { id: true, imageUrl: true, isPrimary: true },
-            },
-            sizes: {
-              where: { isActive: true },
-              orderBy: { sortOrder: "asc" },
-              select: {
-                id: true,
-                name: true,
-                price: true,
-                weightGrams: true,
-                sortOrder: true,
+    // Тяжёлый запрос меню кэшируем ГЛОБАЛЬНО (без стоп-листа) на 60 сек.
+    // Стоп-лист зависит от филиала и должен быть всегда свежим, поэтому его
+    // грузим отдельным лёгким запросом ниже и применяем фильтром.
+    const categories = await cached("menu:categories:all", 60_000, () =>
+      prisma.menuCategory.findMany({
+        where: { status: "active" },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: {
+          id: true,
+          name: true,
+          nameI18n: true,
+          description: true,
+          imageUrl: true,
+          type: true,
+          sortOrder: true,
+          branchId: true,
+          branch: { select: { id: true, name: true } },
+          menuItems: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              name: true,
+              nameI18n: true,
+              description: true,
+              descriptionI18n: true,
+              cookingTimeMinutes: true,
+              ingredients: true,
+              spicyLevel: true,
+              isVegetarian: true,
+              isVegan: true,
+              isFeatured: true,
+              isNew: true,
+              images: {
+                orderBy: { isPrimary: "desc" },
+                select: { id: true, imageUrl: true, isPrimary: true },
               },
-            },
-            spices: {
-              where: { isActive: true },
-              orderBy: { sortOrder: "asc" },
-              select: { id: true, name: true, price: true, sortOrder: true },
-            },
-            modifiers: {
-              orderBy: { sortOrder: "asc" },
-              select: {
-                id: true,
-                sortOrder: true,
-                modifierGroup: {
-                  select: {
-                    id: true,
-                    name: true,
-                    nameI18n: true,
-                    selectionType: true,
-                    isRequired: true,
-                    minSelections: true,
-                    maxSelections: true,
-                    options: {
-                      where: { isActive: true },
-                      orderBy: { createdAt: "asc" },
-                      select: {
-                        id: true,
-                        name: true,
-                        nameI18n: true,
-                        priceDelta: true,
-                        isDefault: true,
+              sizes: {
+                where: { isActive: true },
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  weightGrams: true,
+                  sortOrder: true,
+                },
+              },
+              spices: {
+                where: { isActive: true },
+                orderBy: { sortOrder: "asc" },
+                select: { id: true, name: true, price: true, sortOrder: true },
+              },
+              modifiers: {
+                orderBy: { sortOrder: "asc" },
+                select: {
+                  id: true,
+                  sortOrder: true,
+                  modifierGroup: {
+                    select: {
+                      id: true,
+                      name: true,
+                      nameI18n: true,
+                      selectionType: true,
+                      isRequired: true,
+                      minSelections: true,
+                      maxSelections: true,
+                      options: {
+                        where: { isActive: true },
+                        orderBy: { createdAt: "asc" },
+                        select: {
+                          id: true,
+                          name: true,
+                          nameI18n: true,
+                          priceDelta: true,
+                          isDefault: true,
+                        },
                       },
                     },
                   },
                 },
               },
             },
-            // Стоп-лист только если передан branchId
-            ...(branchId
-              ? {
-                  stopList: {
-                    where: { branchId, restoredAt: null },
-                    select: { id: true },
-                  },
-                }
-              : {}),
           },
         },
-      },
-    });
+      }),
+    );
+
+    // Стоп-лист филиала — отдельный лёгкий запрос, всегда актуальный (не кэшируется).
+    let stopSet: Set<string> | null = null;
+    if (branchId) {
+      const stops = await prisma.stopList.findMany({
+        where: { branchId, restoredAt: null },
+        select: { menuItemId: true },
+      });
+      stopSet = new Set(stops.map((s) => s.menuItemId));
+    }
 
     // Формируем ответ
     const categoriesWithItems = categories.map((category) => {
       const items = category.menuItems
         .filter((item) => {
-          if (!branchId) return true;
-          // stopList есть только когда branchId передан
-          const sl = (item as any).stopList;
-          return !sl || sl.length === 0;
+          if (!stopSet) return true;
+          // Скрываем блюда из актуального стоп-листа филиала
+          return !stopSet.has(item.id);
         })
         .map((item) => ({
           id: item.id,
