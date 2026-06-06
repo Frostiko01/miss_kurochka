@@ -673,6 +673,7 @@ enum VerificationCodeType {
 enum ReportType {
   sales
   orders
+  order_items
   menu_items
   customers
   popular_items

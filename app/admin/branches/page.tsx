@@ -233,6 +233,11 @@ export default function AdminBranchesPage() {
       errors.phone = "Неверный формат телефона. Используйте +996 XXX XXX XXX";
     }
 
+    // Пароль необязателен при редактировании, но если введён — минимум 6 символов
+    if (formData.branchPassword.trim() && formData.branchPassword.trim().length < 6) {
+      errors.branchPassword = "Пароль должен быть не менее 6 символов";
+    }
+
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) {
       return;
@@ -254,10 +259,12 @@ export default function AdminBranchesPage() {
           latitude: formData.latitude || null,
           longitude: formData.longitude || null,
           status: formData.isActive ? "active" : "inactive",
+          branchPassword: formData.branchPassword.trim() || undefined,
         }),
       });
 
       if (response.ok) {
+        const data = await response.json();
         setShowEditModal(false);
         setEditingBranch(null);
         setFormData({
@@ -272,7 +279,9 @@ export default function AdminBranchesPage() {
         });
         setFormErrors({});
         setToast({
-          message: "Филиал успешно обновлен!",
+          message: data.passwordUpdated
+            ? "Филиал обновлён, пароль изменён!"
+            : "Филиал успешно обновлен!",
           type: "success",
         });
         fetchBranches();
@@ -1341,6 +1350,32 @@ export default function AdminBranchesPage() {
                     </p>
                   </div>
                 </label>
+              </div>
+
+              {/* Change Password */}
+              <div>
+                <label className="block text-sm font-bold text-white mb-2">
+                  Новый пароль для входа филиала
+                </label>
+                <input
+                  type="text"
+                  value={formData.branchPassword}
+                  onChange={(e) =>
+                    setFormData({ ...formData, branchPassword: e.target.value })
+                  }
+                  className={`w-full px-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border ${
+                    formErrors.branchPassword ? "border-red-500" : ""
+                  }`}
+                  placeholder="Оставьте пустым, чтобы не менять"
+                  style={{ backgroundColor: '#050c26', borderColor: formErrors.branchPassword ? '#ef4444' : '#242b47' }}
+                />
+                {formErrors.branchPassword ? (
+                  <p className="mt-2 text-sm text-red-400">{formErrors.branchPassword}</p>
+                ) : (
+                  <p className="mt-2 text-xs" style={{ color: '#78819d' }}>
+                    Минимум 6 символов. Применяется к учётной записи входа этого филиала.
+                  </p>
+                )}
               </div>
 
               {/* Buttons */}

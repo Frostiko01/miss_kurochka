@@ -99,6 +99,121 @@ async function buildSalesSection(args: CollectArgs): Promise<ReportSection> {
   }
 }
 
+// Детализация по блюдам внутри каждого заказа
+// Показывает конкретно какие блюда проданы, в каком количестве и по какой цене
+async function buildOrderItemsDetailSection(args: CollectArgs): Promise<ReportSection> {
+  const where: any = {
+    createdAt: { gte: args.period.start, lte: args.period.end },
+  }
+  if (args.branchId) where.branchId = args.branchId
+
+  const orders = await prisma.order.findMany({
+    where,
+    select: {
+      orderNumber: true,
+      createdAt: true,
+      status: true,
+      orderType: true,
+      totalAmount: true,
+      branch: { select: { name: true } },
+      items: {
+        select: {
+          itemName: true,
+          quantity: true,
+          unitPrice: true,
+          totalPrice: true,
+          itemComment: true,
+          modifiers: {
+            select: {
+              priceDelta: true,
+              modifierOption: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 1000,
+  })
+
+  const rows: (string | number)[][] = []
+  let totalQty = 0
+  let totalItemsRevenue = 0
+
+  for (const o of orders) {
+    const orderDate = fmtDateTime(o.createdAt)
+    const typeLabel = o.orderType === 'pickup' ? 'Самовывоз' : 'Доставка'
+    const statusLabel = ORDER_STATUS_LABELS[o.status] ?? o.status
+
+    if (o.items.length === 0) {
+      rows.push([
+        o.orderNumber,
+        orderDate,
+        '— позиции отсутствуют —',
+        0,
+        fmtMoney(0),
+        fmtMoney(0),
+        statusLabel,
+        ...(args.branchId ? [] : [o.branch.name]),
+      ])
+      continue
+    }
+
+    for (const it of o.items) {
+      const modifiers =
+        it.modifiers.length > 0
+          ? ` (${it.modifiers
+              .map((m) => {
+                const delta = Number(m.priceDelta)
+                return delta !== 0
+                  ? `${m.modifierOption.name} ${delta > 0 ? '+' : ''}${delta.toFixed(0)}`
+                  : m.modifierOption.name
+              })
+              .join(', ')})`
+          : ''
+      const comment = it.itemComment ? ` [${it.itemComment}]` : ''
+      const qty = it.quantity
+      const lineTotal = Number(it.totalPrice)
+      totalQty += qty
+      totalItemsRevenue += lineTotal
+
+      rows.push([
+        o.orderNumber,
+        orderDate,
+        `${it.itemName}${modifiers}${comment}`,
+        qty,
+        fmtMoney(Number(it.unitPrice)),
+        fmtMoney(lineTotal),
+        statusLabel,
+        ...(args.branchId ? [] : [o.branch.name]),
+      ])
+    }
+  }
+
+  const cols = [
+    '№ заказа',
+    'Дата',
+    'Блюдо',
+    'Кол-во',
+    'Цена за ед.',
+    'Сумма',
+    'Статус',
+  ]
+  if (!args.branchId) cols.push('Филиал')
+
+  return {
+    title: 'Детализация по блюдам',
+    columns: cols,
+    rows,
+    summary: [
+      { label: 'Всего заказов', value: String(orders.length) },
+      { label: 'Всего позиций (строк)', value: String(rows.length) },
+      { label: 'Всего блюд продано (шт.)', value: String(totalQty) },
+      { label: 'Сумма по позициям', value: fmtMoney(totalItemsRevenue) },
+    ],
+  }
+}
+
 // Отчет по заказам (детальный список)
 async function buildOrdersSection(args: CollectArgs): Promise<ReportSection> {
   const where: any = {
@@ -357,6 +472,10 @@ export async function collectReportData(args: CollectArgs): Promise<ReportData> 
       break
     case 'orders':
       sections.push(await safeBuild('Список заказов', () => buildOrdersSection(args)))
+      sections.push(await safeBuild('Детализация по блюдам', () => buildOrderItemsDetailSection(args)))
+      break
+    case 'order_items':
+      sections.push(await safeBuild('Детализация по блюдам', () => buildOrderItemsDetailSection(args)))
       break
     case 'menu_items':
       sections.push(await safeBuild('Блюда меню и продажи', () => buildMenuItemsSection(args)))
@@ -372,6 +491,7 @@ export async function collectReportData(args: CollectArgs): Promise<ReportData> 
       sections.push(await safeBuild('Топ популярных блюд', () => buildPopularItemsSection(args)))
       sections.push(await safeBuild('Активные клиенты', () => buildCustomersSection(args)))
       sections.push(await safeBuild('Список заказов', () => buildOrdersSection(args)))
+      sections.push(await safeBuild('Детализация по блюдам', () => buildOrderItemsDetailSection(args)))
       break
   }
 

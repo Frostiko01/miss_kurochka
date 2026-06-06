@@ -203,7 +203,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { id, name, address, phone, latitude, longitude, status } = body;
+    const { id, name, address, phone, latitude, longitude, status, branchPassword } = body;
 
     if (!id || !name || !address || !phone) {
       return NextResponse.json(
@@ -237,9 +237,41 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      branch: updatedBranch 
+    // Если передан новый пароль — обновляем его у пользователя-филиала
+    let passwordUpdated = false;
+    if (branchPassword && String(branchPassword).trim().length > 0) {
+      if (String(branchPassword).trim().length < 6) {
+        return NextResponse.json(
+          { error: "Пароль должен быть не менее 6 символов" },
+          { status: 400 }
+        );
+      }
+
+      // Находим пользователя, связанного с филиалом
+      const branchUser = await prisma.branchUser.findFirst({
+        where: { branchId: id },
+      });
+
+      if (branchUser) {
+        const bcrypt = require("bcryptjs");
+        const hashedPassword = await bcrypt.hash(String(branchPassword).trim(), 10);
+        await prisma.user.update({
+          where: { id: branchUser.userId },
+          data: { passwordHash: hashedPassword },
+        });
+        passwordUpdated = true;
+      } else {
+        return NextResponse.json(
+          { error: "У этого филиала нет связанного пользователя для смены пароля" },
+          { status: 400 }
+        );
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      branch: updatedBranch,
+      passwordUpdated,
     });
   } catch (error) {
     console.error("Error updating branch:", error);

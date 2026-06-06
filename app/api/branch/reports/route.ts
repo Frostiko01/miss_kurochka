@@ -10,6 +10,7 @@ import type {
 const VALID_TYPES: ReportTypeKey[] = [
   'sales',
   'orders',
+  'order_items',
   'menu_items',
   'customers',
   'popular_items',

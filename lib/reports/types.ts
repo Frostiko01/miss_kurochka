@@ -3,6 +3,7 @@
 export type ReportTypeKey =
   | 'sales'
   | 'orders'
+  | 'order_items'
   | 'menu_items'
   | 'customers'
   | 'popular_items'
@@ -44,6 +45,7 @@ export interface ReportData {
 export const REPORT_TYPE_LABELS: Record<ReportTypeKey, string> = {
   sales: 'Отчет по продажам',
   orders: 'Отчет по заказам',
+  order_items: 'Детализация по блюдам',
   menu_items: 'Отчет по блюдам',
   customers: 'Отчет по клиентам',
   popular_items: 'Популярные блюда',

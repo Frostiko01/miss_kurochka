@@ -134,11 +134,11 @@ export async function getDashboardStats(
         })
       : Promise.resolve(0),
 
-    // Ожидающие подтверждения
+    // Ожидающие обработки (только новые, ещё не подтверждённые заказы)
     prisma.order.count({
       where: {
         ...branchFilter,
-        status: { in: ['pending', 'confirmed'] },
+        status: 'pending',
       },
     }),
 

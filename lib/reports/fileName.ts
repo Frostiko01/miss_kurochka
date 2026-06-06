@@ -3,6 +3,7 @@ import type { ReportFormatKey, ReportTypeKey } from './types'
 const TYPE_SLUGS: Record<ReportTypeKey, string> = {
   sales: 'sales',
   orders: 'orders',
+  order_items: 'order-items',
   menu_items: 'menu',
   customers: 'customers',
   popular_items: 'popular',

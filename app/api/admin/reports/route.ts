@@ -7,6 +7,7 @@ import type { ReportFormatKey, ReportTypeKey } from '@/lib/reports/types'
 const VALID_TYPES: ReportTypeKey[] = [
   'sales',
   'orders',
+  'order_items',
   'menu_items',
   'customers',
   'popular_items',
