@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { geocodeAddress } from "@/lib/branchSelector";
 
 // GET - Получить адреса пользователя
 export async function GET(request: NextRequest) {
@@ -72,6 +73,36 @@ export async function POST(request: NextRequest) {
           ? Number(longitude)
           : null;
 
+    // Проверяем валидность координат (в пределах Кыргызстана, не 0,0)
+    const isValidCoord = (la: number | null, ln: number | null) =>
+      la !== null &&
+      ln !== null &&
+      !isNaN(la) &&
+      !isNaN(ln) &&
+      la !== 0 &&
+      ln !== 0 &&
+      la >= 39 &&
+      la <= 44 &&
+      ln >= 69 &&
+      ln <= 81;
+
+    let finalLat = isValidCoord(lat, lng) ? lat : null;
+    let finalLng = isValidCoord(lat, lng) ? lng : null;
+
+    // Если координат нет (адрес введён вручную без карты) — геокодируем текст,
+    // чтобы заказ сразу уходил в ближайший филиал и расстояние считалось верно.
+    if (finalLat === null || finalLng === null) {
+      try {
+        const geo = await geocodeAddress(addressLine);
+        if (geo) {
+          finalLat = geo.lat;
+          finalLng = geo.lng;
+        }
+      } catch (e) {
+        console.warn("[addresses] Geocode failed, saving without coords:", e);
+      }
+    }
+
     const address = await prisma.deliveryAddress.create({
       data: {
         userId: session.user.id,
@@ -81,8 +112,8 @@ export async function POST(request: NextRequest) {
         floor: floor || null,
         intercom: intercom || null,
         comment: comment || null,
-        latitude: lat !== null && !isNaN(lat) ? lat : null,
-        longitude: lng !== null && !isNaN(lng) ? lng : null,
+        latitude: finalLat,
+        longitude: finalLng,
       },
     });
 
