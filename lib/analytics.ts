@@ -2,6 +2,39 @@ import { prisma } from '@/lib/prisma'
 
 const REVENUE_STATUSES = ['completed', 'ready', 'delivering'] as const
 
+// Методы оплаты, требующие онлайн-оплаты до начала обработки заказа.
+// Пока такой заказ не оплачен, он НЕ должен считаться «ждёт обработки».
+const ONLINE_PAYMENT_METHODS = ['finik', 'online'] as const
+
+// Через сколько минут неоплаченный онлайн-заказ считается брошенным
+// и автоматически отменяется (чтобы не висел в «ждут обработки»).
+const STALE_UNPAID_MINUTES = 60
+
+/**
+ * Автоматически отменяет «зависшие» неоплаченные онлайн-заказы.
+ * Это заказы со статусом pending и онлайн-оплатой, у которых нет
+ * завершённого платежа и которые созданы давно (клиент не оплатил).
+ * Best-effort: ошибки не должны ломать загрузку дашборда.
+ */
+export async function cleanupStaleUnpaidOrders(): Promise<number> {
+  try {
+    const threshold = new Date(Date.now() - STALE_UNPAID_MINUTES * 60 * 1000)
+    const result = await prisma.order.updateMany({
+      where: {
+        status: 'pending',
+        paymentMethod: { in: [...ONLINE_PAYMENT_METHODS] },
+        createdAt: { lt: threshold },
+        payments: { none: { status: 'completed' } },
+      },
+      data: { status: 'cancelled', cancelledAt: new Date() },
+    })
+    return result.count
+  } catch (e) {
+    console.error('[analytics] cleanupStaleUnpaidOrders failed:', e)
+    return 0
+  }
+}
+
 interface AnalyticsArgs {
   branchId?: string // если не передан — по всем филиалам (для админа)
   daysBack?: number // глубина графика, по умолчанию 7
@@ -53,6 +86,10 @@ const DAY_LABELS_RU = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 export async function getDashboardStats(
   args: AnalyticsArgs = {},
 ): Promise<DashboardStats> {
+  // Сначала чистим зависшие неоплаченные онлайн-заказы, чтобы они
+  // не отображались как «ждут обработки» (ложные уведомления).
+  await cleanupStaleUnpaidOrders()
+
   const branchFilter: any = args.branchId ? { branchId: args.branchId } : {}
   const daysBack = args.daysBack ?? 7
 
@@ -134,11 +171,17 @@ export async function getDashboardStats(
         })
       : Promise.resolve(0),
 
-    // Ожидающие обработки (только новые, ещё не подтверждённые заказы)
+    // Ожидающие обработки: новые заказы (pending), но БЕЗ неоплаченных
+    // онлайн-заказов. Онлайн-заказ считается требующим обработки только
+    // когда оплата завершена (есть платёж со статусом completed).
     prisma.order.count({
       where: {
         ...branchFilter,
         status: 'pending',
+        OR: [
+          { paymentMethod: { notIn: [...ONLINE_PAYMENT_METHODS] } },
+          { payments: { some: { status: 'completed' } } },
+        ],
       },
     }),
 

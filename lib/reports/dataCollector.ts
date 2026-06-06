@@ -114,6 +114,8 @@ async function buildOrderItemsDetailSection(args: CollectArgs): Promise<ReportSe
       createdAt: true,
       status: true,
       orderType: true,
+      customerName: true,
+      customerPhone: true,
       totalAmount: true,
       branch: { select: { name: true } },
       items: {
@@ -140,25 +142,42 @@ async function buildOrderItemsDetailSection(args: CollectArgs): Promise<ReportSe
   let totalQty = 0
   let totalItemsRevenue = 0
 
+  const cols = [
+    '№ заказа',
+    'Дата',
+    'Клиент',
+    'Тип',
+    'Блюдо',
+    'Кол-во',
+    'Цена за ед.',
+    'Сумма',
+    'Статус',
+  ]
+  if (!args.branchId) cols.push('Филиал')
+
   for (const o of orders) {
     const orderDate = fmtDateTime(o.createdAt)
     const typeLabel = o.orderType === 'pickup' ? 'Самовывоз' : 'Доставка'
     const statusLabel = ORDER_STATUS_LABELS[o.status] ?? o.status
+    const branchTail = args.branchId ? [] : [o.branch.name]
 
     if (o.items.length === 0) {
       rows.push([
         o.orderNumber,
         orderDate,
+        o.customerName,
+        typeLabel,
         '— позиции отсутствуют —',
         0,
         fmtMoney(0),
         fmtMoney(0),
         statusLabel,
-        ...(args.branchId ? [] : [o.branch.name]),
+        ...branchTail,
       ])
       continue
     }
 
+    let orderQty = 0
     for (const it of o.items) {
       const modifiers =
         it.modifiers.length > 0
@@ -175,31 +194,37 @@ async function buildOrderItemsDetailSection(args: CollectArgs): Promise<ReportSe
       const qty = it.quantity
       const lineTotal = Number(it.totalPrice)
       totalQty += qty
+      orderQty += qty
       totalItemsRevenue += lineTotal
 
       rows.push([
         o.orderNumber,
         orderDate,
+        o.customerName,
+        typeLabel,
         `${it.itemName}${modifiers}${comment}`,
         qty,
         fmtMoney(Number(it.unitPrice)),
         fmtMoney(lineTotal),
         statusLabel,
-        ...(args.branchId ? [] : [o.branch.name]),
+        ...branchTail,
       ])
     }
-  }
 
-  const cols = [
-    '№ заказа',
-    'Дата',
-    'Блюдо',
-    'Кол-во',
-    'Цена за ед.',
-    'Сумма',
-    'Статус',
-  ]
-  if (!args.branchId) cols.push('Филиал')
+    // Итоговая строка по заказу — общая сумма заказа
+    rows.push([
+      o.orderNumber,
+      '',
+      '',
+      '',
+      'ИТОГО по заказу',
+      orderQty,
+      '',
+      fmtMoney(Number(o.totalAmount)),
+      statusLabel,
+      ...branchTail,
+    ])
+  }
 
   return {
     title: 'Детализация по блюдам',
@@ -207,9 +232,12 @@ async function buildOrderItemsDetailSection(args: CollectArgs): Promise<ReportSe
     rows,
     summary: [
       { label: 'Всего заказов', value: String(orders.length) },
-      { label: 'Всего позиций (строк)', value: String(rows.length) },
       { label: 'Всего блюд продано (шт.)', value: String(totalQty) },
       { label: 'Сумма по позициям', value: fmtMoney(totalItemsRevenue) },
+      {
+        label: 'Общая сумма заказов',
+        value: fmtMoney(orders.reduce((s, o) => s + Number(o.totalAmount), 0)),
+      },
     ],
   }
 }
