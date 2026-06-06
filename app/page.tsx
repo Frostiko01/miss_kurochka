@@ -13,6 +13,7 @@ import { useTranslations } from '@/app/i18n/hooks/useTranslations'
 import MenuItemModal from '@/components/MenuItemModal'
 import Select from '@/components/ui/Select'
 import MobileHome from '@/components/mobile/MobileHome'
+import BranchClosedModal from '@/components/BranchClosedModal'
 import {
   Flame, ChevronRight, Phone, Clock, MapPin, Plus, Minus,
   Menu as MenuIcon, X, Sparkles, Truck, Award, Heart,
@@ -1711,6 +1712,9 @@ export default function Home() {
       {/* Modals */}
       <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
       <NewsletterModal isOpen={showNewsletterModal} onClose={() => setShowNewsletterModal(false)} />
+
+      {/* Окно "филиалы закрыты" — только в нерабочее время (23:00–11:00 по КГ) */}
+      <BranchClosedModal />
       <MenuItemModal
         item={selectedMenuItem}
         isOpen={showItemModal}

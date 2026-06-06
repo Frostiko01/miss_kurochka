@@ -33,6 +33,7 @@ import MenuCard from "@/components/MenuCard";
 import MenuItemCard from "@/components/MenuItemCard";
 import SideMenu from "@/components/SideMenu";
 import AiChatModal from "@/components/AiChatModal";
+import BranchClosedModal from "@/components/BranchClosedModal";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Ожидает",
@@ -1075,6 +1076,9 @@ export default function HomePage() {
 
       {/* Модальное окно ИИ чата */}
       <AiChatModal isOpen={aiChatOpen} onClose={() => setAiChatOpen(false)} />
+
+      {/* Окно "филиалы закрыты" — показывается только в нерабочее время (23:00–11:00) */}
+      <BranchClosedModal />
     </div>
   );
 }
