@@ -54,7 +54,17 @@ export default function MenuPage() {
 
   // Загрузка меню
   useEffect(() => {
-    fetch('/api/menu')
+    // Учитываем филиал из localStorage (определён по геолокации на лендинге),
+    // чтобы скрывать блюда из стоп-листа этого филиала.
+    let branchQuery = ''
+    try {
+      const savedBranch =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('selectedBranchId')
+          : null
+      if (savedBranch) branchQuery = `?branchId=${savedBranch}`
+    } catch {}
+    fetch(`/api/menu${branchQuery}`)
       .then((r) => r.json())
       .then((data) => {
         console.log('Menu API response:', data) // Для отладки

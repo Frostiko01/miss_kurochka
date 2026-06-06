@@ -201,6 +201,8 @@ model StopList {
   restorer         User?     @relation("RestoredBy", fields: [restoredBy], references: [id])
   stopper          User      @relation("StoppedBy", fields: [stoppedBy], references: [id])
 
+  @@index([branchId, restoredAt])
+  @@index([branchId, menuItemId, restoredAt])
   @@map("stop_list")
 }
 
@@ -282,6 +284,7 @@ model CartItem {
   menuItem     MenuItem?          @relation(fields: [menuItemId], references: [id])
   size         MenuItemSize?      @relation(fields: [sizeId], references: [id])
 
+  @@index([cartId])
   @@map("cart_items")
 }
 
@@ -292,6 +295,7 @@ model CartItemModifier {
   cartItem         CartItem       @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
   modifierOption   ModifierOption @relation(fields: [modifierOptionId], references: [id])
 
+  @@index([cartItemId])
   @@map("cart_item_modifiers")
 }
 
@@ -302,6 +306,7 @@ model CartItemSpice {
   cartItem   CartItem      @relation(fields: [cartItemId], references: [id], onDelete: Cascade)
   spice      MenuItemSpice @relation(fields: [spiceId], references: [id])
 
+  @@index([cartItemId])
   @@map("cart_item_spices")
 }
 

@@ -109,9 +109,9 @@ export default function HomePage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      // Меню — главный контент. Снимаем спиннер сразу после него,
-      // не дожидаясь второстепенных данных (комбо, заказы, корзина, филиалы).
-      fetchPopularItems().finally(() => setLoading(false));
+      // Сначала определяем филиал (по сохранённому или геолокации), затем грузим меню
+      // с учётом стоп-листа этого филиала. Меню — главный контент, снимаем спиннер после него.
+      resolveBranchThenLoadMenu().finally(() => setLoading(false));
       // Остальное грузим параллельно в фоне
       fetchCombos();
       fetchRecentOrders();
@@ -120,9 +120,64 @@ export default function HomePage() {
     }
   }, [status]);
 
-  const fetchPopularItems = async () => {
+  // Определяет филиал (из localStorage или по геолокации) и грузит меню под него.
+  const resolveBranchThenLoadMenu = async () => {
+    let branchId: string | null = null;
     try {
-      const res = await fetch("/api/menu");
+      branchId =
+        typeof window !== "undefined"
+          ? localStorage.getItem("selectedBranchId")
+          : null;
+    } catch {}
+
+    // Если филиал ещё не определён — пробуем геолокацию (с таймаутом, не блокируем надолго)
+    if (!branchId && typeof navigator !== "undefined" && navigator.geolocation) {
+      branchId = await new Promise<string | null>((resolve) => {
+        let settled = false;
+        const done = (v: string | null) => {
+          if (!settled) {
+            settled = true;
+            resolve(v);
+          }
+        };
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            try {
+              const res = await fetch("/api/branches/nearest", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                }),
+              });
+              const data = await res.json();
+              if (res.ok && data.branch?.id) {
+                try {
+                  localStorage.setItem("selectedBranchId", data.branch.id);
+                } catch {}
+                done(data.branch.id);
+              } else done(null);
+            } catch {
+              done(null);
+            }
+          },
+          () => done(null),
+          { timeout: 4000, maximumAge: 300000 },
+        );
+        // Страховочный таймаут, чтобы не ждать геолокацию дольше 4.5с
+        setTimeout(() => done(null), 4500);
+      });
+    }
+
+    await fetchPopularItems(branchId);
+  };
+
+  const fetchPopularItems = async (branchId?: string | null) => {
+    try {
+      // Меню учитывает стоп-лист переданного филиала (определён по геолокации).
+      const branchQuery = branchId ? `?branchId=${branchId}` : "";
+      const res = await fetch(`/api/menu${branchQuery}`);
       const data = await res.json();
       if (res.ok) {
         // Все категории с блюдами
