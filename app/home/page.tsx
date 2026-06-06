@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
@@ -181,71 +181,67 @@ export default function HomePage() {
     }
   };
 
+  // Применяет данные корзины к состоянию. Используется и при первичной загрузке,
+  // и при ответе на добавление/изменение — чтобы не делать повторный GET /api/cart.
+  const applyCartData = useCallback((cart: any) => {
+    if (!cart) return;
+    const count = cart.items.reduce((s: number, i: any) => s + i.quantity, 0);
+    setCartCount(count);
+    const total = cart.items.reduce((s: number, i: any) => {
+      if (i.comboOffer) {
+        return s + Number(i.comboOffer.price) * i.quantity;
+      }
+      if (!i.menuItem) return s;
+      let t = Number(i.menuItem.price ?? 0) * i.quantity;
+      i.modifiers?.forEach((m: any) => {
+        t += Number(m.modifierOption.priceDelta) * i.quantity;
+      });
+      return s + t;
+    }, 0);
+    setCartTotal(total);
+    const map: Record<string, { quantity: number; cartItemId: string }> = {};
+    const optMap: Record<string, { quantity: number; cartItemId: string }> = {};
+    const comboMap: Record<string, { quantity: number; cartItemId: string }> = {};
+    const sizeMap: Record<string, { quantity: number; cartItemId: string }> = {};
+    cart.items.forEach((i: any) => {
+      // Комбо-позиции
+      if (i.comboOffer) {
+        comboMap[i.comboOffer.id] = {
+          quantity: i.quantity,
+          cartItemId: i.id,
+        };
+        return;
+      }
+      // Обычные блюда
+      if (!i.menuItem) return;
+      const ref = { quantity: i.quantity, cartItemId: i.id };
+
+      // По menuItemId — для карточек без размеров
+      map[i.menuItem.id] = ref;
+
+      // Для карточек С размерами: заполняем sizeMap только для выбранного размера
+      if (i.sizeId) {
+        sizeMap[i.sizeId] = ref;
+      }
+
+      // Старая схема: optionId для блюд с размерами через modifiers
+      i.modifiers?.forEach((m: any) => {
+        const key = `${i.menuItem.id}__${m.modifierOption.id}`;
+        optMap[key] = { quantity: i.quantity, cartItemId: i.id };
+      });
+    });
+    setCartItems(map);
+    setCartByOption(optMap);
+    setComboCartItems(comboMap);
+    setCartBySizeId(sizeMap);
+  }, []);
+
   const fetchCart = async () => {
     try {
       const res = await fetch("/api/cart");
       const data = await res.json();
       if (res.ok && data.cart) {
-        const count = data.cart.items.reduce(
-          (s: number, i: any) => s + i.quantity,
-          0,
-        );
-        setCartCount(count);
-        const total = data.cart.items.reduce((s: number, i: any) => {
-          if (i.comboOffer) {
-            return s + Number(i.comboOffer.price) * i.quantity;
-          }
-          if (!i.menuItem) return s;
-          let t = Number(i.menuItem.price ?? 0) * i.quantity;
-          i.modifiers?.forEach((m: any) => {
-            t += Number(m.modifierOption.priceDelta) * i.quantity;
-          });
-          return s + t;
-        }, 0);
-        setCartTotal(total);
-        const map: Record<string, { quantity: number; cartItemId: string }> =
-          {};
-        const optMap: Record<string, { quantity: number; cartItemId: string }> =
-          {};
-        const comboMap: Record<
-          string,
-          { quantity: number; cartItemId: string }
-        > = {};
-        const sizeMap: Record<
-          string,
-          { quantity: number; cartItemId: string }
-        > = {};
-        data.cart.items.forEach((i: any) => {
-          // Комбо-позиции
-          if (i.comboOffer) {
-            comboMap[i.comboOffer.id] = {
-              quantity: i.quantity,
-              cartItemId: i.id,
-            };
-            return;
-          }
-          // Обычные блюда
-          if (!i.menuItem) return;
-          const ref = { quantity: i.quantity, cartItemId: i.id };
-
-          // По menuItemId — для карточек без размеров
-          map[i.menuItem.id] = ref;
-
-          // Для карточек С размерами: заполняем sizeMap только для выбранного размера
-          if (i.sizeId) {
-            sizeMap[i.sizeId] = ref;
-          }
-
-          // Старая схема: optionId для блюд с размерами через modifiers
-          i.modifiers?.forEach((m: any) => {
-            const key = `${i.menuItem.id}__${m.modifierOption.id}`;
-            optMap[key] = { quantity: i.quantity, cartItemId: i.id };
-          });
-        });
-        setCartItems(map);
-        setCartByOption(optMap);
-        setComboCartItems(comboMap);
-        setCartBySizeId(sizeMap);
+        applyCartData(data.cart);
       }
     } catch (e) {
       console.error(e);
@@ -272,19 +268,28 @@ export default function HomePage() {
       return;
     }
     if (!menuItemId) return;
+    // Оптимистично увеличиваем счётчик корзины сразу
+    const addQty = quantity || 1;
+    setCartCount((prev) => prev + addQty);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           menuItemId,
-          quantity: quantity || 1,
+          quantity: addQty,
           modifiers: modifiers || [],
         }),
       });
-      if (res.ok) fetchCart();
+      if (res.ok) {
+        const data = await res.json();
+        applyCartData(data.cart);
+      } else {
+        setCartCount((prev) => Math.max(0, prev - addQty));
+      }
     } catch (e) {
       console.error(e);
+      setCartCount((prev) => Math.max(0, prev - addQty));
     }
   };
 
@@ -298,6 +303,7 @@ export default function HomePage() {
       setShowAuthModal(true);
       return;
     }
+    setCartCount((prev) => prev + 1);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
@@ -310,9 +316,15 @@ export default function HomePage() {
           spices: spiceIds,
         }),
       });
-      if (res.ok) fetchCart();
+      if (res.ok) {
+        const data = await res.json();
+        applyCartData(data.cart);
+      } else {
+        setCartCount((prev) => Math.max(0, prev - 1));
+      }
     } catch (e) {
       console.error(e);
+      setCartCount((prev) => Math.max(0, prev - 1));
     }
   };
 
@@ -321,6 +333,7 @@ export default function HomePage() {
       setShowAuthModal(true);
       return;
     }
+    setCartCount((prev) => prev + 1);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
@@ -328,11 +341,15 @@ export default function HomePage() {
         body: JSON.stringify({ comboOfferId, quantity: 1 }),
       });
       if (res.ok) {
-        fetchCart();
+        const data = await res.json();
+        applyCartData(data.cart);
         setSelectedCombo(null);
+      } else {
+        setCartCount((prev) => Math.max(0, prev - 1));
       }
     } catch (e) {
       console.error(e);
+      setCartCount((prev) => Math.max(0, prev - 1));
     }
   };
 
@@ -342,26 +359,104 @@ export default function HomePage() {
     await updateCartItemById(cartItem.cartItemId, newQuantity);
   };
 
+  /**
+   * Мгновенно (оптимистично) меняет количество позиции во всех картах состояния
+   * и в счётчике корзины — ещё до ответа сервера. Возвращает снимок предыдущего
+   * состояния для отката в случае ошибки.
+   */
+  const optimisticSetQuantity = (cartItemId: string, newQuantity: number) => {
+    const snapshot = {
+      cartItems,
+      cartByOption,
+      comboCartItems,
+      cartBySizeId,
+      cartCount,
+    };
+
+    // Находим старое количество этой позиции (в любой из карт)
+    const findQty = () => {
+      for (const m of [cartItems, cartByOption, comboCartItems, cartBySizeId]) {
+        for (const key of Object.keys(m)) {
+          if (m[key]?.cartItemId === cartItemId) return m[key].quantity;
+        }
+      }
+      return 0;
+    };
+    const oldQty = findQty();
+    const delta = newQuantity - oldQty;
+
+    const updateMap = (
+      m: Record<string, { quantity: number; cartItemId: string }>,
+    ) => {
+      const next: typeof m = {};
+      for (const key of Object.keys(m)) {
+        const entry = m[key];
+        if (entry.cartItemId === cartItemId) {
+          if (newQuantity <= 0) continue; // удаляем позицию
+          next[key] = { ...entry, quantity: newQuantity };
+        } else {
+          next[key] = entry;
+        }
+      }
+      return next;
+    };
+
+    setCartItems((prev) => updateMap(prev));
+    setCartByOption((prev) => updateMap(prev));
+    setComboCartItems((prev) => updateMap(prev));
+    setCartBySizeId((prev) => updateMap(prev));
+    setCartCount((prev) => Math.max(0, prev + delta));
+
+    return snapshot;
+  };
+
+  const rollbackCart = (snapshot: {
+    cartItems: Record<string, { quantity: number; cartItemId: string }>;
+    cartByOption: Record<string, { quantity: number; cartItemId: string }>;
+    comboCartItems: Record<string, { quantity: number; cartItemId: string }>;
+    cartBySizeId: Record<string, { quantity: number; cartItemId: string }>;
+    cartCount: number;
+  }) => {
+    setCartItems(snapshot.cartItems);
+    setCartByOption(snapshot.cartByOption);
+    setComboCartItems(snapshot.comboCartItems);
+    setCartBySizeId(snapshot.cartBySizeId);
+    setCartCount(snapshot.cartCount);
+  };
+
   const updateCartItemById = async (
     cartItemId: string,
     newQuantity: number,
   ) => {
+    // Мгновенно меняем UI, не дожидаясь сервера
+    const snapshot = optimisticSetQuantity(cartItemId, newQuantity);
     try {
       if (newQuantity <= 0) {
         const res = await fetch(`/api/cart/items?id=${cartItemId}`, {
           method: "DELETE",
         });
-        if (res.ok) fetchCart();
+        if (res.ok) {
+          const data = await res.json();
+          applyCartData(data.cart);
+        } else {
+          rollbackCart(snapshot);
+        }
       } else {
         const res = await fetch("/api/cart/items", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ cartItemId, quantity: newQuantity }),
         });
-        if (res.ok) fetchCart();
+        if (res.ok) {
+          const data = await res.json();
+          applyCartData(data.cart);
+        } else {
+          rollbackCart(snapshot);
+        }
       }
     } catch (e) {
       console.error(e);
+      rollbackCart(snapshot);
     }
   };
 
@@ -386,6 +481,7 @@ export default function HomePage() {
       setShowAuthModal(true);
       return;
     }
+    setCartCount((prev) => prev + 1);
     try {
       const res = await fetch("/api/cart", {
         method: "POST",
@@ -396,9 +492,15 @@ export default function HomePage() {
           modifiers: [optionId],
         }),
       });
-      if (res.ok) fetchCart();
+      if (res.ok) {
+        const data = await res.json();
+        applyCartData(data.cart);
+      } else {
+        setCartCount((prev) => Math.max(0, prev - 1));
+      }
     } catch (e) {
       console.error(e);
+      setCartCount((prev) => Math.max(0, prev - 1));
     }
   };
 

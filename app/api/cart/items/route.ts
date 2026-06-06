@@ -23,6 +23,11 @@ const CART_INCLUDE = {
           },
         },
       },
+      spices: {
+        include: {
+          spice: true,
+        },
+      },
     },
   },
   branch: true,
@@ -34,16 +39,29 @@ function normalizeCart(cart: any) {
     ...cart,
     items: cart.items.map((item: any) => {
       if (item.menuItem) {
-        const firstSize = item.menuItem.sizes?.[0];
+        const sizes = (item.menuItem.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) }));
+        const selectedSize = item.sizeId
+          ? sizes.find((s: any) => s.id === item.sizeId) ?? sizes[0]
+          : sizes[0];
+        const spicesPrice = (item.spices || []).reduce((sum: number, cs: any) => {
+          return sum + Number(cs.spice?.price ?? 0);
+        }, 0);
+        const itemBasePrice = selectedSize ? Number(selectedSize.price) : 0;
         return {
           ...item,
           menuItem: {
             ...item.menuItem,
-            price: firstSize ? Number(firstSize.price) : 0,
-            weightGrams: firstSize?.weightGrams ?? null,
-            sizes: (item.menuItem.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) })),
+            price: itemBasePrice + spicesPrice,
+            weightGrams: selectedSize?.weightGrams ?? null,
+            sizes,
             spices: (item.menuItem.spices || []).map((sp: any) => ({ ...sp, price: Number(sp.price) })),
           },
+          selectedSpices: (item.spices || []).map((cs: any) => ({
+            id: cs.spice?.id,
+            name: cs.spice?.name,
+            price: Number(cs.spice?.price ?? 0),
+          })),
+          spicesPrice,
         };
       }
       if (item.comboOffer) {
