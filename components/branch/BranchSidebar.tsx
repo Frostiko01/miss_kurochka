@@ -48,7 +48,7 @@ const menuItems: MenuItem[] = [
   {
     name: "Stop List",
     nameRu: "Стоп-лист",
-    icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 715.636 5.636m12.728 12.728L5.636 5.636",
+    icon: "M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636",
     href: "/branch/stop-list",
   },
   {
@@ -154,7 +154,8 @@ export default function BranchSidebar({ onCollapsedChange }: { onCollapsedChange
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-track-transparent" style={{ marginTop: '56px' }}>
           {menuItems.map((item) => {
-            const isActive = pathname === item.href;
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
             const badgeValue =
               item.badgeKey === "newOrders" ? newOrdersCount : item.badge;
             const showBadge = !!badgeValue && badgeValue > 0;

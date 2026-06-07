@@ -40,13 +40,33 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [mounted, setMounted] = useState(false);
+  // visible управляет открытым/закрытым состоянием через CSS-переходы
+  const [visible, setVisible] = useState(false);
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Управляем монтированием для плавной анимации закрытия
+  // Управляем монтированием и плавной анимацией открытия/закрытия
   useEffect(() => {
-    if (open) setMounted(true);
-  }, [open]);
+    if (open) {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      setMounted(true);
+      // Следующий кадр — включаем видимость, чтобы сработал transition
+      const raf = requestAnimationFrame(() => setVisible(true));
+      return () => cancelAnimationFrame(raf);
+    } else if (mounted) {
+      // Закрытие: запускаем анимацию ухода, затем размонтируем
+      setVisible(false);
+      setDragY(0);
+      closeTimer.current = setTimeout(() => setMounted(false), 260);
+    }
+  }, [open, mounted]);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+    };
+  }, []);
 
   // Блок скролла body
   useEffect(() => {
@@ -80,13 +100,27 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
     await signOut({ callbackUrl: "/branch/signin" });
   };
 
-  // Swipe-to-close вниз
+  // Swipe-to-close вниз — только если внутренний список прокручен в самый верх,
+  // иначе жест перехватывал бы прокрутку контента.
+  const scrollRef = useRef<HTMLDivElement>(null);
   const onTouchStart = (e: React.TouchEvent) => {
+    const sc = scrollRef.current;
+    if (sc && sc.scrollTop > 0) {
+      startY.current = null;
+      return;
+    }
     startY.current = e.touches[0].clientY;
     setDragY(0);
   };
   const onTouchMove = (e: React.TouchEvent) => {
     if (startY.current === null) return;
+    const sc = scrollRef.current;
+    // Если пользователь начал скроллить список — отменяем drag-to-close
+    if (sc && sc.scrollTop > 0) {
+      startY.current = null;
+      setDragY(0);
+      return;
+    }
     const dy = e.touches[0].clientY - startY.current;
     if (dy > 0) setDragY(dy);
   };
@@ -104,22 +138,19 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label="Дополнительные разделы"
-      onAnimationEnd={() => {
-        if (!open) setMounted(false);
-      }}
     >
       {/* Overlay */}
       <button
         type="button"
         aria-label="Закрыть"
         onClick={onClose}
-        className={open ? "absolute inset-0 animate-fadeIn" : "absolute inset-0"}
+        className="absolute inset-0"
         style={{
           backgroundColor: "rgba(0,0,0,0.55)",
           backdropFilter: "blur(3px)",
           WebkitBackdropFilter: "blur(3px)",
-          opacity: open ? 1 : 0,
-          transition: "opacity 0.2s ease",
+          opacity: visible ? 1 : 0,
+          transition: "opacity 0.25s ease",
         }}
       />
 
@@ -128,7 +159,7 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
-        className={`absolute inset-x-0 bottom-0 flex flex-col ${open ? "animate-slide-up" : ""}`}
+        className="absolute inset-x-0 bottom-0 flex flex-col"
         style={{
           maxHeight: "88vh",
           background: "rgba(20, 26, 34, 0.92)",
@@ -139,8 +170,14 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
           borderTopRightRadius: 24,
           boxShadow: "0 -12px 48px rgba(0,0,0,0.5)",
           paddingBottom: "calc(env(safe-area-inset-bottom, 0) + 16px)",
-          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
-          transition: dragY > 0 ? "none" : "transform 0.25s cubic-bezier(0.32,0.72,0,1)",
+          transform:
+            dragY > 0
+              ? `translateY(${dragY}px)`
+              : visible
+              ? "translateY(0)"
+              : "translateY(100%)",
+          transition:
+            dragY > 0 ? "none" : "transform 0.28s cubic-bezier(0.32,0.72,0,1)",
         }}
       >
         {/* Grabber */}
@@ -167,7 +204,7 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
         </div>
 
         {/* Links grid */}
-        <div className="overflow-y-auto px-4 scrollbar-hide">
+        <div ref={scrollRef} className="overflow-y-auto px-4 scrollbar-hide">
           <div className="grid grid-cols-2 gap-3 pb-2">
             {links.map((l) => {
               const Icon = l.icon;

@@ -22,10 +22,18 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void) {
   const triggered = useRef(false);
   const rafRef = useRef<number | null>(null);
   const onRefreshRef = useRef(onRefresh);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const THRESHOLD = 70;
@@ -103,13 +111,13 @@ export function usePullToRefresh(onRefresh: () => Promise<void> | void) {
 
       if (pullRef.current >= THRESHOLD) {
         refreshingRef.current = true;
-        setRefreshing(true);
+        if (mountedRef.current) setRefreshing(true);
         animateTo(THRESHOLD);
         try {
           await onRefreshRef.current();
         } finally {
           refreshingRef.current = false;
-          setRefreshing(false);
+          if (mountedRef.current) setRefreshing(false);
           pullRef.current = 0;
           animateTo(0);
         }

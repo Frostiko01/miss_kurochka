@@ -80,11 +80,13 @@ export default function BranchStopListPage() {
   useEffect(() => {
     fetchStopList();
     fetchCategories();
-    fetchAvailableItems(); // Загружаем меню сразу
+    // fetchAvailableItems вызывается в эффекте ниже (срабатывает и на маунте),
+    // поэтому здесь его не дублируем.
   }, []);
 
   useEffect(() => {
-    fetchAvailableItems(); // Обновляем при изменении фильтра категории
+    fetchAvailableItems(); // Загрузка меню + обновление при смене фильтра категории
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [categoryFilter]);
 
   const fetchCategories = async () => {

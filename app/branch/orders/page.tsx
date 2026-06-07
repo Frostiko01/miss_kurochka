@@ -167,6 +167,11 @@ export default function BranchOrdersPage() {
   // Звуковой сигнал при появлении нового заказа
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastNewOrderIdRef = useRef<string | null>(null);
+  // Управление жизненным циклом: отмена таймеров и запросов после размонтирования
+  const mountedRef = useRef(true);
+  const autoTransitionTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  // При смене фильтров не «звеним» — заново фиксируем базовую линию заказов
+  const rebaselineRef = useRef(false);
 
   const fetchOrders = async (showLoading = false) => {
     try {
@@ -177,15 +182,22 @@ export default function BranchOrdersPage() {
 
       const response = await fetch(`/api/branch/orders?${params}`);
       const data = await response.json();
+      if (!mountedRef.current) return;
 
       if (response.ok) {
         const list: Order[] = data.orders || [];
         setOrders(list);
         setNewCount(data.newCount ?? 0);
 
-        // Проверяем появление нового pending заказа
+        // Проверяем появление нового pending заказа.
+        // newCount приходит с бэкенда и не зависит от фильтров/поиска —
+        // используем самый свежий pending, но не звеним при смене фильтров.
         const newest = list.find((o) => o.status === "pending");
-        if (
+        if (rebaselineRef.current) {
+          // Только что сменились фильтры — фиксируем базу без сигнала
+          lastNewOrderIdRef.current = newest?.id ?? "";
+          rebaselineRef.current = false;
+        } else if (
           newest &&
           lastNewOrderIdRef.current !== null &&
           lastNewOrderIdRef.current !== newest.id
@@ -198,8 +210,8 @@ export default function BranchOrdersPage() {
             message: `Поступил новый заказ ${newest.orderNumber}!`,
             type: "info",
           });
-        }
-        if (newest) {
+          lastNewOrderIdRef.current = newest.id;
+        } else if (newest) {
           lastNewOrderIdRef.current = newest.id;
         } else if (lastNewOrderIdRef.current === null) {
           // первый запуск — фиксируем чтобы не звенело
@@ -209,14 +221,33 @@ export default function BranchOrdersPage() {
     } catch (error) {
       console.error("Error fetching orders:", error);
     } finally {
-      if (showLoading) setLoading(false);
+      if (showLoading && mountedRef.current) setLoading(false);
     }
   };
 
+  // Отслеживаем монтирование и чистим все таймеры авто-переходов
   useEffect(() => {
-    fetchOrders(true);
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      autoTransitionTimers.current.forEach((t) => clearTimeout(t));
+      autoTransitionTimers.current.clear();
+    };
+  }, []);
+
+  // Первичная загрузка + поллинг. Поиск дебаунсим, чтобы не дёргать
+  // полноэкранный спиннер и сервер на каждый символ.
+  useEffect(() => {
+    rebaselineRef.current = true;
+    const isFirst = orders.length === 0 && lastNewOrderIdRef.current === null;
+    const debounce = setTimeout(() => {
+      fetchOrders(isFirst);
+    }, isFirst ? 0 : 350);
     const interval = setInterval(() => fetchOrders(false), POLL_INTERVAL);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(debounce);
+      clearInterval(interval);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
 
@@ -229,6 +260,7 @@ export default function BranchOrdersPage() {
         body: JSON.stringify({ id: orderId, status: newStatus }),
       });
       const data = await response.json();
+      if (!mountedRef.current) return;
       if (response.ok) {
         const meta = STATUS_META[newStatus];
         setToast({
@@ -238,9 +270,14 @@ export default function BranchOrdersPage() {
         await fetchOrders(false);
 
         // Автоматические переходы:
-        // confirmed → preparing (сразу начинаем готовить)
+        // confirmed → preparing (сразу начинаем готовить).
+        // Таймер сохраняем и чистим при размонтировании.
         if (newStatus === "confirmed") {
-          setTimeout(() => handleStatusChange(orderId, "preparing"), 300);
+          const timer = setTimeout(() => {
+            autoTransitionTimers.current.delete(timer);
+            if (mountedRef.current) handleStatusChange(orderId, "preparing");
+          }, 300);
+          autoTransitionTimers.current.add(timer);
         }
       } else {
         setToast({
@@ -250,12 +287,14 @@ export default function BranchOrdersPage() {
       }
     } catch (error) {
       console.error("Error updating status:", error);
-      setToast({
-        message: "Ошибка сети. Попробуйте позже.",
-        type: "error",
-      });
+      if (mountedRef.current) {
+        setToast({
+          message: "Ошибка сети. Попробуйте позже.",
+          type: "error",
+        });
+      }
     } finally {
-      setUpdatingId(null);
+      if (mountedRef.current) setUpdatingId(null);
     }
   };
 
@@ -274,12 +313,27 @@ export default function BranchOrdersPage() {
     setSelectedOrder(null);
   };
 
+  // Модалка деталей: блокировка скролла body + закрытие по Escape
+  useEffect(() => {
+    if (!showDetailsModal) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeDetailsModal();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [showDetailsModal]);
+
   return (
     <div className="p-8 min-h-screen" style={{ backgroundColor: "#0B0F14" }}>
       <audio
         ref={audioRef}
         preload="auto"
-        src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
+        src="data:audio/wav;base64,UklGRsQFAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YaAFAACAqL63l2xKQFR7pb25m3BMQFF4ory7nnROQE50nru8onhRQExwm7m9pXtUQEpsl7e+qH9XQUhok7W/q4RaQkZkj7O/roddQ0Rhi7G/sYthRENdh66/s49kRkJahKu/tZNoSEFXgKi+t5dsSkBUe6W9uZtwTEBReKK8u550TkBOdJ67vKJ4UUBMcJu5vaV7VEBKbJe3vqiAV0FIaJO1v6uEWkJGZI+zv66HXUNEYYuxv7GLYURDXYeuv7OPZEZCWoSrv7WTaEhBV4CovreXbEpAVHulvbmbcExAUXiivLuedE5ATnSeu7yieFFATHCbub2le1RASmyXt76of1dBSGiTtb+rhFpCRmSPs7+uh11DRGGLsb+xi2FEQ12Hrr+zj2RGQlqEq7+1k2hIQVd/qL63l2xKQFR7pb25m3BMQFF4ory7nnROQE50nru8onhRQExwm7m9pXtUQEpsl7e+qIBXQUhok7W/q4RaQkZkj7O/roddQ0Rhi7G/sYthRENdh66/s49kRkJahKu/tZNoSEFXgKi+t5dsSkBUe6W9uZtwTEBReKK8u550TkBOdJ67vKJ4UUBMcJu5vaV7VEBKbJe3vqh/V0FIaJO1v6uEWkJGZI+zv66HXUNEYYuxv7GLYURDXYeuv7OPZEZCWoSrv7WTaEhBV4CovreXbEpAVHulvbmbcExAUXiivLuedE5ATnSeu7yieFFATHCbub2le1RASmyXt76of1dBSGiTtb+rhFpCRmSPs7+uh11DRGGLsb+xi2FEQ12Hrr+zj2RGQlqEq7+1k2hIQVd/qL63l2xKQFR7pb25m3BMQFF4ory7nnROQE50nru8onhRQExwm7m9pXtUQEpsl7e+qH9XQUhok7W/q4RaQkZkj7O/roddQ0Rhi7G/sYthRENdh66/s49kRkJahKu/tZNoSEFXf6i+t5dsSkBUe6W9uZtwTEBReKK8u550TkBOdJ67vKJ4UUBMcJu5vaV7VEBKbJe3vqh/V0FIaJO1v6uEWkJGZI+zv66HXUNEYYuxv7GLYURDXYeuv7OPZEZCWoSrv7WTaEhBV4CovreXbEpAVHulvbmbcExAUXiivLuedE5ATnSeu7yieFFATHCbub2le1RASmyXt76of1dBSGiTtb+rhFpCRmSPs7+uh11DRGGLsb+xi2FEQ12Hrr+zj2RGQlqEq7+1k2hIQVeAqL63l2xKQFR7pb25m3BMQFF4ory7nnROQE50nru8onhRQExwm7m9pXtUQEpsl7e+qH9XQUhok7W/q4RaQkZkj7O/roddQ0Rhi7G/sYthRENdh66/s49kRkJahKu/tZNoSEFXgKi+t5dsSkBUe6W9uZtwTEBReKK8u550TkBOdJ67vKJ4UUBMcJu5vaV7VEBKbJe3vqh/V0FIaJO1v6uEWkJGZI+zv66HXUNEYYuxv7GLYURDXYeuv7OPZEZCWoSrv7WTaEhBV4CovreXbEpAVHulvbmbcExAUXiivLuedE5ATnSeu7yieFFATHCbub2le1RASmyXt76of1dBSGiTtb+rhFpCRmSPs7+uh11DRGGLsb+xi2FEQ12Hrr+zj2RGQlqEq7+1k2hIQVd/qL63l2xLQlV8o7q2mXFPRFR4n7e2m3VTRlR1m7S1nXlXSVNylrCzn3xbTFRvkqyyoIBfTlRtj6mwoYNjUVVri6WuoYVnVVZqiKGroYhrWFdphZ6poYpuW1looJqmoItxXlpogJekn410YVxnfZShno53ZV9oe5GenY96aGFoeo6bm498a2NpeYuYmY9+bmZqeImVmI9/cGlrd4aSlY6Bc2ttd4WQk46CdW5ud4ONkY2DeHBwd4GLjouDenNyeICIjIqDe3V1eX+GiYiDfXh3en+Eh4aDfnp5e3+ChYSCf3x8fX+BgoKBf35+fn+AgIA="
       />
 
       {/* Header */}

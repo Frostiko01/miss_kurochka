@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import {
@@ -56,22 +56,30 @@ export default function BranchMobileDashboard({
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const mountedRef = useRef(true);
 
   const fetchStats = useCallback(async () => {
     try {
       const res = await fetch("/api/branch/stats");
-      if (res.ok) setStats(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        if (mountedRef.current) setStats(data);
+      }
     } catch (e) {
       console.error("Stats fetch error:", e);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     fetchStats();
     const interval = setInterval(fetchStats, 30_000);
-    return () => clearInterval(interval);
+    return () => {
+      mountedRef.current = false;
+      clearInterval(interval);
+    };
   }, [fetchStats]);
 
   const { containerRef, indicatorRef, refreshing } = usePullToRefresh(fetchStats);
