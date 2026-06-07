@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface SmartImageProps {
   src: string
@@ -17,8 +17,12 @@ interface SmartImageProps {
  *
  * Пока картинка не загрузилась/не декодировалась — показывается мягкий
  * скелетон-плейсхолдер (shimmer). Когда изображение готово — оно плавно
- * проявляется (fade-in). Это решает проблему «белое фото → потом картинка»
- * на новых устройствах с холодным кэшем.
+ * проявляется (fade-in).
+ *
+ * ВАЖНО: если картинка уже в кэше браузера, событие onLoad может сработать
+ * ДО того, как React навесит обработчик. Поэтому при монтировании проверяем
+ * img.complete и сразу помечаем как загруженную — иначе скелетон зависал бы
+ * навсегда поверх готового изображения.
  */
 export default function SmartImage({
   src,
@@ -27,8 +31,27 @@ export default function SmartImage({
   eager = false,
   sizes,
 }: SmartImageProps) {
+  const imgRef = useRef<HTMLImageElement>(null)
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
+
+  useEffect(() => {
+    const img = imgRef.current
+    if (!img) return
+    // Картинка уже загружена (из кэша) — onLoad может не сработать, помечаем вручную.
+    if (img.complete) {
+      if (img.naturalWidth > 0) {
+        setLoaded(true)
+        setError(false)
+      } else {
+        setError(true)
+      }
+    } else {
+      // Новая ещё не загруженная картинка — показываем скелетон
+      setLoaded(false)
+      setError(false)
+    }
+  }, [src])
 
   return (
     <>
@@ -36,6 +59,7 @@ export default function SmartImage({
       {!loaded && !error && <span className="smart-img__skeleton" aria-hidden="true" />}
 
       <img
+        ref={imgRef}
         src={src}
         alt={alt}
         className={`smart-img ${loaded ? 'smart-img--loaded' : ''} ${className}`}
