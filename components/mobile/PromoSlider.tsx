@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Flame } from 'lucide-react'
+import SmartImage from './SmartImage'
 
 export interface PromoSlide {
   image: string
@@ -20,6 +21,8 @@ export default function PromoSlider({ slides, onSlideClick, intervalMs = 5500 }:
   const [active, setActive] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const isUserDragging = useRef(false)
+  const isProgrammatic = useRef(false)
+  const scrollEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Автопрокрутка
   useEffect(() => {
@@ -37,12 +40,19 @@ export default function PromoSlider({ slides, onSlideClick, intervalMs = 5500 }:
     if (!el) return
     const child = el.children[active] as HTMLElement | undefined
     if (child) {
+      isProgrammatic.current = true
       el.scrollTo({ left: child.offsetLeft, behavior: 'smooth' })
+      // Снимаем флаг после завершения плавного скролла
+      if (scrollEndTimer.current) clearTimeout(scrollEndTimer.current)
+      scrollEndTimer.current = setTimeout(() => {
+        isProgrammatic.current = false
+      }, 500)
     }
   }, [active])
 
-  // Обновление active по позиции скролла (для свайпов)
+  // Обновление active по позиции скролла (только при ручном свайпе)
   const onScroll = () => {
+    if (isProgrammatic.current) return
     const el = containerRef.current
     if (!el) return
     const i = Math.round(el.scrollLeft / el.clientWidth)
@@ -70,11 +80,12 @@ export default function PromoSlider({ slides, onSlideClick, intervalMs = 5500 }:
             className="snap-center shrink-0 w-full relative overflow-hidden rounded-3xl active:scale-[0.98] transition-transform"
             style={{ aspectRatio: '16 / 10' }}
           >
-            <img
+            <SmartImage
               src={slide.image}
               alt={slide.title ?? ''}
               className="absolute inset-0 w-full h-full object-cover"
-              loading={i === 0 ? 'eager' : 'lazy'}
+              eager={i === 0}
+              sizes="100vw"
             />
             <div
               className="absolute inset-0"

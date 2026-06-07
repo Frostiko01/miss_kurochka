@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus, Minus, UtensilsCrossed, Flame } from 'lucide-react'
+import SmartImage from './SmartImage'
 
 export interface ProductCardItem {
   id: string
@@ -52,11 +53,11 @@ export default function ProductCard({
       {/* Image */}
       <div className="relative w-full bg-[var(--bg-muted)]" style={{ aspectRatio: '1 / 1' }}>
         {image ? (
-          <img
+          <SmartImage
             src={image}
             alt={item.name}
             className="absolute inset-0 w-full h-full object-cover"
-            loading="lazy"
+            sizes="(max-width: 768px) 50vw, 200px"
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-[var(--fg-subtle)]">

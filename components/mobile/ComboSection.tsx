@@ -1,6 +1,7 @@
 'use client'
 
 import { Plus, Minus, Flame, UtensilsCrossed } from 'lucide-react'
+import SmartImage from './SmartImage'
 
 export interface ComboItem {
   id: string
@@ -69,11 +70,11 @@ export default function ComboSection({
               {/* Image */}
               <div className="relative w-full bg-[var(--bg-muted)]" style={{ aspectRatio: '4 / 3' }}>
                 {combo.image ? (
-                  <img
+                  <SmartImage
                     src={combo.image}
                     alt={combo.name}
                     className="absolute inset-0 w-full h-full object-cover"
-                    loading="lazy"
+                    sizes="260px"
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center text-[var(--fg-subtle)]">
