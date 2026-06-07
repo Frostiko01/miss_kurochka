@@ -74,7 +74,7 @@ export default function BranchMobileDashboard({
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  const { pull, refreshing } = usePullToRefresh(fetchStats);
+  const { containerRef, indicatorRef, refreshing } = usePullToRefresh(fetchStats);
 
   const maxAmount = stats ? Math.max(...stats.salesByDay.map((d) => d.amount), 1) : 1;
   const maxOrders = stats ? Math.max(...stats.salesByDay.map((d) => d.ordersCount), 1) : 1;
@@ -88,30 +88,24 @@ export default function BranchMobileDashboard({
 
   return (
     <div className="relative px-4 pt-4">
-      {/* Pull-to-refresh индикатор */}
+      {/* Pull-to-refresh индикатор (управляется через ref, без ре-рендеров) */}
       <div
-        className="absolute left-0 right-0 flex items-center justify-center"
+        ref={indicatorRef}
+        className="absolute left-0 right-0 flex items-center justify-center overflow-hidden"
         style={{
           top: 0,
-          height: pull,
-          transform: `translateY(-${Math.max(0, 40 - pull)}px)`,
-          opacity: pull > 10 ? 1 : 0,
-          transition: refreshing ? "none" : "opacity 0.2s ease",
+          height: 0,
+          opacity: 0,
           pointerEvents: "none",
         }}
       >
         <RefreshCw
           className={refreshing ? "animate-spin" : ""}
-          style={{
-            width: 22,
-            height: 22,
-            color: c.accent,
-            transform: refreshing ? undefined : `rotate(${pull * 3}deg)`,
-          }}
+          style={{ width: 22, height: 22, color: c.accent }}
         />
       </div>
 
-      <div style={{ transform: pull > 0 ? `translateY(${pull}px)` : undefined, transition: refreshing ? "none" : "transform 0.25s ease" }}>
+      <div ref={containerRef}>
         {/* Приветствие */}
         <div className="mb-4">
           <h1 className="text-2xl font-black tracking-tight" style={{ color: c.text }}>
