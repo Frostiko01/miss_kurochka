@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import Spinner from "@/components/Spinner";
+import PanLoader from "@/components/PanLoader";
 import {
   ShoppingCart,
   Package,
@@ -567,12 +568,7 @@ export default function HomePage() {
   if (status === "loading" || loading) {
     return (
       <div className="min-h-screen bg-[var(--bg-muted)] flex items-center justify-center">
-        <div className="text-center">
-          <Spinner size="lg" className="mx-auto mb-3" />
-          <p className="text-sm text-[var(--fg-muted)] font-semibold">
-            Загрузка...
-          </p>
-        </div>
+        <PanLoader size={120} text="Загрузка..." />
       </div>
     );
   }

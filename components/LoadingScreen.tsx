@@ -1,6 +1,6 @@
 'use client'
 
-import Spinner from './Spinner'
+import PanLoader from './PanLoader'
 
 interface LoadingScreenProps {
   message?: string
@@ -17,12 +17,7 @@ export default function LoadingScreen({
 
   return (
     <div className={`${containerClass} flex flex-col items-center justify-center`}>
-      <Spinner size="lg" />
-      {message && (
-        <p className="mt-4 text-sm text-[var(--fg-muted)] animate-pulse">
-          {message}
-        </p>
-      )}
+      <PanLoader size={120} text={message || undefined} />
     </div>
   )
 }

@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Banknote,
 } from 'lucide-react'
+import PanLoader from '@/components/PanLoader'
 
 const PAYMENT_LABEL: Record<string, string> = {
   card: 'Картой',
@@ -111,11 +112,12 @@ export default function OrderReceiptPage() {
 
   if (loading || !order) {
     return (
-      <div className="min-h-screen bg-[var(--bg-muted)] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-10 h-10 border-2 border-[var(--brand)] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-[var(--fg-muted)] font-semibold">Загрузка чека...</p>
-        </div>
+      <div className="min-h-screen bg-[var(--bg-muted)] flex items-center justify-center px-4">
+        <PanLoader
+          size={128}
+          text="Платеж успешно обработан"
+          subtext="Готовим вашу курочку..."
+        />
       </div>
     )
   }
