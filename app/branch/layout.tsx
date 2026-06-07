@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import BranchHeader from "@/components/branch/BranchHeader";
 import BranchSidebar from "@/components/branch/BranchSidebar";
+import BranchMobileShell from "@/components/branch/mobile/BranchMobileShell";
+import { useIsMobile } from "@/components/branch/mobile/useIsMobile";
 
 export default function BranchLayout({
   children,
@@ -15,6 +17,7 @@ export default function BranchLayout({
   const pathname = usePathname();
   const { data: session, status } = useSession();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const isMobile = useIsMobile();
 
   // Защита всех маршрутов филиала
   useEffect(() => {
@@ -61,6 +64,11 @@ export default function BranchLayout({
   // Если не авторизован или не филиал - не показываем контент
   if (status !== "authenticated" || session?.user?.role !== "branch") {
     return null;
+  }
+
+  // Мобильная версия: нижняя навигация вместо сайдбара
+  if (isMobile) {
+    return <BranchMobileShell>{children}</BranchMobileShell>;
   }
 
   return (
