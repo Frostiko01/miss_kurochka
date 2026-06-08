@@ -50,5 +50,5 @@ export async function generateReport(args: GenerateArgs): Promise<GeneratedRepor
   return { buffer, fileName, contentType }
 }
 
-export { buildReportFileName }
+export { buildReportFileName, buildContentDisposition } from './fileName'
 export * from './types'

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateReport } from '@/lib/reports'
+import { generateReport, buildContentDisposition } from '@/lib/reports'
 import type { ReportFormatKey, ReportTypeKey } from '@/lib/reports/types'
 
 const VALID_TYPES: ReportTypeKey[] = [
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': report.contentType,
-        'Content-Disposition': `attachment; filename="${report.fileName}"`,
+        'Content-Disposition': buildContentDisposition(report.fileName),
         'Content-Length': String(report.buffer.length),
       },
     })

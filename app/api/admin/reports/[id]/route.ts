@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateReport } from '@/lib/reports'
+import { generateReport, buildContentDisposition } from '@/lib/reports'
 import type { ReportFormatKey, ReportTypeKey } from '@/lib/reports/types'
 
 interface Params {
@@ -44,7 +44,7 @@ export async function GET(_request: NextRequest, { params }: Params) {
       status: 200,
       headers: {
         'Content-Type': report.contentType,
-        'Content-Disposition': `attachment; filename="${report.fileName}"`,
+        'Content-Disposition': buildContentDisposition(report.fileName),
         'Content-Length': String(report.buffer.length),
       },
     })

@@ -391,6 +391,25 @@ export default function BranchMenuPage() {
   const handleAddDish = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // API филиала требует непустой массив sizes. Если редактор размеров
+    // выключен — формируем один размер из основного поля цены.
+    const builtSizes: { name: string; price: number; weightGrams?: number }[] =
+      sizesEnabled && sizes.length > 0
+        ? sizes
+        : [{
+            name: dishFormData.weightGrams ? `${dishFormData.weightGrams} г` : "Стандарт",
+            price: parseFloat(dishFormData.price) || 0,
+            weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : undefined,
+          }];
+
+    const validSizes = builtSizes.filter(
+      (s) => s.name && String(s.name).trim() && !isNaN(Number(s.price)),
+    );
+    if (validSizes.length === 0) {
+      setToast({ message: "Укажите цену блюда", type: "error" });
+      return;
+    }
+
     try {
       const response = await fetch("/api/branch/menu-items", {
         method: "POST",
@@ -401,17 +420,15 @@ export default function BranchMenuPage() {
           categoryId: dishFormData.categoryId,
           name: dishFormData.name,
           description: dishFormData.description || null,
-          price: parseFloat(dishFormData.price),
-          weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : null,
           cookingTimeMinutes: dishFormData.cookingTimeMinutes ? parseInt(dishFormData.cookingTimeMinutes) : null,
           imageUrl: dishFormData.imageUrl || null,
           isActive: dishFormData.isActive,
-          sizes: sizesEnabled ? sizes : undefined,
+          sizes: validSizes,
         }),
       });
 
       if (response.ok) {
-        const data = await response.json();
+        await response.json();
         setToast({
           message: "Блюдо успешно добавлено!",
           type: "success",
@@ -471,6 +488,18 @@ export default function BranchMenuPage() {
     e.preventDefault();
     if (!editingDish) return;
 
+    if (isNaN(parseFloat(dishFormData.price))) {
+      setToast({ message: "Укажите цену блюда", type: "error" });
+      return;
+    }
+
+    // Всегда передаём sizes, чтобы цена сохранялась корректно.
+    const builtSizes: { name: string; price: number; weightGrams?: number }[] = [{
+      name: dishFormData.weightGrams ? `${dishFormData.weightGrams} г` : "Стандарт",
+      price: parseFloat(dishFormData.price) || 0,
+      weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : undefined,
+    }];
+
     try {
       const response = await fetch("/api/branch/menu-items", {
         method: "PUT",
@@ -482,11 +511,10 @@ export default function BranchMenuPage() {
           categoryId: dishFormData.categoryId,
           name: dishFormData.name,
           description: dishFormData.description || null,
-          price: parseFloat(dishFormData.price),
-          weightGrams: dishFormData.weightGrams ? parseInt(dishFormData.weightGrams) : null,
           cookingTimeMinutes: dishFormData.cookingTimeMinutes ? parseInt(dishFormData.cookingTimeMinutes) : null,
           imageUrl: dishFormData.imageUrl || null,
           isActive: dishFormData.isActive,
+          sizes: builtSizes,
         }),
       });
 

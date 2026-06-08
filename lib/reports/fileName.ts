@@ -33,3 +33,19 @@ export function buildReportFileName(args: {
     : 'all-branches'
   return `report-${type}-${branch}-${fmt(args.periodStart)}-${fmt(args.periodEnd)}.${ext}`
 }
+
+/**
+ * Формирует безопасное значение заголовка Content-Disposition.
+ *
+ * HTTP-заголовки могут содержать только символы Latin-1 (код ≤ 255), поэтому
+ * кириллица в имени файла вызывает ошибку «Cannot convert argument to a
+ * ByteString». По RFC 5987/6266 указываем ASCII-fallback в `filename` и
+ * полное UTF-8 имя в `filename*`.
+ */
+export function buildContentDisposition(fileName: string): string {
+  // ASCII-версия: заменяем все не-ASCII символы на '_'
+  const asciiFallback = fileName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_')
+  // UTF-8 версия по RFC 5987
+  const encoded = encodeURIComponent(fileName)
+  return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encoded}`
+}
