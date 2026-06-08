@@ -9,6 +9,23 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') ?? '6')
+    const branchId = searchParams.get('branchId')
+
+    // Стоп-лист выбранного/ближайшего филиала — чтобы скрывать недоступные блюда.
+    let stopSet: Set<string> | null = null
+    if (branchId) {
+      const stops = await prisma.stopList.findMany({
+        where: { branchId, restoredAt: null },
+        select: { menuItemId: true },
+      })
+      stopSet = new Set(stops.map((s) => s.menuItemId))
+    }
+
+    // Блюда конкретного филиала + глобальные (branchId === null).
+    // Чужие индивидуальные блюда других филиалов не показываем.
+    const branchScope = branchId
+      ? [{ branchId }, { branchId: null }]
+      : undefined
 
     // Считаем частоту заказов за последние 30 дней
     const thirtyDaysAgo = new Date()
@@ -36,7 +53,11 @@ export async function GET(request: NextRequest) {
     let items: any[] = []
     if (ids.length > 0) {
       const menuItems = await prisma.menuItem.findMany({
-        where: { id: { in: ids }, isActive: true },
+        where: {
+          id: { in: ids },
+          isActive: true,
+          ...(branchScope ? { OR: branchScope } : {}),
+        },
         include: {
           category: { select: { id: true, name: true } },
           images: { orderBy: { isPrimary: 'desc' } },
@@ -84,6 +105,7 @@ export async function GET(request: NextRequest) {
         where: {
           isActive: true,
           NOT: { id: { in: ids } },
+          ...(branchScope ? { OR: branchScope } : {}),
         },
         include: {
           category: { select: { id: true, name: true } },
@@ -105,8 +127,18 @@ export async function GET(request: NextRequest) {
       items = [...items, ...fallbackNormalized]
     }
 
+    // Скрываем блюда из стоп-листа выбранного филиала
+    if (stopSet && stopSet.size > 0) {
+      items = items.filter((it) => !stopSet!.has(it.id))
+    }
+
     const response = NextResponse.json({ items })
-    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    // Ответ зависит от филиала и стоп-листа — не кэшируем на CDN при наличии branchId
+    if (branchId) {
+      response.headers.set('Cache-Control', 'no-store')
+    } else {
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+    }
     return response
   } catch (error) {
     console.error('popular menu error:', error)

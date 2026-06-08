@@ -134,9 +134,11 @@ export default function Home() {
     } catch {}
   }
 
-  const fetchPopular = async () => {
+  const fetchPopular = async (branchId?: string | null) => {
     try {
-      const response = await fetch('/api/menu/popular?limit=6')
+      const bid = branchId ?? (typeof window !== 'undefined' ? localStorage.getItem('selectedBranchId') : null)
+      const qs = bid ? `&branchId=${bid}` : ''
+      const response = await fetch(`/api/menu/popular?limit=6${qs}`)
       const data = await response.json()
       if (response.ok && data.items) setPopularItems(data.items)
     } catch {}
@@ -197,7 +199,7 @@ export default function Home() {
   }
 
   const detectNearestBranch = () => {
-    if (!navigator.geolocation) return
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -211,21 +213,56 @@ export default function Home() {
           })
           const data = await res.json()
           if (res.ok && data.branch?.id) {
+            // Обновляем филиал, меню перезагрузится через эффект на selectedBranch
             setSelectedBranch(data.branch.id)
             setNearestBranchDetected(true)
           }
         } catch {}
       },
+      // Если пользователь запретил геолокацию — молча оставляем ручной выбор
       () => {},
       { timeout: 5000, maximumAge: 300000 }
     )
   }
 
+  // Определяет филиал при загрузке страницы.
+  // - Если доступ к геолокации уже выдан ранее (granted) — переопределяем
+  //   ближайший филиал при каждом открытии (для всех пользователей).
+  // - Если разрешение ещё не запрашивалось (prompt) и сохранённого филиала нет —
+  //   запрашиваем геолокацию.
+  // - Если запрещено (denied) — ничего не делаем, остаётся ручной выбор.
+  const initBranchSelection = async () => {
+    let saved: string | null = null
+    try {
+      saved = localStorage.getItem('selectedBranchId')
+    } catch {}
+
+    if (saved) setSelectedBranch(saved)
+
+    // Пытаемся узнать состояние разрешения через Permissions API (если есть)
+    let permission: PermissionState | null = null
+    try {
+      if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+        const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
+        permission = status.state
+      }
+    } catch {}
+
+    if (permission === 'granted') {
+      // Доступ уже есть — всегда переопределяем ближайший филиал
+      detectNearestBranch()
+    } else if (permission === 'denied') {
+      // Запрещено — ручной выбор, ничего не запрашиваем
+    } else {
+      // 'prompt' или Permissions API недоступен — определяем только если
+      // филиал ещё не выбран, чтобы не дёргать пользователя лишний раз
+      if (!saved) detectNearestBranch()
+    }
+  }
+
   useEffect(() => {
     Promise.resolve().then(() => {
-      const saved = localStorage.getItem('selectedBranchId')
-      if (saved) setSelectedBranch(saved)
-      else detectNearestBranch()
+      initBranchSelection()
       fetchCombos()
       fetchMiniCombos()
       fetchBranches()
@@ -235,7 +272,13 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (selectedBranch) localStorage.setItem('selectedBranchId', selectedBranch)
+    if (selectedBranch) {
+      localStorage.setItem('selectedBranchId', selectedBranch)
+      // Перезагружаем популярные блюда под выбранный/определённый филиал,
+      // чтобы учесть стоп-лист и индивидуальные блюда филиала.
+      fetchPopular(selectedBranch)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBranch])
 
   useEffect(() => {

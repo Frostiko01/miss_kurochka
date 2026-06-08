@@ -131,9 +131,24 @@ export default function HomePage() {
           : null;
     } catch {}
 
-    // Если филиал ещё не определён — пробуем геолокацию (с таймаутом, не блокируем надолго)
-    if (!branchId && typeof navigator !== "undefined" && navigator.geolocation) {
-      branchId = await new Promise<string | null>((resolve) => {
+    // Узнаём состояние разрешения на геолокацию.
+    let permission: PermissionState | null = null;
+    try {
+      if (typeof navigator !== "undefined" && navigator.permissions?.query) {
+        const status = await navigator.permissions.query({ name: "geolocation" as PermissionName });
+        permission = status.state;
+      }
+    } catch {}
+
+    // Когда определяем ближайший филиал:
+    // - granted: всегда (зарегистрированный пользователь, ранее разрешивший доступ)
+    // - prompt / нет Permissions API: только если филиал ещё не выбран
+    // - denied: никогда (остаётся ручной/сохранённый выбор)
+    const shouldDetect =
+      permission === "granted" || (permission !== "denied" && !branchId);
+
+    if (shouldDetect && typeof navigator !== "undefined" && navigator.geolocation) {
+      const detected = await new Promise<string | null>((resolve) => {
         let settled = false;
         const done = (v: string | null) => {
           if (!settled) {
@@ -169,6 +184,7 @@ export default function HomePage() {
         // Страховочный таймаут, чтобы не ждать геолокацию дольше 4.5с
         setTimeout(() => done(null), 4500);
       });
+      if (detected) branchId = detected;
     }
 
     await fetchPopularItems(branchId);

@@ -52,24 +52,12 @@ export default function MenuPage() {
   const [showItemModal, setShowItemModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
 
-  // Загрузка меню
-  useEffect(() => {
-    // Учитываем филиал из localStorage (определён по геолокации на лендинге),
-    // чтобы скрывать блюда из стоп-листа этого филиала.
-    let branchQuery = ''
-    try {
-      const savedBranch =
-        typeof window !== 'undefined'
-          ? localStorage.getItem('selectedBranchId')
-          : null
-      if (savedBranch) branchQuery = `?branchId=${savedBranch}`
-    } catch {}
-    fetch(`/api/menu${branchQuery}`)
+  // Загрузка меню для конкретного филиала
+  const loadMenu = (branchId: string | null) => {
+    const branchQuery = branchId ? `?branchId=${branchId}` : ''
+    return fetch(`/api/menu${branchQuery}`)
       .then((r) => r.json())
       .then((data) => {
-        console.log('Menu API response:', data) // Для отладки
-        
-        // Проверяем, есть ли grouped
         if (data.grouped) {
           const grouped = data.grouped as Record<string, any[]>
           const allCats = [
@@ -82,11 +70,8 @@ export default function MenuPage() {
               menuItems: c.items || c.menuItems || [], // Нормализуем данные
             }))
             .filter((c: any) => c.menuItems && c.menuItems.length > 0)
-          
-          console.log('Loaded categories:', allCats.length, 'categories') // Для отладки
           setCategories(allCats as Category[])
         } else if (data.categories) {
-          // Fallback: если нет grouped, используем categories напрямую
           const cats = (data.categories as any[])
             .map((c: any) => ({
               ...c,
@@ -99,7 +84,66 @@ export default function MenuPage() {
       .catch((err) => {
         console.error('Error loading menu:', err)
       })
-      .finally(() => setLoading(false))
+  }
+
+  // Резолвим филиал (localStorage + геолокация при наличии разрешения), затем грузим меню
+  useEffect(() => {
+    let cancelled = false
+
+    const resolveBranchThenLoad = async () => {
+      let saved: string | null = null
+      try {
+        saved =
+          typeof window !== 'undefined'
+            ? localStorage.getItem('selectedBranchId')
+            : null
+      } catch {}
+
+      // Грузим меню сразу под сохранённый филиал, чтобы не ждать геолокацию
+      await loadMenu(saved)
+      if (!cancelled) setLoading(false)
+
+      // Если доступ к геолокации уже выдан — уточняем ближайший филиал и
+      // при изменении перезагружаем меню (источник истины — тот же API).
+      let permission: PermissionState | null = null
+      try {
+        if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+          const status = await navigator.permissions.query({ name: 'geolocation' as PermissionName })
+          permission = status.state
+        }
+      } catch {}
+
+      const shouldDetect = permission === 'granted' || (permission !== 'denied' && !saved)
+      if (shouldDetect && typeof navigator !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            try {
+              const res = await fetch('/api/branches/nearest', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  latitude: pos.coords.latitude,
+                  longitude: pos.coords.longitude,
+                }),
+              })
+              const data = await res.json()
+              if (res.ok && data.branch?.id && !cancelled) {
+                if (data.branch.id !== saved) {
+                  try { localStorage.setItem('selectedBranchId', data.branch.id) } catch {}
+                  await loadMenu(data.branch.id)
+                }
+              }
+            } catch {}
+          },
+          () => {},
+          { timeout: 5000, maximumAge: 300000 },
+        )
+      }
+    }
+
+    resolveBranchThenLoad()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Загрузка корзины
