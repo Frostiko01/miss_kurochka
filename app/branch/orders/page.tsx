@@ -111,28 +111,37 @@ function getNextActions(order: Order): NextAction[] {
   const actions: NextAction[] = [];
   switch (order.status) {
     case "pending":
-      // Принять → автоматически перейдёт в preparing
+      // Новый заказ → Принять (переходит в preparing - сразу готовится)
       actions.push({
-        label: "Принять",
-        toStatus: "confirmed",
-        color: "#3b82f6",
+        label: "Принять в работу",
+        toStatus: "preparing",
+        color: "#fb923c",
         icon: "M5 13l4 4L19 7",
       });
       break;
     case "confirmed":
+      // Подтверждён → Готовится (этот статус может быть если заказ создан через админку)
+      actions.push({
+        label: "Готовится",
+        toStatus: "preparing",
+        color: "#fb923c",
+        icon: "M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.5-7 .5 2.5 2 4.9 2 4.9.5-3 2-5.5 4-7-.5 3 2.5 5 2.5 5a8 8 0 01-2.343 11.657z",
+      });
+      break;
     case "preparing":
+      // Готовится → в зависимости от типа заказа
       if (order.orderType === "delivery") {
         // Доставка: передать курьеру
         actions.push({
           label: "Передан курьеру",
           toStatus: "delivering",
           color: "#a855f7",
-          icon: "M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2",
+          icon: "M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0",
         });
       } else {
         // Самовывоз: готово — ждём клиента
         actions.push({
-          label: "Готово",
+          label: "Готов к выдаче",
           toStatus: "ready",
           color: "#22c55e",
           icon: "M5 13l4 4L19 7",
@@ -142,7 +151,7 @@ function getNextActions(order: Order): NextAction[] {
     case "delivering":
       // Доставка: курьер доставил — завершить
       actions.push({
-        label: "Завершить",
+        label: "Доставлен",
         toStatus: "completed",
         color: "#10b981",
         icon: "M5 13l4 4L19 7",
@@ -152,7 +161,7 @@ function getNextActions(order: Order): NextAction[] {
       // Самовывоз: клиент забрал — завершить
       if (order.orderType === "pickup") {
         actions.push({
-          label: "Завершить",
+          label: "Выдан клиенту",
           toStatus: "completed",
           color: "#10b981",
           icon: "M5 13l4 4L19 7",
@@ -333,17 +342,6 @@ export default function BranchOrdersPage() {
           type: "success",
         });
         await fetchOrders(false);
-
-        // Автоматические переходы:
-        // confirmed → preparing (сразу начинаем готовить).
-        // Таймер сохраняем и чистим при размонтировании.
-        if (newStatus === "confirmed") {
-          const timer = setTimeout(() => {
-            autoTransitionTimers.current.delete(timer);
-            if (mountedRef.current) handleStatusChange(orderId, "preparing");
-          }, 300);
-          autoTransitionTimers.current.add(timer);
-        }
       } else {
         setToast({
           message: data.error || "Ошибка при обновлении статуса",
@@ -767,17 +765,6 @@ export default function BranchOrdersPage() {
                       {action.label}
                     </button>
                   ))}
-
-                  {/* Индикатор автоматической готовки */}
-                  {(order.status === "confirmed" || order.status === "preparing") && order.orderType !== "delivery" && (
-                    <div
-                      className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold"
-                      style={{ backgroundColor: "rgba(249,115,22,0.15)", color: "#fb923c" }}
-                    >
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Готовится...
-                    </div>
-                  )}
 
                   {canCancel(order) && (
                     <button
