@@ -2,7 +2,26 @@
 
 import { useEffect, useRef, useState } from "react";
 import Toast from "@/components/admin/Toast";
-import { Truck, Store, CreditCard, Globe, Smartphone, Clock, CheckCircle, XCircle, Package, Loader2 } from "lucide-react";
+import {
+  Truck,
+  Store,
+  CreditCard,
+  Globe,
+  Smartphone,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Package,
+  Loader2,
+  Search,
+  LayoutGrid,
+  ChefHat,
+  Flame,
+  Bike,
+  Calendar,
+  ChevronDown,
+} from "lucide-react";
+import type { ComponentType } from "react";
 
 interface OrderItem {
   id: string;
@@ -51,6 +70,38 @@ const STATUS_META: Record<
   completed: { label: "Завершён",     bg: "rgba(16, 185, 129, 0.2)",  text: "#34d399", dot: "#34d399" },
   cancelled: { label: "Отменён",      bg: "rgba(239, 68, 68, 0.2)",   text: "#f87171", dot: "#f87171" },
 };
+
+// Плитки статусов для сетки 3 в ряд (неоновые акценты на тёмном фоне)
+interface StatusTile {
+  value: string;
+  label: string;
+  icon: ComponentType<{ className?: string; style?: React.CSSProperties }>;
+  neon: string; // цвет неонового акцента
+}
+
+const STATUS_TILES: StatusTile[] = [
+  { value: "all",        label: "Все заказы",   icon: LayoutGrid,   neon: "#7C8CA5" },
+  { value: "pending",    label: "Новые",        icon: Package,      neon: "#fbbf24" },
+  { value: "confirmed",  label: "Подтверждён",  icon: CheckCircle,  neon: "#60a5fa" },
+  { value: "preparing",  label: "Готовится",    icon: Flame,        neon: "#fb923c" },
+  { value: "ready",      label: "Готов",        icon: ChefHat,      neon: "#4ade80" },
+  { value: "delivering", label: "У курьера",    icon: Bike,         neon: "#c084fc" },
+  { value: "completed",  label: "Завершён",     icon: CheckCircle,  neon: "#34d399" },
+  { value: "cancelled",  label: "Отменён",      icon: XCircle,      neon: "#f87171" },
+];
+
+// Фильтр по периоду: день / неделя / месяц / всё время
+interface PeriodOption {
+  value: string;
+  label: string;
+}
+
+const PERIOD_OPTIONS: PeriodOption[] = [
+  { value: "all",   label: "За всё время" },
+  { value: "day",   label: "За день" },
+  { value: "week",  label: "За неделю" },
+  { value: "month", label: "За месяц" },
+];
 
 // Возвращает следующее действие для заказа в зависимости от статуса и типа
 interface NextAction {
@@ -156,6 +207,8 @@ export default function BranchOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState("all");
+  const [periodOpen, setPeriodOpen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
@@ -172,6 +225,8 @@ export default function BranchOrdersPage() {
   const autoTransitionTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   // При смене фильтров не «звеним» — заново фиксируем базовую линию заказов
   const rebaselineRef = useRef(false);
+  // Ref для закрытия выпадающего фильтра периода по клику вне него
+  const periodRef = useRef<HTMLDivElement | null>(null);
 
   const fetchOrders = async (showLoading = false) => {
     try {
@@ -179,6 +234,7 @@ export default function BranchOrdersPage() {
       const params = new URLSearchParams();
       if (search) params.append("search", search);
       if (statusFilter !== "all") params.append("status", statusFilter);
+      if (periodFilter !== "all") params.append("period", periodFilter);
 
       const response = await fetch(`/api/branch/orders?${params}`);
       const data = await response.json();
@@ -249,7 +305,19 @@ export default function BranchOrdersPage() {
       clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, statusFilter]);
+  }, [search, statusFilter, periodFilter]);
+
+  // Закрытие выпадающего фильтра периода по клику вне его области
+  useEffect(() => {
+    if (!periodOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (periodRef.current && !periodRef.current.contains(e.target as Node)) {
+        setPeriodOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [periodOpen]);
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
     try {
@@ -373,7 +441,7 @@ export default function BranchOrdersPage() {
         )}
       </div>
 
-      {/* Search and Status Tabs */}
+      {/* Search and Status Tiles */}
       <div
         className="rounded-2xl p-6 mb-6"
         style={{
@@ -381,66 +449,128 @@ export default function BranchOrdersPage() {
           border: "1px solid rgba(255,255,255,0.05)",
         }}
       >
-        <div className="flex flex-col gap-4">
-          {/* Search */}
-          <div className="relative">
-            <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              style={{ color: "#98A2B3" }}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        <div className="flex flex-col gap-5">
+          {/* Search + Period filter */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            {/* Search */}
+            <div className="relative flex-1">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none"
+                style={{ color: "#98A2B3" }}
               />
-            </svg>
-            <input
-              type="text"
-              placeholder="Поиск по номеру, имени или телефону..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border"
-              style={{
-                backgroundColor: "#0B0F14",
-                borderColor: "rgba(255,255,255,0.05)",
-              }}
-            />
-          </div>
-
-          {/* Status tabs */}
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                { value: "all",        label: "Все",             dot: null },
-                { value: "pending",    label: "Новые",           dot: "#fbbf24" },
-                { value: "confirmed",  label: "Подтверждённые",  dot: "#60a5fa" },
-                { value: "preparing",  label: "Готовятся",       dot: "#fb923c" },
-                { value: "ready",      label: "Готовы",          dot: "#4ade80" },
-                { value: "delivering", label: "У курьера",       dot: "#c084fc" },
-                { value: "completed",  label: "Завершённые",     dot: "#34d399" },
-                { value: "cancelled",  label: "Отменённые",      dot: "#f87171" },
-              ] as const
-            ).map((tab) => (
-              <button
-                key={tab.value}
-                onClick={() => setStatusFilter(tab.value)}
-                className="px-4 py-2 rounded-lg text-sm font-bold transition-all inline-flex items-center gap-1.5"
+              <input
+                type="text"
+                placeholder="Поиск по номеру, имени или телефону..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-12 pr-4 py-3.5 rounded-xl text-white placeholder-slate-400 focus:outline-none transition-all border"
                 style={{
-                  backgroundColor: statusFilter === tab.value ? "#7C8CA5" : "#0B0F14",
-                  color: statusFilter === tab.value ? "#fff" : "#98A2B3",
-                  border: `1px solid ${statusFilter === tab.value ? "#7C8CA5" : "#2A3442"}`,
+                  backgroundColor: "#0B0F14",
+                  borderColor: "rgba(255,255,255,0.05)",
+                }}
+              />
+            </div>
+
+            {/* Period dropdown filter */}
+            <div className="relative sm:w-56" ref={periodRef}>
+              <button
+                type="button"
+                onClick={() => setPeriodOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-4 py-3.5 rounded-xl text-sm font-bold transition-all border"
+                style={{
+                  backgroundColor: periodFilter !== "all" ? "#7C8CA5" : "#0B0F14",
+                  color: periodFilter !== "all" ? "#fff" : "#98A2B3",
+                  borderColor: periodFilter !== "all" ? "#7C8CA5" : "#2A3442",
                 }}
               >
-                {tab.dot && (
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tab.dot }} />
-                )}
-                {tab.label}
+                <span className="inline-flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  {PERIOD_OPTIONS.find((p) => p.value === periodFilter)?.label}
+                </span>
+                <ChevronDown
+                  className="w-4 h-4 transition-transform"
+                  style={{ transform: periodOpen ? "rotate(180deg)" : "none" }}
+                />
               </button>
-            ))}
+
+              {periodOpen && (
+                <div
+                  className="absolute right-0 left-0 mt-2 rounded-xl overflow-hidden z-20 shadow-xl"
+                  style={{
+                    backgroundColor: "#1A212B",
+                    border: "1px solid #2A3442",
+                  }}
+                >
+                  {PERIOD_OPTIONS.map((opt) => {
+                    const active = periodFilter === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => {
+                          setPeriodFilter(opt.value);
+                          setPeriodOpen(false);
+                        }}
+                        className="w-full text-left px-4 py-3 text-sm font-semibold transition-colors flex items-center justify-between"
+                        style={{
+                          backgroundColor: active ? "#202937" : "transparent",
+                          color: active ? "#F3F5F7" : "#98A2B3",
+                        }}
+                      >
+                        {opt.label}
+                        {active && (
+                          <CheckCircle className="w-4 h-4" style={{ color: "#7C8CA5" }} />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Status tiles — 3 в ряд */}
+          <div className="grid grid-cols-3 gap-3">
+            {STATUS_TILES.map((tile) => {
+              const active = statusFilter === tile.value;
+              const Icon = tile.icon;
+              return (
+                <button
+                  key={tile.value}
+                  onClick={() => setStatusFilter(tile.value)}
+                  className="flex flex-col items-center justify-center gap-2 py-5 px-2 transition-all"
+                  style={{
+                    borderRadius: 16,
+                    backgroundColor: active ? "#0B0F14" : "#0B0F14",
+                    border: `1px solid ${active ? tile.neon : "#202937"}`,
+                    boxShadow: active
+                      ? `0 0 0 1px ${tile.neon}, 0 0 18px ${tile.neon}55`
+                      : "none",
+                  }}
+                >
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center transition-all"
+                    style={{
+                      backgroundColor: active
+                        ? `${tile.neon}22`
+                        : "#1A212B",
+                      boxShadow: active ? `0 0 12px ${tile.neon}66` : "none",
+                    }}
+                  >
+                    <Icon
+                      className="w-5 h-5"
+                      style={{ color: active ? tile.neon : "#7C8CA5" }}
+                    />
+                  </div>
+                  <span
+                    className="text-xs font-bold text-center leading-tight"
+                    style={{ color: active ? "#F3F5F7" : "#98A2B3" }}
+                  >
+                    {tile.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>

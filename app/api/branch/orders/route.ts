@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search") || "";
     const status = searchParams.get("status") || "all";
+    const period = searchParams.get("period") || "all";
     const limit = parseInt(searchParams.get("limit") || "100");
 
     const where: any = { branchId: branchUser.branchId };
@@ -38,6 +39,19 @@ export async function GET(request: NextRequest) {
     }
     if (status !== "all") {
       where.status = status;
+    }
+    // Фильтр по периоду создания заказа: день / неделя / месяц
+    if (period !== "all") {
+      const now = new Date();
+      const from = new Date(now);
+      if (period === "day") {
+        from.setHours(0, 0, 0, 0);
+      } else if (period === "week") {
+        from.setDate(from.getDate() - 7);
+      } else if (period === "month") {
+        from.setMonth(from.getMonth() - 1);
+      }
+      where.createdAt = { gte: from };
     }
 
     const [orders, newCount] = await Promise.all([
