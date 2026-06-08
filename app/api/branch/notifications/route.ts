@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 // GET — список уведомлений для филиала текущего пользователя
 export async function GET(request: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url)
     const onlyUnread = url.searchParams.get('unread') === 'true'
 
-    const where: any = {
+    const where: Prisma.NotificationWhereInput = {
       audience: 'branch',
       branchId: branchUser.branchId,
     }

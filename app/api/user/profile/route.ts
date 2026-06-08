@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 // PATCH - Обновить профиль пользователя (телефон, имя)
 export async function PATCH(request: NextRequest) {
@@ -15,7 +16,7 @@ export async function PATCH(request: NextRequest) {
     const { phone, fullName } = body;
 
     // Формируем объект обновления (только переданные поля)
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
 
     if (typeof phone === "string") {
       // Простая валидация: только цифры и +, длина 10-15

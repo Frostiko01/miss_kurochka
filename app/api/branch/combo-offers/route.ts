@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить все комбо-наборы
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
     const typeFilter = searchParams.get("type") || "all";
 
-    const where: any = {};
+    const where: Prisma.ComboOfferWhereInput = {};
     if (status !== "all") where.isActive = status === "active";
     if (typeFilter === "regular") where.type = "regular";
     else if (typeFilter === "mini") where.type = "mini";

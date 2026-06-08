@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить категории филиала
 export async function GET(request: NextRequest) {
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const where: any = {
+    const where: Prisma.MenuCategoryWhereInput = {
       OR: [
         { branchId: branchUser.branchId },
         { branchId: null },
@@ -37,10 +38,10 @@ export async function GET(request: NextRequest) {
       where.name = { contains: search, mode: "insensitive" };
     }
     if (status !== "all") {
-      where.status = status;
+      where.status = status as Prisma.MenuCategoryWhereInput["status"];
     }
 
-    let orderBy: any = { createdAt: sortOrder };
+    let orderBy: Prisma.MenuCategoryOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "name") orderBy = { name: sortOrder };
 
     const categories = await prisma.menuCategory.findMany({

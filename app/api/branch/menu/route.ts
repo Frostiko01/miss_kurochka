@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get("categoryId") || "all";
 
     // Формируем условия фильтрации
-    const where: any = {
+    const where: Prisma.MenuItemWhereInput = {
       isActive: true,
       // Блюда филиала + глобальные блюда администратора
       OR: [{ branchId: branchId }, { branchId: null }],

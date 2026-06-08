@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить историю заказов пользователя
 export async function GET(request: NextRequest) {
@@ -17,12 +18,12 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get("offset") || "0");
 
     // Фильтр по статусу
-    const where: any = {
+    const where: Prisma.OrderWhereInput = {
       customerId: session.user.id,
     };
 
     if (status !== "all") {
-      where.status = status;
+      where.status = status as Prisma.OrderWhereInput["status"];
     }
 
     // Получаем заказы с полной информацией

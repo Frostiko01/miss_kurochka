@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить заказы только своего филиала
 export async function GET(request: NextRequest) {
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     const period = searchParams.get("period") || "all";
     const limit = parseInt(searchParams.get("limit") || "100");
 
-    const where: any = { branchId: branchUser.branchId };
+    const where: Prisma.OrderWhereInput = { branchId: branchUser.branchId };
     // Скрываем неоплаченные finik-заказы — пока не пришёл webhook с подтверждением,
     // заказ не должен показываться филиалу.
     where.NOT = { paymentMethod: "finik", status: "pending" };
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
       ];
     }
     if (status !== "all") {
-      where.status = status;
+      where.status = status as Prisma.OrderWhereInput["status"];
     }
     // Фильтр по периоду создания заказа: день / неделя / месяц
     if (period !== "all") {
