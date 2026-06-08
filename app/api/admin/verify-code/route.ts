@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { signIn } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {

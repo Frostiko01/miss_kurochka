@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Menu, MapPin, ChevronDown, Bell } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 
 interface Branch {
   id: string

@@ -11,13 +11,12 @@ import AuthModal from '@/components/AuthModal'
 import NewsletterModal from '@/components/NewsletterModal'
 import { useTranslations } from '@/app/i18n/hooks/useTranslations'
 import MenuItemModal from '@/components/MenuItemModal'
-import Select from '@/components/ui/Select'
 import MobileHome from '@/components/mobile/MobileHome'
 import BranchClosedModal from '@/components/BranchClosedModal'
 import {
-  Flame, ChevronRight, Phone, Clock, MapPin, Plus, Minus,
+  Flame, ChevronRight, Phone, MapPin, Plus, Minus,
   Menu as MenuIcon, X, Sparkles, Truck, Award, Heart,
-  Send, ShieldCheck, Timer, Star, ShoppingCart, MessageCircle, Mail, User,
+  ShieldCheck, Timer, Star, MessageCircle, Mail,
 } from 'lucide-react'
 
 interface LandingMenuItem {

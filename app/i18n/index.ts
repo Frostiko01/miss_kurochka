@@ -1,9 +1,5 @@
 import { Locale, defaultLocale } from './config'
 
-type TranslationFiles = {
-  [key: string]: any
-}
-
 const translationCache: Map<string, any> = new Map()
 
 /**
@@ -20,14 +16,14 @@ export async function getTranslations(locale: Locale, page: string): Promise<any
     const translations = await import(`./locales/${locale}/${page}.json`)
     translationCache.set(cacheKey, translations.default)
     return translations.default
-  } catch (error) {
+  } catch {
     console.warn(`Translation file not found: ${locale}/${page}.json, falling back to ${defaultLocale}`)
     
     if (locale !== defaultLocale) {
       try {
         const fallbackTranslations = await import(`./locales/${defaultLocale}/${page}.json`)
         return fallbackTranslations.default
-      } catch (fallbackError) {
+      } catch {
         console.error(`Fallback translation file not found: ${defaultLocale}/${page}.json`)
         return {}
       }

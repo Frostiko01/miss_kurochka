@@ -5,10 +5,6 @@ import Toast from "@/components/admin/Toast";
 import {
   Truck,
   Store,
-  CreditCard,
-  Globe,
-  Smartphone,
-  Clock,
   CheckCircle,
   XCircle,
   Package,

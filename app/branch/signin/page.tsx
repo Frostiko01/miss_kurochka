@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, useSession } from "next-auth/react";
 import Link from "next/link";
-import Image from "next/image";
 
 export default function BranchSignInPage() {
   const router = useRouter();

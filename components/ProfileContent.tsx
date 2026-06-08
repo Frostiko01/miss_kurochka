@@ -86,7 +86,7 @@ export default function ProfileContent({ user }: ProfileContentProps) {
       } else {
         setError(data.error || 'Ошибка сохранения')
       }
-    } catch (e) {
+    } catch {
       setError('Ошибка сети')
     } finally {
       setSaving(false)

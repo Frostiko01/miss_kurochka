@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/serverCache";
 
 export const dynamic = "force-dynamic";
 
 // GET - Получить активные комбо для главной страницы (публичный API)
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const combos = await cached("combo-offers:active", 60_000, () =>
       prisma.comboOffer.findMany({

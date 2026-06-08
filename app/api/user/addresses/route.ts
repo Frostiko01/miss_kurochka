@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { geocodeAddress } from "@/lib/branchSelector";
 
 // GET - Получить адреса пользователя
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await auth();
 

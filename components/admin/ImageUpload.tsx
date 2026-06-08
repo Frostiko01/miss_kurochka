@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, X, ImageIcon, AlertTriangle } from "lucide-react";
+import { Upload, AlertTriangle } from "lucide-react";
 
 interface ImageUploadProps {
   value: string;

@@ -5,24 +5,18 @@ import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import Spinner from "@/components/Spinner";
 import PanLoader from "@/components/PanLoader";
 import {
   ShoppingCart,
-  Package,
   ChevronRight,
-  User,
-  MapPin,
   Clock,
   Flame,
   Star,
   Plus,
   Minus,
   LogOut,
-  Phone,
   CheckCircle,
   Truck,
-  Store,
   ChefHat,
   Menu as MenuIcon,
   X,
@@ -30,7 +24,6 @@ import {
 } from "lucide-react";
 import MenuItemDetailModal from "@/components/MenuItemDetailModal";
 import AuthModal from "@/components/AuthModal";
-import MenuCard from "@/components/MenuCard";
 import MenuItemCard from "@/components/MenuItemCard";
 import SideMenu from "@/components/SideMenu";
 import AiChatModal from "@/components/AiChatModal";

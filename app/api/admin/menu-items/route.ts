@@ -152,7 +152,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "ID, category and name are required" }, { status: 400 });
     }
 
-    const menuItem = await prisma.menuItem.update({
+    await prisma.menuItem.update({
       where: { id },
       data: {
         categoryId,

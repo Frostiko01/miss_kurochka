@@ -128,7 +128,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Обновляем основные поля
-    const combo = await prisma.comboOffer.update({
+    await prisma.comboOffer.update({
       where: { id },
       data: {
         name,

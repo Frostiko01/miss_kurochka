@@ -38,7 +38,7 @@ export default function NewsletterModal({ isOpen, onClose }: NewsletterModalProp
       } else {
         setError(data.error || 'Не удалось оформить подписку')
       }
-    } catch (err) {
+    } catch {
       setError('Произошла ошибка. Попробуйте позже.')
     } finally {
       setIsLoading(false)
