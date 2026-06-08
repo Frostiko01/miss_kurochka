@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import bcrypt from "bcryptjs";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить список пользователей
 export async function GET(request: NextRequest) {
@@ -19,17 +20,17 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const where: any = {};
+    const where: Prisma.UserWhereInput = {};
     if (search) {
       where.OR = [
         { fullName: { contains: search, mode: "insensitive" } },
         { email: { contains: search, mode: "insensitive" } },
       ];
     }
-    if (role !== "all") where.role = role;
-    if (status !== "all") where.status = status;
+    if (role !== "all") where.role = role as Prisma.UserWhereInput["role"];
+    if (status !== "all") where.status = status as Prisma.UserWhereInput["status"];
 
-    let orderBy: any = { createdAt: sortOrder };
+    let orderBy: Prisma.UserOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "fullName") orderBy = { fullName: sortOrder };
     else if (sortBy === "email") orderBy = { email: sortOrder };
     else if (sortBy === "role") orderBy = { role: sortOrder };
@@ -147,7 +148,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updateData: any = {};
+    const updateData: Prisma.UserUpdateInput = {};
     if (role) updateData.role = role;
     if (status) updateData.status = status;
 

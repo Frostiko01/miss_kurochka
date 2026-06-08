@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить все комбо
 export async function GET(request: NextRequest) {
@@ -17,14 +18,14 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "sortOrder";
     const sortOrder = (searchParams.get("sortOrder") || "asc") as "asc" | "desc";
 
-    const where: any = {};
+    const where: Prisma.ComboOfferWhereInput = {};
     if (status === "active") where.isActive = true;
     else if (status === "inactive") where.isActive = false;
     if (typeFilter === "regular") where.type = "regular";
     else if (typeFilter === "mini") where.type = "mini";
     if (search) where.name = { contains: search, mode: "insensitive" };
 
-    let orderBy: any = [{ sortOrder: sortOrder }, { createdAt: "desc" }];
+    let orderBy: Prisma.ComboOfferOrderByWithRelationInput | Prisma.ComboOfferOrderByWithRelationInput[] = [{ sortOrder: sortOrder }, { createdAt: "desc" }];
     if (sortBy === "name") orderBy = { name: sortOrder };
     else if (sortBy === "price") orderBy = { price: sortOrder };
     else if (sortBy === "createdAt") orderBy = { createdAt: sortOrder };

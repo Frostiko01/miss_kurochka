@@ -277,7 +277,6 @@ export default function Home() {
       // чтобы учесть стоп-лист и индивидуальные блюда филиала.
       fetchPopular(selectedBranch)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBranch])
 
   useEffect(() => {

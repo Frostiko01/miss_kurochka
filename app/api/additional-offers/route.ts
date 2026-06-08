@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import type { Prisma, AdditionalOffer } from "@prisma/client";
 
 /**
  * Публичный API для получения дополнительных предложений (соусы и т.д.)
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get("category");
 
-    const where: any = {
+    const where: Prisma.AdditionalOfferWhereInput = {
       isActive: true,
     };
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Группируем по категориям
-    const grouped = offers.reduce((acc: any, offer) => {
+    const grouped = offers.reduce((acc: Record<string, AdditionalOffer[]>, offer) => {
       if (!acc[offer.category]) {
         acc[offer.category] = [];
       }

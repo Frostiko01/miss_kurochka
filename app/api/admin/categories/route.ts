@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,15 +16,15 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const where: any = {};
+    const where: Prisma.MenuCategoryWhereInput = {};
     if (search) {
       where.name = { contains: search, mode: "insensitive" };
     }
     if (status !== "all") {
-      where.status = status;
+      where.status = status as Prisma.MenuCategoryWhereInput["status"];
     }
 
-    let orderBy: any = { createdAt: sortOrder };
+    let orderBy: Prisma.MenuCategoryOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "name") orderBy = { name: sortOrder };
 
     const categories = await prisma.menuCategory.findMany({
@@ -104,7 +105,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    const updateData: any = {
+    const updateData: Prisma.MenuCategoryUpdateInput = {
       name,
       description: description || null,
       imageUrl: (imageUrl && imageUrl.trim() !== '') ? imageUrl.trim() : null,

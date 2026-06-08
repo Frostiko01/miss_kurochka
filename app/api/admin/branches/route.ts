@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const where: any = {};
+    const where: Prisma.BranchWhereInput = {};
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       where.status = status === "active" ? "active" : "inactive";
     }
 
-    let orderBy: any = { createdAt: sortOrder };
+    let orderBy: Prisma.BranchOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "name") orderBy = { name: sortOrder };
     else if (sortBy === "status") orderBy = { status: sortOrder };
 

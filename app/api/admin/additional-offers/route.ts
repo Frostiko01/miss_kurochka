@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 // GET - Получить все дополнительные предложения
 export async function GET(request: NextRequest) {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
     const category = searchParams.get("category");
 
-    const where: any = {};
+    const where: Prisma.AdditionalOfferWhereInput = {};
 
     if (status === "active") {
       where.isActive = true;

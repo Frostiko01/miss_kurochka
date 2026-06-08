@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status") || "all";
     const branchId = searchParams.get("branchId") || "all";
 
-    const where: any = {};
+    const where: Prisma.OrderWhereInput = {};
     // Скрываем неоплаченные finik-заказы из админ-панели тоже.
     where.NOT = { paymentMethod: "finik", status: "pending" };
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (status !== "all") {
-      where.status = status;
+      where.status = status as Prisma.OrderWhereInput["status"];
     }
 
     if (branchId !== "all") {

@@ -143,7 +143,6 @@ export default function MenuPage() {
 
     resolveBranchThenLoad()
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Загрузка корзины
