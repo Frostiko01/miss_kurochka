@@ -658,102 +658,165 @@ const SYSTEM_PROMPT = `Ты — Курочка 🐔, дружелюбный и �
 - Не отвечать на вопросы вне темы ресторана/еды (вежливо верни к делу)
 - Не давать ответ длиннее 6 предложений без необходимости`
 
-// ─── API ROUTE ───────────────────────────────────────────────────────────────
+// ─── ВЫПОЛНЕНИЕ ОДНОЙ ФУНКЦИИ ─────────────────────────────────────────────────
+
+async function runTool(name: string, args: Record<string, unknown>): Promise<unknown> {
+  try {
+    switch (name) {
+      case 'get_full_menu':         return await getFullMenu()
+      case 'get_item_details':      return await getItemDetails(args.name as string)
+      case 'search_items':          return await searchItems(args)
+      case 'get_categories':        return await getCategories()
+      case 'get_new_items':         return await getNewItems()
+      case 'get_featured_items':    return await getFeaturedItems()
+      case 'get_price_extremes':    return await getPriceExtremes(args.direction as 'cheapest' | 'most_expensive', (args.limit as number) ?? 5)
+      case 'get_combo_offers':      return await getComboOffers()
+      case 'get_additional_offers': return await getAdditionalOffers(args.category as string | undefined)
+      case 'get_branches':          return await getBranches()
+      case 'get_menu_stats':        return await getMenuStats()
+      default:                      return { error: `Неизвестная функция: ${name}` }
+    }
+  } catch (err) {
+    console.error(`Ошибка ${name}:`, err)
+    return { error: 'Не удалось получить данные' }
+  }
+}
+
+// Аккумулятор tool_calls из стриминговых дельт
+type ToolCallAcc = { id: string; name: string; arguments: string }
+
+// ─── API ROUTE (STREAMING) ────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
+  let messages: unknown
   try {
     const body = await request.json()
-    const { messages } = body
-
-    if (!messages || !Array.isArray(messages)) {
-      return NextResponse.json({ error: 'Неверный формат сообщений' }, { status: 400 })
-    }
-
-    const conversationMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: 'system', content: SYSTEM_PROMPT },
-      ...messages.slice(-20),
-    ]
-
-    // Function calling — до 6 итераций (даём ИИ возможность сделать несколько вызовов подряд)
-    for (let i = 0; i < 6; i++) {
-      const openai = getOpenAI()
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: conversationMessages,
-        tools,
-        tool_choice: 'auto',
-        max_tokens: 1200,
-        temperature: 0.85, // Чуть выше — для креативности
-        presence_penalty: 0.3, // Меньше повторов
-      })
-
-      const assistantMessage = response.choices[0]?.message
-      if (!assistantMessage) {
-        return NextResponse.json({ error: 'Нет ответа от ИИ' }, { status: 500 })
-      }
-
-      conversationMessages.push(assistantMessage)
-
-      if (!assistantMessage.tool_calls?.length) {
-        return NextResponse.json({
-          reply: assistantMessage.content ?? 'Хм, не получилось сформулировать ответ. Попробуйте ещё раз 🤔',
-        })
-      }
-
-      // Параллельное выполнение всех tool_calls
-      const toolResults = await Promise.all(
-        assistantMessage.tool_calls.map(async (toolCall) => {
-          // В новых версиях SDK tool_calls — discriminated union (function | custom).
-          // Нас интересуют только function-вызовы.
-          if (toolCall.type !== 'function' || !('function' in toolCall)) {
-            return {
-              role: 'tool' as const,
-              tool_call_id: toolCall.id,
-              content: JSON.stringify({ error: 'Unsupported tool call type' }),
-            }
-          }
-          const fn = (toolCall as { function: { name: string; arguments: string } }).function
-          const name = fn.name
-          const args = JSON.parse(fn.arguments || '{}')
-          let result: unknown
-
-          try {
-            switch (name) {
-              case 'get_full_menu':         result = await getFullMenu(); break
-              case 'get_item_details':      result = await getItemDetails(args.name); break
-              case 'search_items':          result = await searchItems(args); break
-              case 'get_categories':        result = await getCategories(); break
-              case 'get_new_items':         result = await getNewItems(); break
-              case 'get_featured_items':    result = await getFeaturedItems(); break
-              case 'get_price_extremes':    result = await getPriceExtremes(args.direction, args.limit ?? 5); break
-              case 'get_combo_offers':      result = await getComboOffers(); break
-              case 'get_additional_offers': result = await getAdditionalOffers(args.category); break
-              case 'get_branches':          result = await getBranches(); break
-              case 'get_menu_stats':        result = await getMenuStats(); break
-              default: result = { error: `Неизвестная функция: ${name}` }
-            }
-          } catch (err) {
-            console.error(`Ошибка ${name}:`, err)
-            result = { error: 'Не удалось получить данные' }
-          }
-
-          return {
-            role: 'tool' as const,
-            tool_call_id: toolCall.id,
-            content: JSON.stringify(result),
-          }
-        }),
-      )
-
-      conversationMessages.push(...toolResults)
-    }
-
-    return NextResponse.json({
-      reply: 'Что-то я задумалась 🤔 Попробуйте задать вопрос иначе.',
-    })
-  } catch (error: unknown) {
-    console.error('Ошибка ИИ:', error)
-    const message = error instanceof Error ? error.message : 'Ошибка ИИ'
-    return NextResponse.json({ error: message }, { status: 500 })
+    messages = body.messages
+  } catch {
+    return NextResponse.json({ error: 'Неверный формат запроса' }, { status: 400 })
   }
+
+  if (!messages || !Array.isArray(messages)) {
+    return NextResponse.json({ error: 'Неверный формат сообщений' }, { status: 400 })
+  }
+
+  const conversationMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+    { role: 'system', content: SYSTEM_PROMPT },
+    ...messages.slice(-20),
+  ]
+
+  const encoder = new TextEncoder()
+
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (text: string) => controller.enqueue(encoder.encode(text))
+
+      try {
+        const openai = getOpenAI()
+
+        // Function calling — до 6 итераций. Каждый запрос идёт в стриминговом режиме.
+        for (let i = 0; i < 6; i++) {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: conversationMessages,
+            tools,
+            tool_choice: 'auto',
+            max_tokens: 1200,
+            temperature: 0.85,
+            presence_penalty: 0.3,
+            stream: true,
+          })
+
+          const toolCalls: ToolCallAcc[] = []
+          let contentBuffer = ''
+          let finishReason: string | null = null
+
+          for await (const chunk of completion) {
+            const choice = chunk.choices[0]
+            if (!choice) continue
+            const delta = choice.delta
+
+            // Текстовый токен — сразу отправляем клиенту
+            if (delta?.content) {
+              contentBuffer += delta.content
+              send(delta.content)
+            }
+
+            // Аккумулируем дельты tool_calls по индексу
+            if (delta?.tool_calls) {
+              for (const tc of delta.tool_calls) {
+                const idx = tc.index
+                if (!toolCalls[idx]) {
+                  toolCalls[idx] = { id: '', name: '', arguments: '' }
+                }
+                if (tc.id) toolCalls[idx].id = tc.id
+                if (tc.function?.name) toolCalls[idx].name += tc.function.name
+                if (tc.function?.arguments) toolCalls[idx].arguments += tc.function.arguments
+              }
+            }
+
+            if (choice.finish_reason) finishReason = choice.finish_reason
+          }
+
+          // Нет вызовов функций — это финальный текстовый ответ, он уже отправлен.
+          if (toolCalls.length === 0 || finishReason !== 'tool_calls') {
+            if (!contentBuffer.trim()) {
+              send('Хм, не получилось сформулировать ответ. Попробуйте ещё раз 🤔')
+            }
+            controller.close()
+            return
+          }
+
+          // Добавляем ассистентское сообщение с вызовами функций в историю
+          conversationMessages.push({
+            role: 'assistant',
+            content: contentBuffer || null,
+            tool_calls: toolCalls.map(tc => ({
+              id: tc.id,
+              type: 'function',
+              function: { name: tc.name, arguments: tc.arguments },
+            })),
+          })
+
+          // Параллельно выполняем все функции
+          const toolResults = await Promise.all(
+            toolCalls.map(async (tc) => {
+              let parsedArgs: Record<string, unknown> = {}
+              try {
+                parsedArgs = JSON.parse(tc.arguments || '{}')
+              } catch {
+                parsedArgs = {}
+              }
+              const result = await runTool(tc.name, parsedArgs)
+              return {
+                role: 'tool' as const,
+                tool_call_id: tc.id,
+                content: JSON.stringify(result),
+              }
+            }),
+          )
+
+          conversationMessages.push(...toolResults)
+        }
+
+        // Исчерпали лимит итераций
+        send('Что-то я задумалась 🤔 Попробуйте задать вопрос иначе.')
+        controller.close()
+      } catch (error: unknown) {
+        console.error('Ошибка ИИ:', error)
+        try {
+          send('\n\n⚠️ Произошла ошибка. Попробуйте ещё раз.')
+        } catch { /* поток мог быть уже закрыт */ }
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }
