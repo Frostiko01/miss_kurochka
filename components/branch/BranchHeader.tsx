@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
@@ -23,14 +24,14 @@ export default function BranchHeader() {
       {/* Logo and Title */}
       <div className="flex items-center gap-4">
         <div 
-          className="w-12 h-12 flex items-center justify-center"
+          className="w-12 h-12 flex items-center justify-center overflow-hidden"
           style={{ 
             background: 'linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)',
             borderRadius: '12px',
             boxShadow: '0 4px 12px rgba(124, 140, 165, 0.3)'
           }}
         >
-          <span className="text-2xl">🍗</span>
+          <Image src="/logo.png" alt="Miss Kurochka" width={48} height={48} className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="text-xl font-bold tracking-tight" style={{ color: '#F3F5F7' }}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { branchTheme as c } from "./branchTheme";
@@ -28,14 +29,14 @@ export default function BranchMobileHeader({ title }: Props) {
     >
       {/* Логотип */}
       <div
-        className="w-10 h-10 flex items-center justify-center shrink-0"
+        className="w-10 h-10 flex items-center justify-center shrink-0 overflow-hidden"
         style={{
           background: "linear-gradient(135deg, #7C8CA5 0%, #93A4BF 100%)",
           borderRadius: 12,
           boxShadow: "0 4px 12px rgba(124, 140, 165, 0.3)",
         }}
       >
-        <span className="text-xl">🍗</span>
+        <Image src="/logo.png" alt="Miss Kurochka" width={40} height={40} className="w-full h-full object-cover" />
       </div>
 
       {/* Название по центру */}

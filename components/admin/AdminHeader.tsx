@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useSession } from "next-auth/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
@@ -21,8 +22,8 @@ export default function AdminHeader() {
     >
       {/* Logo and Title */}
       <div className="flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: '#555e7d' }}>
-          <span className="text-2xl">🍗</span>
+        <div className="w-12 h-12 rounded-xl flex items-center justify-center overflow-hidden" style={{ backgroundColor: '#555e7d' }}>
+          <Image src="/logo.png" alt="Miss Kurochka" width={48} height={48} className="w-full h-full object-cover" />
         </div>
         <div>
           <h1 className="text-xl font-black uppercase tracking-tight" style={{ color: 'white' }}>
