@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
             where: { isActive: true },
             select: {
               id: true,
+              branchId: true,
               name: true,
               nameI18n: true,
               description: true,
@@ -135,6 +136,9 @@ export async function GET(request: NextRequest) {
     const categoriesWithItems = categories.map((category) => {
       const items = category.menuItems
         .filter((item) => {
+          // Индивидуальное меню филиала: показываем глобальные блюда
+          // (branchId === null) и блюда выбранного филиала. Чужие — скрываем.
+          if (item.branchId && item.branchId !== branchId) return false;
           if (!stopSet) return true;
           // Скрываем блюда из актуального стоп-листа филиала
           return !stopSet.has(item.id);

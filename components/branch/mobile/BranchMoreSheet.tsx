@@ -45,6 +45,10 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
   const [dragY, setDragY] = useState(0);
   const startY = useRef<number | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Ref внутреннего скролл-контейнера. ВАЖНО: объявляем ДО раннего return,
+  // иначе число хуков между рендерами меняется и React падает с ошибкой
+  // «Rendered more hooks than during the previous render» (белый экран).
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   // Управляем монтированием и плавной анимацией открытия/закрытия
   useEffect(() => {
@@ -97,12 +101,16 @@ export default function BranchMoreSheet({ open, onClose }: Props) {
   const handleLogout = async () => {
     haptic([10, 30, 10]);
     onClose();
-    await signOut({ callbackUrl: "/branch/signin" });
+    try {
+      await signOut({ callbackUrl: "/branch/signin" });
+    } catch {
+      // Фоллбэк, если signOut не смог выполнить редирект
+      window.location.href = "/branch/signin";
+    }
   };
 
   // Swipe-to-close вниз — только если внутренний список прокручен в самый верх,
   // иначе жест перехватывал бы прокрутку контента.
-  const scrollRef = useRef<HTMLDivElement>(null);
   const onTouchStart = (e: React.TouchEvent) => {
     const sc = scrollRef.current;
     if (sc && sc.scrollTop > 0) {

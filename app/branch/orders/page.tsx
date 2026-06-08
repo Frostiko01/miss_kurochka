@@ -168,8 +168,9 @@ function getNextActions(order: Order): NextAction[] {
 }
 
 function canCancel(order: Order): boolean {
-  // Филиал может отменить только новый заказ (до принятия)
-  return order.status === "pending";
+  // По требованию убрана кнопка «Не принять/Отменить» для филиала.
+  // Филиал только принимает заказ; отмена доступна администратору.
+  return false;
 }
 
 const fmtTime = (iso: string) => {

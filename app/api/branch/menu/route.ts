@@ -30,12 +30,8 @@ export async function GET(request: NextRequest) {
     // Формируем условия фильтрации
     const where: any = {
       isActive: true,
-      category: {
-        OR: [
-          { branchId: branchId },
-          { branchId: null },
-        ],
-      },
+      // Блюда филиала + глобальные блюда администратора
+      OR: [{ branchId: branchId }, { branchId: null }],
     };
 
     if (search) {

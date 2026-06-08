@@ -199,13 +199,28 @@ export default function ReportsPage({
 
   const downloadBlob = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
+
+    // iOS Safari плохо поддерживает атрибут download и синхронный revoke:
+    // файл не скачивается / открывается пустым. Для мобильных открываем
+    // документ в новой вкладке, чтобы пользователь мог сохранить/отправить
+    // его системными средствами (Share Sheet).
+    const isMobile =
+      typeof navigator !== "undefined" &&
+      /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
     const a = document.createElement("a");
     a.href = url;
     a.download = fileName;
+    if (isMobile) {
+      a.target = "_blank";
+      a.rel = "noopener";
+    }
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+
+    // Откладываем освобождение URL, чтобы навигация/скачивание успели начаться.
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   };
 
   const extractFileName = (response: Response, fallback: string) => {

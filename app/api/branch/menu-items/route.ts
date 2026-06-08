@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
     const where: any = {
-      category: { OR: [{ branchId: branchUser.branchId }, { branchId: null }] },
+      // Филиал видит свои блюда (branchId === его филиал) и глобальные
+      // блюда администратора (branchId === null). Чужие блюда скрыты.
+      OR: [{ branchId: branchUser.branchId }, { branchId: null }],
     };
     if (search) where.name = { contains: search, mode: "insensitive" };
     if (status === "active") where.isActive = true;
@@ -90,6 +92,8 @@ export async function POST(request: NextRequest) {
     const menuItem = await prisma.menuItem.create({
       data: {
         categoryId,
+        // Привязываем блюдо к филиалу — оно будет видно только этому филиалу.
+        branchId: branchUser.branchId,
         name,
         description: description || null,
         cookingTimeMinutes: cookingTimeMinutes ? parseInt(cookingTimeMinutes) : null,
@@ -165,6 +169,11 @@ export async function PUT(request: NextRequest) {
     });
     if (!existingItem) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
 
+    // Запрещаем редактировать блюда, принадлежащие другому филиалу.
+    // Глобальные блюда (branchId === null) филиал тоже не редактирует.
+    if (existingItem.branchId !== branchUser.branchId) {
+      return NextResponse.json({ error: "Cannot edit items from other branches" }, { status: 403 });
+    }
     if (existingItem.category.branchId && existingItem.category.branchId !== branchUser.branchId) {
       return NextResponse.json({ error: "Cannot edit items from other branches" }, { status: 403 });
     }
@@ -260,6 +269,10 @@ export async function DELETE(request: NextRequest) {
     });
     if (!existingItem) return NextResponse.json({ error: "Menu item not found" }, { status: 404 });
 
+    // Удалять можно только собственные блюда филиала.
+    if (existingItem.branchId !== branchUser.branchId) {
+      return NextResponse.json({ error: "Cannot delete items from other branches" }, { status: 403 });
+    }
     if (existingItem.category.branchId && existingItem.category.branchId !== branchUser.branchId) {
       return NextResponse.json({ error: "Cannot delete items from other branches" }, { status: 403 });
     }

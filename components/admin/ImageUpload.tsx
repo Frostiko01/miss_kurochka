@@ -106,6 +106,7 @@ export default function ImageUpload({
 
       {hasImage ? (
         /* ── Preview ── */
+        <>
         <div
           className="relative rounded-xl overflow-hidden border"
           style={{ borderColor: "rgba(255,255,255,0.08)" }}
@@ -124,7 +125,9 @@ export default function ImageUpload({
               base64 — сохраните для загрузки в S3
             </div>
           )}
-          <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          {/* На десктопе — оверлей по наведению; на мобильных кнопки
+              вынесены отдельной панелью снизу, т.к. hover недоступен. */}
+          <div className="absolute inset-0 bg-black/50 opacity-0 hover:opacity-100 transition-opacity hidden sm:flex items-center justify-center gap-3">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -143,6 +146,26 @@ export default function ImageUpload({
             </button>
           </div>
         </div>
+        {/* Мобильные кнопки управления фото (hover недоступен на телефоне) */}
+        <div className="flex gap-2 mt-2 sm:hidden">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex-1 px-4 py-2.5 rounded-lg font-bold text-white text-sm"
+            style={{ backgroundColor: "#7C8CA5" }}
+          >
+            Изменить
+          </button>
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="flex-1 px-4 py-2.5 rounded-lg font-bold text-white text-sm"
+            style={{ backgroundColor: "#ef4444" }}
+          >
+            Удалить
+          </button>
+        </div>
+        </>
       ) : (
         /* ── Upload area ── */
         <div

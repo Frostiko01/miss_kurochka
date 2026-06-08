@@ -57,6 +57,7 @@ model Branch {
   carts                  Cart[]
   deliveryZones          DeliveryZone[]
   menuCategories         MenuCategory[]
+  menuItems              MenuItem[]
   modifierGroups         ModifierGroup[]
   orders                 Order[]
   popularItemsStats      PopularItemsStats[]
@@ -116,6 +117,7 @@ model MenuCategory {
 model MenuItem {
   id                 String              @id @default(uuid()) @db.Uuid
   categoryId         String              @map("category_id") @db.Uuid
+  branchId           String?             @map("branch_id") @db.Uuid
   name               String              @db.VarChar(300)
   nameI18n           Json?               @map("name_i18n")
   description        String?
@@ -138,10 +140,12 @@ model MenuItem {
   sizes              MenuItemSize[]
   spices             MenuItemSpice[]
   category           MenuCategory        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  branch             Branch?             @relation(fields: [branchId], references: [id], onDelete: Cascade)
   orderItems         OrderItem[]
   popularItemsStats  PopularItemsStats[]
   stopList           StopList[]
 
+  @@index([branchId])
   @@map("menu_items")
 }
 
