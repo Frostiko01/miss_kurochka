@@ -12,8 +12,9 @@ const nunito = Nunito({
 
 export const metadata: Metadata = {
   applicationName: "Miss Kurochka",
-  title: "Miss Kurochka - Самая вкусная курочка",
-  description: "Заказывайте вкусную курицу, бургеры и напитки онлайн. Быстрая доставка и самовывоз.",
+  title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
+  description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
+  keywords: ["мисс курочка", "мисс курочка бишкек", "miss kurochka", "корейская курочка бишкек", "доставка еды бишкек", "хрустящая курочка", "янгнём", "кандян", "доставка курочки бишкек", "корейская кухня бишкек"],
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -25,13 +26,36 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico?v=2', sizes: '48x48', type: 'image/x-icon' },
-      { url: '/icon-192.png?v=2', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png?v=2', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon.ico?v=3', sizes: '48x48', type: 'image/x-icon' },
+      { url: '/icon-192.png?v=3', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png?v=3', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon.png?v=2', sizes: '180x180', type: 'image/png' },
+      { url: '/apple-icon.png?v=3', sizes: '180x180', type: 'image/png' },
     ],
+  },
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    siteName: "Мисс Курочка",
+    title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
+    description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
+    description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+    },
   },
 };
 

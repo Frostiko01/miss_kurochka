@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тест PWA иконок Miss Kurochka</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    h1 {
+      color: white;
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 2.5rem;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .subtitle {
+      color: rgba(255,255,255,0.9);
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 1.1rem;
+    }
+    
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    
+    .card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+    }
+    
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #333;
+    }
+    
+    .badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .badge-success {
+      background: #d4edda;
+      color: #155724;
+    }
+    
+    .badge-info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    .icon-preview {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 20px 0;
+    }
+    
+    .icon-container {
+      position: relative;
+      display: inline-block;
+    }
+    
+    .icon-container img {
+      display: block;
+      border-radius: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    }
+    
+    .icon-overlay {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      background: #28a745;
+      color: white;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: bold;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    
+    .icon-info {
+      font-size: 0.85rem;
+      color: #666;
+      line-height: 1.6;
+    }
+    
+    .icon-info strong {
+      color: #333;
+      display: inline-block;
+      min-width: 80px;
+    }
+    
+    .divider {
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+      margin: 12px 0;
+    }
+    
+    .info-box {
+      background: rgba(255,255,255,0.95);
+      border-radius: 16px;
+      padding: 24px;
+      margin-top: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .info-box h2 {
+      color: #333;
+      margin-bottom: 16px;
+      font-size: 1.5rem;
+    }
+    
+    .info-box ul {
+      list-style: none;
+      padding-left: 0;
+    }
+    
+    .info-box li {
+      padding: 8px 0;
+      color: #555;
+      line-height: 1.6;
+    }
+    
+    .info-box li:before {
+      content: "✓";
+      color: #28a745;
+      font-weight: bold;
+      margin-right: 12px;
+      font-size: 1.2rem;
+    }
+    
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 16px;
+    }
+    
+    .comparison-item {
+      text-align: center;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+    }
+    
+    .comparison-label {
+      font-size: 0.75rem;
+      color: #666;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    @media (max-width: 768px) {
+      h1 {
+        font-size: 1.8rem;
+      }
+      
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎉 Тест PWA иконок</h1>
+    <p class="subtitle">Miss Kurochka — Проверка новых иконок с padding</p>
+    
+    <div class="grid">
+      <!-- Иконка 512 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">icon-512.png</span>
+          <span class="badge badge-success">Android</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/icon-512.png?v=3" alt="512x512" width="200" height="200">
+            <div class="icon-overlay">✓</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 512×512 px</div>
+          <div><strong>Padding:</strong> 15% (белый фон)</div>
+          <div><strong>Применение:</strong> Android главный экран</div>
+        </div>
+      </div>
+      
+      <!-- Иконка 192 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">icon-192.png</span>
+          <span class="badge badge-success">Android</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/icon-192.png?v=3" alt="192x192" width="150" height="150">
+            <div class="icon-overlay">✓</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 192×192 px</div>
+          <div><strong>Padding:</strong> 15% (белый фон)</div>
+          <div><strong>Применение:</strong> Android уведомления</div>
+        </div>
+      </div>
+      
+      <!-- Apple Touch Icon -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">apple-icon.png</span>
+          <span class="badge badge-info">iOS</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/apple-icon.png?v=3" alt="180x180" width="150" height="150">
+            <div class="icon-overlay">✓</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 180×180 px</div>
+          <div><strong>Padding:</strong> 15% (белый фон)</div>
+          <div><strong>Применение:</strong> iOS главный экран</div>
+        </div>
+      </div>
+      
+      <!-- Maskable 512 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">icon-maskable-512.png</span>
+          <span class="badge badge-success">Maskable</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/icon-maskable-512.png?v=3" alt="512x512 maskable" width="200" height="200">
+            <div class="icon-overlay">✓</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 512×512 px</div>
+          <div><strong>Padding:</strong> 20% (белый фон)</div>
+          <div><strong>Применение:</strong> Android adaptive icons</div>
+        </div>
+      </div>
+      
+      <!-- Maskable 192 -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">icon-maskable-192.png</span>
+          <span class="badge badge-success">Maskable</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/icon-maskable-192.png?v=3" alt="192x192 maskable" width="150" height="150">
+            <div class="icon-overlay">✓</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 192×192 px</div>
+          <div><strong>Padding:</strong> 20% (белый фон)</div>
+          <div><strong>Применение:</strong> Android adaptive icons</div>
+        </div>
+      </div>
+      
+      <!-- Оригинальный логотип -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">logo.png (оригинал)</span>
+          <span class="badge badge-info">Исходник</span>
+        </div>
+        <div class="icon-preview">
+          <div class="icon-container">
+            <img src="/logo.png" alt="Original logo" width="150" height="150">
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div class="icon-info">
+          <div><strong>Размер:</strong> 500×500 px</div>
+          <div><strong>Padding:</strong> 0% (круглый)</div>
+          <div><strong>Применение:</strong> Исходное изображение</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Информационный блок -->
+    <div class="info-box">
+      <h2>📱 Как проверить на телефоне</h2>
+      <ul>
+        <li><strong>Android:</strong> Откройте сайт в Chrome → Меню → "Добавить на главный экран"</li>
+        <li><strong>iOS:</strong> Откройте сайт в Safari → Поделиться → "Добавить на экран «Домой»"</li>
+        <li>Иконка должна отображаться с белым фоном без обрезания углов</li>
+        <li>Если видна старая иконка: удалите её → очистите кэш → добавьте снова</li>
+      </ul>
+      
+      <h2 style="margin-top: 24px;">✨ Что исправлено</h2>
+      <ul>
+        <li>Добавлен белый padding 15% для обычных иконок</li>
+        <li>Добавлен белый padding 20% для maskable иконок (Android adaptive)</li>
+        <li>Логотип больше не обрезается на экранах телефонов</li>
+        <li>Консистентный вид на всех платформах (iOS, Android)</li>
+        <li>Обновлён манифест и Service Worker для cache busting</li>
+      </ul>
+      
+      <div class="comparison">
+        <div class="comparison-item">
+          <div class="comparison-label">Было (обрезалось)</div>
+          <div style="font-size: 3rem;">❌</div>
+        </div>
+        <div class="comparison-item">
+          <div class="comparison-label">Стало (с padding)</div>
+          <div style="font-size: 3rem;">✅</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

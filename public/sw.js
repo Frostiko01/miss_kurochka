@@ -6,7 +6,7 @@
  * API-запросы (/api/*) и аутентификация не кешируются.
  */
 
-const VERSION = 'v1.0.0'
+const VERSION = 'v1.0.1'
 const PRECACHE = `mk-precache-${VERSION}`
 const RUNTIME = `mk-runtime-${VERSION}`
 const OFFLINE_URL = '/offline'
@@ -16,9 +16,10 @@ const PRECACHE_URLS = [
   OFFLINE_URL,
   '/manifest.webmanifest',
   '/logo.png',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/favicon.ico',
+  '/icon-192.png?v=3',
+  '/icon-512.png?v=3',
+  '/apple-icon.png?v=3',
+  '/favicon.ico?v=3',
 ]
 
 // ── INSTALL: предзагрузка офлайн-страницы и базовых ресурсов ──

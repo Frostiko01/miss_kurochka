@@ -698,11 +698,12 @@ export default function Home() {
                   <Sparkles className="w-3.5 h-3.5" />
                   Самая вкусная курочка в городе
                 </span>
-                <h2 className="text-5xl sm:text-7xl font-black text-white leading-[1.02] tracking-tight mb-5 animate-slide-up">
-                  {t('hero.title').split('\n').map((line, i) => (
+                <h1 className="text-5xl sm:text-7xl font-black text-white leading-[1.02] tracking-tight mb-5 animate-slide-up">
+                  <span className="block">Мисс Курочка</span>
+                  {t('hero.title').split('\n').slice(1).map((line, i) => (
                     <span key={i} className="block">{line}</span>
                   ))}
-                </h2>
+                </h1>
                 <p className="text-base sm:text-lg text-white/85 mb-8 max-w-lg leading-relaxed">
                   {t('hero.subtitle')}
                 </p>

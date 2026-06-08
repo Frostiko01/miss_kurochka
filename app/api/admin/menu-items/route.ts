@@ -10,7 +10,7 @@ const includeMenuItem = {
   spices: { orderBy: { sortOrder: "asc" as const } },
 };
 
-// GET - Список блюд
+// GET - СЃРїРёСЃРѕРє Р±Р»СЋРґ
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     if (search) where.name = { contains: search, mode: "insensitive" };
     if (status !== "all") where.isActive = status === "active";
 
-    // Строим orderBy
+    // СЃС‚СЂРѕРёРј orderBy
     let orderBy: Prisma.MenuItemOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "name") orderBy = { name: sortOrder };
 
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       orderBy,
     });
 
-    // Конвертируем Decimal > Number
+    // РЅРѕСЂРјР°Р»РёР·СѓРµРј Decimal > Number
     const normalized = menuItems.map((item) => ({
       ...item,
       price: item.sizes?.[0] ? Number(item.sizes[0].price) : 0,
@@ -54,10 +54,10 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Создать блюдо
+// POST - СЃРѕР·РґР°С‚СЊ Р±Р»СЋРґРѕ
 // body: {
 //   categoryId, name, description?, cookingTimeMinutes?, imageUrl?, isActive?,
-//   sizes: [{ name, price, weightGrams? }],   // обязательно хотя бы один
+//   sizes: [{ name, price, weightGrams? }],   // РѕР±СЏР·Р°С‚РµР»СЊРЅРѕ С…РѕС‚СЏ Р±С‹ РѕРґРёРЅ
 //   spices?: [{ name, price? }]
 // }
 export async function POST(request: NextRequest) {
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Создаём размеры
+    // СЃРѕР·РґР°С‘Рј СЂР°Р·РјРµСЂС‹
     for (let i = 0; i < sizes.length; i++) {
       const s = sizes[i];
       await prisma.menuItemSize.create({
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Создаём специи
+    // СЃРѕР·РґР°С‘Рј СЃРїРµС†РёРё
     if (Array.isArray(spices) && spices.length > 0) {
       for (let i = 0; i < spices.length; i++) {
         const sp = spices[i];
@@ -133,11 +133,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT - Обновить блюдо
+// PUT - РѕР±РЅРѕРІРёС‚СЊ Р±Р»СЋРґРѕ
 // body: {
 //   id, categoryId, name, description?, cookingTimeMinutes?, imageUrl?, isActive?,
-//   sizes?: [{ id?, name, price, weightGrams? }],  // если передан — пересоздаём
-//   spices?: [{ id?, name, price? }]               // если передан — пересоздаём
+//   sizes?: [{ id?, name, price, weightGrams? }],  // РµСЃР»Рё РїРµСЂРµРґР°РЅРѕ - РїРµСЂРµР·Р°РїРёС€РµРј
+//   spices?: [{ id?, name, price? }]               // РµСЃР»Рё РїРµСЂРµРґР°РЅРѕ - РїРµСЂРµР·Р°РїРёС€РµРј
 // }
 export async function PUT(request: NextRequest) {
   try {
@@ -164,7 +164,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    // Пересоздаём размеры если переданы
+    // РїРµСЂРµР·Р°РїРёСЃР°С‚СЊ СЂР°Р·РјРµСЂС‹ РµСЃР»Рё РїРµСЂРµРґР°РЅС‹
     if (Array.isArray(sizes)) {
       await prisma.menuItemSize.deleteMany({ where: { menuItemId: id } });
       for (let i = 0; i < sizes.length; i++) {
@@ -182,7 +182,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Пересоздаём специи если переданы
+    // РїРµСЂРµР·Р°РїРёСЃР°С‚СЊ СЃРїРµС†РёРё РµСЃР»Рё РїРµСЂРµРґР°РЅС‹
     if (Array.isArray(spices)) {
       await prisma.menuItemSpice.deleteMany({ where: { menuItemId: id } });
       for (let i = 0; i < spices.length; i++) {
@@ -199,7 +199,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Обновляем изображение
+    // РѕР±РЅРѕРІР»СЏРµРј РёР·РѕР±СЂР°Р¶РµРЅРёРµ
     if (imageUrl !== undefined) {
       await prisma.menuItemImage.deleteMany({ where: { menuItemId: id } });
       if (imageUrl && imageUrl.trim()) {
@@ -217,7 +217,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE - Удалить блюдо
+// DELETE - СѓРґР°Р»РёС‚СЊ Р±Р»СЋРґРѕ
 export async function DELETE(request: NextRequest) {
   try {
     const session = await auth();
