@@ -194,12 +194,7 @@ export default function TermsOfServicePage() {
             <div className="space-y-6">
               <div>
                 <h3 className="text-lg font-bold mb-3">4.1. Способы оплаты:</h3>
-                <div className="grid sm:grid-cols-3 gap-4">
-                  <div className="p-4 rounded-xl bg-[var(--bg-muted)] text-center">
-                    <div className="text-3xl mb-2">💵</div>
-                    <p className="font-bold">Наличные</p>
-                    <p className="text-xs text-[var(--fg-subtle)] mt-1">При получении</p>
-                  </div>
+                <div className="grid sm:grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl bg-[var(--bg-muted)] text-center">
                     <div className="text-3xl mb-2">💳</div>
                     <p className="font-bold">Банковская карта</p>
@@ -228,7 +223,6 @@ export default function TermsOfServicePage() {
                 <ul className="space-y-2 text-[var(--fg-muted)]">
                   <li>• Возврат возможен при отмене заказа до начала приготовления</li>
                   <li>• При онлайн-оплате возврат происходит на ту же карту в течение 5-14 рабочих дней</li>
-                  <li>• При наличной оплате возврат осуществляется наличными или на карту по вашему выбору</li>
                   <li>• Комиссия платежной системы не возвращается</li>
                 </ul>
               </div>
@@ -376,13 +370,13 @@ export default function TermsOfServicePage() {
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-[var(--brand)]" />
-                <a href="tel:+996555123456" className="text-[var(--brand)] font-semibold hover:underline">
-                  +996 555 123 456
+                <a href="tel:+996990189999" className="text-[var(--brand)] font-semibold hover:underline">
+                  +996 990 189 999
                 </a>
               </div>
               <div className="flex items-center gap-3">
                 <Phone className="w-5 h-5 text-[var(--brand)]" />
-                <span className="text-[var(--fg-muted)]">Горячая линия: 8:00 - 23:00 ежедневно</span>
+                <span className="text-[var(--fg-muted)]">Горячая линия: 10:00 - 22:00 ежедневно</span>
               </div>
             </div>
           </div>
