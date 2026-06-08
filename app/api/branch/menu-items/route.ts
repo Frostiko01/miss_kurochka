@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 
 const includeMenuItem = {
   category: { select: { name: true, branchId: true } },
@@ -26,7 +27,7 @@ export async function GET(request: NextRequest) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const sortOrder = (searchParams.get("sortOrder") || "desc") as "asc" | "desc";
 
-    const where: any = {
+    const where: Prisma.MenuItemWhereInput = {
       // Филиал видит свои блюда (branchId === его филиал) и глобальные
       // блюда администратора (branchId === null). Чужие блюда скрыты.
       OR: [{ branchId: branchUser.branchId }, { branchId: null }],
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
     if (status === "active") where.isActive = true;
     else if (status === "inactive") where.isActive = false;
 
-    let orderBy: any = { createdAt: sortOrder };
+    let orderBy: Prisma.MenuItemOrderByWithRelationInput = { createdAt: sortOrder };
     if (sortBy === "name") orderBy = { name: sortOrder };
 
     const menuItems = await prisma.menuItem.findMany({
@@ -45,12 +46,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Конвертируем Decimal → Number
-    const normalized = menuItems.map((item: any) => ({
+    const normalized = menuItems.map((item) => ({
       ...item,
       price: item.sizes?.[0] ? Number(item.sizes[0].price) : 0,
       weightGrams: item.sizes?.[0]?.weightGrams ?? null,
-      sizes: (item.sizes || []).map((s: any) => ({ ...s, price: Number(s.price) })),
-      spices: (item.spices || []).map((sp: any) => ({ ...sp, price: Number(sp.price) })),
+      sizes: (item.sizes || []).map((s) => ({ ...s, price: Number(s.price) })),
+      spices: (item.spices || []).map((sp) => ({ ...sp, price: Number(sp.price) })),
     }));
 
     return NextResponse.json({ menuItems: normalized });
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
     // Создаём размеры
     for (let i = 0; i < sizes.length; i++) {
       const s = sizes[i];
-      await (prisma as any).menuItemSize.create({
+      await prisma.menuItemSize.create({
         data: {
           menuItemId: menuItem.id,
           name: String(s.name).trim(),
@@ -120,7 +121,7 @@ export async function POST(request: NextRequest) {
     if (Array.isArray(spices) && spices.length > 0) {
       for (let i = 0; i < spices.length; i++) {
         const sp = spices[i];
-        await (prisma as any).menuItemSpice.create({
+        await prisma.menuItemSpice.create({
           data: {
             menuItemId: menuItem.id,
             name: String(sp.name).trim(),
@@ -198,10 +199,10 @@ export async function PUT(request: NextRequest) {
     });
 
     if (Array.isArray(sizes)) {
-      await (prisma as any).menuItemSize.deleteMany({ where: { menuItemId: id } });
+      await prisma.menuItemSize.deleteMany({ where: { menuItemId: id } });
       for (let i = 0; i < sizes.length; i++) {
         const s = sizes[i];
-        await (prisma as any).menuItemSize.create({
+        await prisma.menuItemSize.create({
           data: {
             menuItemId: id,
             name: String(s.name).trim(),
@@ -215,10 +216,10 @@ export async function PUT(request: NextRequest) {
     }
 
     if (Array.isArray(spices)) {
-      await (prisma as any).menuItemSpice.deleteMany({ where: { menuItemId: id } });
+      await prisma.menuItemSpice.deleteMany({ where: { menuItemId: id } });
       for (let i = 0; i < spices.length; i++) {
         const sp = spices[i];
-        await (prisma as any).menuItemSpice.create({
+        await prisma.menuItemSpice.create({
           data: {
             menuItemId: id,
             name: String(sp.name).trim(),
