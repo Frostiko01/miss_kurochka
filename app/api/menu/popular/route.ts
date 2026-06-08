@@ -50,7 +50,15 @@ export async function GET(request: NextRequest) {
       .map((s) => s.menuItemId)
       .filter((id): id is string => !!id)
 
-    let items: any[] = []
+    type NormalizedItem = {
+      id: string
+      sizes: unknown[]
+      spices: unknown[]
+      modifiers: unknown[]
+      [key: string]: unknown
+    }
+
+    let items: NormalizedItem[] = []
     if (ids.length > 0) {
       const menuItems = await prisma.menuItem.findMany({
         where: {
@@ -79,18 +87,18 @@ export async function GET(request: NextRequest) {
       const orderMap = new Map(ids.map((id, i) => [id, i]))
       items = menuItems
         .sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0))
-        .map((item: any) => ({
+        .map((item) => ({
           ...item,
-          sizes: item.sizes.map((s: any) => ({ ...s, price: Number(s.price) })),
-          spices: item.spices.map((sp: any) => ({ ...sp, price: Number(sp.price) })),
-          modifiers: item.modifiers.map((m: any) => ({
+          sizes: item.sizes.map((s) => ({ ...s, price: Number(s.price) })),
+          spices: item.spices.map((sp) => ({ ...sp, price: Number(sp.price) })),
+          modifiers: item.modifiers.map((m) => ({
             id: m.id,
             group: {
               id: m.modifierGroup.id,
               name: m.modifierGroup.name,
               isRequired: m.modifierGroup.isRequired,
               selectionType: m.modifierGroup.selectionType,
-              options: m.modifierGroup.options.map((o: any) => ({
+              options: m.modifierGroup.options.map((o) => ({
                 ...o,
                 priceDelta: Number(o.priceDelta),
               })),
@@ -117,10 +125,10 @@ export async function GET(request: NextRequest) {
         take: limit - items.length,
       })
 
-      const fallbackNormalized = fallback.map((item: any) => ({
+      const fallbackNormalized = fallback.map((item) => ({
         ...item,
-        sizes: item.sizes.map((s: any) => ({ ...s, price: Number(s.price) })),
-        spices: item.spices.map((sp: any) => ({ ...sp, price: Number(sp.price) })),
+        sizes: item.sizes.map((s) => ({ ...s, price: Number(s.price) })),
+        spices: item.spices.map((sp) => ({ ...sp, price: Number(sp.price) })),
         modifiers: [],
       }))
 

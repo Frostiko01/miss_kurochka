@@ -12,7 +12,6 @@ import PromoSlider, { PromoSlide } from './PromoSlider'
 import CategoryTabs, { CategoryItem } from './CategoryTabs'
 import ProductCard, { ProductCardItem } from './ProductCard'
 import ComboSection, { ComboItem } from './ComboSection'
-import RecentOrders from './RecentOrders'
 
 interface Branch {
   id: string
