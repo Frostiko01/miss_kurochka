@@ -43,3 +43,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Testing and diagnostic files
+production-*.ico
+production-*.html
+google-s2-favicon.ico
+test-favicon-visual.html
