@@ -17,12 +17,7 @@ const nextConfig: NextConfig = {
         destination: '/favicon/site.webmanifest',
         permanent: true,
       },
-      // Redirect старых favicon путей на новые
-      {
-        source: '/favicon.ico',
-        destination: '/favicon/favicon.ico',
-        permanent: true,
-      },
+      // Redirect старых favicon путей на новые (кроме /favicon.ico - он теперь в корне для Google)
       {
         source: '/apple-touch-icon.png',
         destination: '/favicon/apple-touch-icon.png',
