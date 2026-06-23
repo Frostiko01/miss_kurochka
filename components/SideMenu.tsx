@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { signOutWithCartCleanup } from "@/lib/cart-utils";
 import {
   Home,
   ShoppingCart,
@@ -339,7 +340,7 @@ export default function SideMenu({
             <button
               onClick={() => {
                 onClose();
-                signOut({ callbackUrl: "/" });
+                signOutWithCartCleanup(signOut, "/");
               }}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] transition"
             >

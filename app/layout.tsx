@@ -3,6 +3,7 @@ import { Nunito } from "next/font/google";
 import "./globals.css";
 import Providers from "@/components/Providers";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import StructuredData from "@/components/StructuredData";
 
 const nunito = Nunito({
   variable: "--font-nunito",
@@ -11,10 +12,33 @@ const nunito = Nunito({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://miss-kurochka.com'),
   applicationName: "Miss Kurochka",
-  title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
-  description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
-  keywords: ["мисс курочка", "мисс курочка бишкек", "miss kurochka", "корейская курочка бишкек", "доставка еды бишкек", "хрустящая курочка", "янгнём", "кандян", "доставка курочки бишкек", "корейская кухня бишкек"],
+  title: {
+    default: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
+    template: "%s | Miss Kurochka",
+  },
+  description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом. ☎️ Звоните для заказа!",
+  keywords: [
+    "мисс курочка",
+    "мисс курочка бишкек", 
+    "miss kurochka",
+    "корейская курочка бишкек",
+    "доставка еды бишкек",
+    "хрустящая курочка",
+    "янгнём",
+    "кандян",
+    "доставка курочки бишкек",
+    "корейская кухня бишкек",
+    "бургеры бишкек",
+    "картофель фри бишкек",
+    "крылышки бишкек",
+    "фастфуд бишкек",
+    "еда на дом бишкек",
+  ],
+  authors: [{ name: "Miss Kurochka" }],
+  creator: "Miss Kurochka",
+  publisher: "Miss Kurochka",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
@@ -26,25 +50,36 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico?v=3', sizes: '48x48', type: 'image/x-icon' },
-      { url: '/icon-192.png?v=3', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png?v=3', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon.ico?v=4', sizes: '48x48', type: 'image/x-icon' },
+      { url: '/icon-192.png?v=4', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png?v=4', sizes: '512x512', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon.png?v=3', sizes: '180x180', type: 'image/png' },
+      { url: '/apple-icon.png?v=4', sizes: '180x180', type: 'image/png' },
     ],
+    shortcut: '/favicon.ico?v=4',
   },
   openGraph: {
     type: "website",
     locale: "ru_RU",
+    url: "/",
     siteName: "Мисс Курочка",
     title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
     description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
+    images: [
+      {
+        url: "/logo.png",
+        width: 500,
+        height: 500,
+        alt: "Miss Kurochka Logo",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Мисс Курочка Бишкек | Доставка корейской хрустящей курочки",
     description: "Официальный сайт сети заведений Мисс Курочка в Бишкеке. Заказывайте хрустящие крылышки Янгнём, Кандян, бургеры и картофель фри с доставкой на дом.",
+    images: ["/logo.png"],
   },
   robots: {
     index: true,
@@ -56,6 +91,13 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
       "max-snippet": -1,
     },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  verification: {
+    google: "google-site-verification-code", // Замените на ваш код после регистрации в Google Search Console
+    yandex: "0575424bed77977e", // Yandex уже настроен
   },
 };
 
@@ -86,6 +128,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col">
+        <StructuredData />
         <Providers>
           {children}
         </Providers>

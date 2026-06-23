@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { signOutWithCartCleanup } from '@/lib/cart-utils'
 import {
   Drumstick,
   Package,
@@ -229,7 +230,7 @@ export default function ProfileContent({ user }: ProfileContentProps) {
         </div>
 
         <button
-          onClick={() => signOut({ callbackUrl: '/' })}
+          onClick={() => signOutWithCartCleanup(signOut, '/')}
           className="btn btn-secondary w-full"
         >
           <LogOut className="w-4 h-4" />

@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { LogOut, User, Package, Settings, ChevronDown } from "lucide-react";
+import { signOutWithCartCleanup } from "@/lib/cart-utils";
 
 interface UserMenuProps {
   mobile?: boolean;
@@ -114,7 +115,7 @@ export default function UserMenu({ mobile = false, onAuthClick, premium = false 
           </Link>
         )}
         <button
-          onClick={() => signOut({ callbackUrl: "/" })}
+          onClick={() => signOutWithCartCleanup(signOut, "/")}
           className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
         >
           <LogOut className="w-4 h-4" />
@@ -187,7 +188,7 @@ export default function UserMenu({ mobile = false, onAuthClick, premium = false 
               <button
                 onClick={() => {
                   setIsOpen(false);
-                  signOut({ callbackUrl: "/" });
+                  signOutWithCartCleanup(signOut, "/");
                 }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
               >
@@ -269,7 +270,7 @@ export default function UserMenu({ mobile = false, onAuthClick, premium = false 
             <button
               onClick={() => {
                 setIsOpen(false);
-                signOut({ callbackUrl: "/" });
+                signOutWithCartCleanup(signOut, "/");
               }}
               className="w-full flex items-center gap-2.5 px-3 py-2 text-sm font-semibold text-[var(--brand)] hover:bg-[var(--brand-soft)] text-left"
             >

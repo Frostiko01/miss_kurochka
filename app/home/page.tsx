@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { signOutWithCartCleanup } from "@/lib/cart-utils";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -1028,7 +1029,7 @@ export default function HomePage() {
         {/* ── SIGN OUT ── */}
         <section style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}>
           <button
-            onClick={() => signOut({ callbackUrl: "/" })}
+            onClick={() => signOutWithCartCleanup(signOut, "/")}
             className="btn btn-secondary w-full"
           >
             <LogOut className="w-4 h-4" />

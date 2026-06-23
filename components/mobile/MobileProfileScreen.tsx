@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { signOutWithCartCleanup } from '@/lib/cart-utils'
 import {
   ChevronRight,
   MapPin,
@@ -109,7 +110,7 @@ export default function MobileProfileScreen({ user }: { user: User }) {
 
         {/* Sign out */}
         <button
-          onClick={() => signOut({ callbackUrl: '/' })}
+          onClick={() => signOutWithCartCleanup(signOut, '/')}
           className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-white border border-[var(--border)] text-sm font-bold text-[#dc2626] active:scale-[0.98] transition-transform"
         >
           <LogOut className="w-4 h-4" />

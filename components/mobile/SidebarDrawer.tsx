@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signOut } from 'next-auth/react'
+import { signOutWithCartCleanup } from '@/lib/cart-utils'
 import {
   X,
   Flame,
@@ -232,7 +233,7 @@ export default function SidebarDrawer({
             <button
               onClick={async () => {
                 onClose()
-                await signOut({ callbackUrl: '/' })
+                await signOutWithCartCleanup(signOut, '/')
               }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold text-[#dc2626] hover:bg-red-50 active:scale-[0.98] transition-all"
             >
