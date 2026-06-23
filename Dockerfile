@@ -61,11 +61,11 @@ COPY . .
 # Устанавливаем фиктивные переменные окружения для сборки
 # Реальные значения будут переданы при запуске контейнера
 ENV DATABASE_URL="postgresql://user:pass@localhost:5432/db?schema=public"
-ENV NEXTAUTH_URL="http://localhost:3000"
+ENV NEXTAUTH_URL="https://miss-kurochka.com"
 ENV NEXTAUTH_SECRET="build-time-secret-key-min-32-chars"
-ENV AUTH_URL="http://localhost:3000"
+ENV AUTH_URL="https://miss-kurochka.com"
 ENV AUTH_TRUST_HOST="true"
-ENV NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ENV NEXT_PUBLIC_APP_URL="https://miss-kurochka.com"
 ENV OPEN_AI="sk-build-time-fake-key"
 ENV GOOGLE_CLIENT_ID="build-time-client-id"
 ENV GOOGLE_CLIENT_SECRET="build-time-client-secret"
