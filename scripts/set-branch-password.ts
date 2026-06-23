@@ -5,7 +5,7 @@
 import { prisma } from '../lib/prisma'
 import bcrypt from 'bcryptjs'
 
-const NEW_PASSWORD = '123123pr'
+const NEW_PASSWORD = '123123'
 
 async function main() {
   const branchUsers = await prisma.user.findMany({
