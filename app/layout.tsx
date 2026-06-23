@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Miss Kurochka" }],
   creator: "Miss Kurochka",
   publisher: "Miss Kurochka",
-  manifest: "/manifest.webmanifest",
+  manifest: "/favicon/site.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -50,14 +50,14 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/favicon.ico?v=4', sizes: '48x48', type: 'image/x-icon' },
-      { url: '/icon-192.png?v=4', sizes: '192x192', type: 'image/png' },
-      { url: '/icon-512.png?v=4', sizes: '512x512', type: 'image/png' },
+      { url: '/favicon/favicon.ico', sizes: 'any' },
+      { url: '/favicon/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon/favicon-96x96.png', sizes: '96x96', type: 'image/png' },
     ],
     apple: [
-      { url: '/apple-icon.png?v=4', sizes: '180x180', type: 'image/png' },
+      { url: '/favicon/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
     ],
-    shortcut: '/favicon.ico?v=4',
+    shortcut: '/favicon/favicon.ico',
   },
   openGraph: {
     type: "website",

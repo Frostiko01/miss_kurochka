@@ -136,6 +136,41 @@ npx prisma migrate dev
 
 ## 🔍 SEO и индексация в Google
 
+### 🎯 Аудит Favicon / Logo Indexing
+
+**23 июня 2026** — Проведён полный аудит favicon и logo indexing для Google Search.
+
+**Проблема:** Google Search не показывает favicon сайта.
+
+**Найденные проблемы:**
+- ❌ `/site.webmanifest` возвращает 404 (исправлено ✅)
+- ❌ `favicon.ico` слишком большой — 87.56 KB вместо <10KB
+- ❌ Вероятно имеет белый фон и padding
+- ❌ Избыточное версионирование `?v=4` (исправлено ✅)
+
+**Что исправлено автоматически:**
+- ✅ Добавлен redirect `/site.webmanifest` → `/manifest.webmanifest`
+- ✅ Убрано версионирование из favicon URL
+- ✅ Обновлены metadata и манифест
+- ✅ Добавлены правильные headers
+
+**Что нужно сделать вручную:**
+1. Создать оптимизированный favicon (transparent, круглый, <10KB)
+2. Commit и deploy изменения
+3. Запросить переиндексацию в Google Search Console
+
+**📖 Начните здесь:** [НАЧНИТЕ_ОТСЮДА.md](./НАЧНИТЕ_ОТСЮДА.md)
+
+**📊 Документация:**
+- [EXECUTIVE_SUMMARY.md](./EXECUTIVE_SUMMARY.md) - Краткая сводка
+- [FAVICON_AUDIT_REPORT.md](./FAVICON_AUDIT_REPORT.md) - Полный отчет
+- [FAVICON_FIX_INSTRUCTIONS.md](./FAVICON_FIX_INSTRUCTIONS.md) - Инструкции
+- [COMMIT_CHANGES.md](./COMMIT_CHANGES.md) - Git команды
+
+**⏱️ Время:** 30-40 минут | **📈 Успех:** 85-95%
+
+---
+
 ### Реализованные функции SEO
 
 ✅ **Автоматическая карта сайта** (`/sitemap.xml`)

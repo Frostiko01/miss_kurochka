@@ -4,6 +4,33 @@ const nextConfig: NextConfig = {
   // Включаем standalone режим для оптимизации Docker-образа
   output: 'standalone',
 
+  // Redirects для обратной совместимости
+  async redirects() {
+    return [
+      {
+        source: '/site.webmanifest',
+        destination: '/favicon/site.webmanifest',
+        permanent: true,
+      },
+      {
+        source: '/manifest.webmanifest',
+        destination: '/favicon/site.webmanifest',
+        permanent: true,
+      },
+      // Redirect старых favicon путей на новые
+      {
+        source: '/favicon.ico',
+        destination: '/favicon/favicon.ico',
+        permanent: true,
+      },
+      {
+        source: '/apple-touch-icon.png',
+        destination: '/favicon/apple-touch-icon.png',
+        permanent: true,
+      },
+    ]
+  },
+
   // Заголовки безопасности и корректная отдача service worker
   async headers() {
     return [
@@ -28,6 +55,28 @@ const nextConfig: NextConfig = {
           {
             key: 'Service-Worker-Allowed',
             value: '/',
+          },
+        ],
+      },
+      {
+        source: '/favicon/site.webmanifest',
+        headers: [
+          {
+            key: 'Content-Type',
+            value: 'application/manifest+json',
+          },
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+        ],
+      },
+      {
+        source: '/favicon/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
           },
         ],
       },
