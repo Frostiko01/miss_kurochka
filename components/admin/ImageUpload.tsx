@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { Upload, AlertTriangle } from "lucide-react";
+import { Upload, AlertTriangle, Camera } from "lucide-react";
 
 interface ImageUploadProps {
   value: string;
@@ -24,6 +24,7 @@ export default function ImageUpload({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const uploadImage = async (file: File) => {
     setIsUploading(true);
@@ -218,14 +219,40 @@ export default function ImageUpload({
                 >
                   <Upload className="w-7 h-7" style={{ color: "#7C8CA5" }} />
                 </div>
-                <p className="text-white font-bold mb-1">
-                  Перетащите изображение сюда
+                <p className="text-white font-bold mb-3">
+                  Загрузить изображение
                 </p>
-                <p className="text-sm mb-3" style={{ color: "#98A2B3" }}>
-                  или нажмите для выбора файла
+                
+                {/* Кнопки для мобильных устройств */}
+                <div className="flex gap-3 mb-4 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="flex-1 px-4 py-3 rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2"
+                    style={{ backgroundColor: "#7C8CA5" }}
+                  >
+                    <Camera className="w-5 h-5" />
+                    <span>Сделать фото</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-1 px-4 py-3 rounded-lg font-bold text-white transition-all flex items-center justify-center gap-2"
+                    style={{ backgroundColor: "#2A3442" }}
+                  >
+                    <Upload className="w-5 h-5" />
+                    <span>Файл</span>
+                  </button>
+                </div>
+                
+                <p className="text-sm mb-2" style={{ color: "#98A2B3" }}>
+                  {/* Десктоп: перетаскивание */}
+                  <span className="hidden sm:inline">Перетащите изображение или нажмите для выбора</span>
+                  {/* Мобильные: выбор действия */}
+                  <span className="sm:hidden">Выберите действие выше</span>
                 </p>
                 <p className="text-xs" style={{ color: "#98A2B3" }}>
-                  PNG, JPG, WebP, GIF · до 10 МБ
+                  PNG, JPG, WebP, HEIC · до 10 МБ
                 </p>
               </>
             )}
@@ -236,7 +263,17 @@ export default function ImageUpload({
       <input
         ref={fileInputRef}
         type="file"
+        accept="image/*,image/heic,image/heif"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      
+      {/* Отдельный input для камеры (мобильные устройства) */}
+      <input
+        ref={cameraInputRef}
+        type="file"
         accept="image/*"
+        capture="environment"
         onChange={handleFileSelect}
         className="hidden"
       />

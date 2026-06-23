@@ -5,7 +5,16 @@ import { uploadToS3 } from '@/lib/s3'
 export const dynamic = 'force-dynamic'
 
 // Разрешённые MIME-типы
-const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/jpg', 
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'image/avif',
+]
 const MAX_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 // Папка по умолчанию — можно передать ?folder=categories
