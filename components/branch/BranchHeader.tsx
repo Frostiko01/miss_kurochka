@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useSession } from "next-auth/react";
 import NotificationBell from "@/components/notifications/NotificationBell";
+import OrderSoundNotification from "@/components/branch/OrderSoundNotification";
 
 export default function BranchHeader() {
   const { data: session } = useSession();
@@ -45,6 +46,7 @@ export default function BranchHeader() {
 
       {/* User Info */}
       <div className="flex items-center gap-3">
+        <OrderSoundNotification />
         <NotificationBell
           apiUrl="/api/branch/notifications"
           ordersUrl="/branch/orders"
