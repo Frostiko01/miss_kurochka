@@ -29,6 +29,7 @@ import MenuItemCard from "@/components/MenuItemCard";
 import SideMenu from "@/components/SideMenu";
 import AiChatModal from "@/components/AiChatModal";
 import BranchClosedModal from "@/components/BranchClosedModal";
+import SmartHeroBanner from "@/components/SmartHeroBanner";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Ожидает",
@@ -660,31 +661,22 @@ export default function HomePage() {
       </header>
 
       <main className="container-page max-w-5xl py-6 space-y-8">
-        {/* ── GREETING ── */}
-        <section className="surface p-5 sm:p-6 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs text-[var(--fg-subtle)] font-semibold mb-0.5">
-              Добро пожаловать 👋
-            </p>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
-              {user.fullName}
-            </h1>
-            <p className="text-sm text-[var(--fg-muted)] mt-0.5">
-              {user.email}
-            </p>
-          </div>
-          {user.avatarUrl ? (
-            <img
-              src={user.avatarUrl}
-              alt={user.fullName}
-              className="w-16 h-16 rounded-2xl object-cover shrink-0"
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-2xl bg-[var(--brand-soft)] text-[var(--brand)] flex items-center justify-center text-3xl font-extrabold shrink-0">
-              {initials}
-            </div>
-          )}
-        </section>
+        {/* ── SMART HERO BANNER ── */}
+        <SmartHeroBanner onItemClick={(id, type) => {
+          if (type === 'menu_item') {
+            // Найти товар и открыть модальное окно
+            const item = allMenuItems.find(i => i.id === id);
+            if (item) {
+              setDetailItem(item);
+            }
+          } else {
+            // Для комбо тоже можем открыть модальное окно или добавить сразу
+            const combo = [...combos, ...miniCombos].find(c => c.id === id);
+            if (combo) {
+              setSelectedCombo(combo);
+            }
+          }
+        }} />
 
         {/* ── ACTIVE ORDERS ── */}
         {activeOrders.length > 0 && (

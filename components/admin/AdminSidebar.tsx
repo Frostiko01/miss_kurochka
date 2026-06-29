@@ -80,6 +80,13 @@ const menuItems: MenuItem[] = [
     href: "/admin/banners",
   },
   {
+    name: "Smart Banner",
+    nameRu: "Smart Banner",
+    nameKg: "Smart Banner",
+    icon: "M13 10V3L4 14h7v7l9-11h-7z",
+    href: "/admin/smart-banner",
+  },
+  {
     name: "Reports",
     nameRu: "Отчеты",
     nameKg: "Отчеттер",
