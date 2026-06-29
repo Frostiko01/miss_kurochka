@@ -40,68 +40,152 @@ export default function BottomNavigation({ cartCount = 0 }: Props) {
   }
 
   return (
-    <nav
-      className="fixed bottom-0 inset-x-0 z-40"
-      style={{
-        background: 'rgba(255,255,255,0.82)',
-        backdropFilter: 'saturate(180%) blur(20px)',
-        WebkitBackdropFilter: 'saturate(180%) blur(20px)',
-        borderTop: '1px solid var(--border)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0)',
-        boxShadow: '0 -6px 20px rgba(15,15,16,0.04)',
-      }}
-      aria-label="Основная навигация"
-    >
-      <ul className="flex items-stretch justify-around px-1 pt-1 pb-1">
-        {items.map((item) => {
-          const Icon = item.icon
-          const active = isActive(item)
-          const showBadge = item.isCart && cartCount > 0
+    <>
+      {/* iOS Liquid Glass Floating Bottom Navigation */}
+      <nav
+        className="fixed z-40 flex items-center justify-center"
+        style={{
+          left: '16px',
+          right: '16px',
+          bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+          pointerEvents: 'none',
+        }}
+        aria-label="Основная навигация"
+      >
+        <div
+          className="relative w-full flex items-center justify-around px-4 transition-all duration-300"
+          style={{
+            height: '80px',
+            maxWidth: '420px',
+            borderRadius: '32px',
+            background: 'rgba(255, 255, 255, 0.75)',
+            backdropFilter: 'blur(30px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(30px) saturate(180%)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: `
+              0 20px 40px rgba(0, 0, 0, 0.08),
+              0 8px 16px rgba(0, 0, 0, 0.06),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6),
+              inset 0 -1px 0 rgba(255, 255, 255, 0.2)
+            `,
+            pointerEvents: 'auto',
+          }}
+        >
+          {/* Glass Shine Effect */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              borderRadius: '32px',
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 50%)',
+            }}
+          />
 
-          return (
-            <li key={item.href} className="flex-1">
+          {items.map((item) => {
+            const Icon = item.icon
+            const active = isActive(item)
+            const showBadge = item.isCart && cartCount > 0
+
+            return (
               <Link
+                key={item.href}
                 href={item.href}
-                className="group flex flex-col items-center justify-center gap-1 py-1.5 px-0.5 select-none"
+                className="relative group flex items-center justify-center transition-all duration-300 ease-out select-none active:scale-95"
+                style={{
+                  height: '52px',
+                  minWidth: '52px',
+                  borderRadius: '999px',
+                  padding: active ? '0 22px' : '0',
+                  backgroundColor: active ? 'rgba(255, 60, 60, 0.12)' : 'transparent',
+                  boxShadow: active
+                    ? 'inset 0 0 20px rgba(255, 60, 60, 0.1), 0 4px 12px rgba(255, 60, 60, 0.15)'
+                    : 'none',
+                }}
                 aria-label={item.label}
                 aria-current={active ? 'page' : undefined}
               >
-                <span
-                  className="relative inline-flex items-center justify-center w-10 h-7 rounded-full transition-all duration-200 group-active:scale-90"
+                {/* Icon Container */}
+                <div
+                  className="relative flex items-center justify-center transition-all duration-300"
                   style={{
-                    backgroundColor: active ? 'var(--brand-soft)' : 'transparent',
-                    boxShadow: active ? '0 2px 10px rgba(214,35,0,0.15)' : 'none',
+                    transform: active ? 'scale(1)' : 'scale(0.95)',
                   }}
                 >
                   <Icon
-                    className="transition-all duration-200"
                     style={{
-                      width: 21,
-                      height: 21,
-                      color: active ? 'var(--brand)' : 'var(--fg-subtle)',
+                      width: '25px',
+                      height: '25px',
+                      strokeWidth: 2,
+                      color: active ? '#ff3c3c' : '#7A7A7A',
+                      transition: 'all 300ms cubic-bezier(0.34, 1.56, 0.64, 1)',
                     }}
-                    strokeWidth={active ? 2.4 : 2}
                   />
+                  
+                  {/* Badge */}
                   {showBadge && (
                     <span
-                      className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[10px] font-bold text-white"
-                      style={{ backgroundColor: 'var(--brand)' }}
+                      className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1.5 rounded-full flex items-center justify-center text-[10px] font-extrabold text-white animate-pulse"
+                      style={{
+                        backgroundColor: '#ff3c3c',
+                        boxShadow: '0 2px 8px rgba(255, 60, 60, 0.4)',
+                      }}
                     >
                       {cartCount > 9 ? '9+' : cartCount}
                     </span>
                   )}
-                </span>
-                <span
-                  className="text-[9px] font-bold leading-none transition-colors duration-200"
-                  style={{ color: active ? 'var(--brand)' : 'var(--fg-subtle)' }}
-                >
-                  {item.label}
-                </span>
+                </div>
+
+                {/* Label - Salomon Effect */}
+                {active && (
+                  <span
+                    className="ml-2 text-sm font-bold whitespace-nowrap overflow-hidden animate-slide-in"
+                    style={{
+                      color: '#ff3c3c',
+                      animation: 'slideIn 300ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                    }}
+                  >
+                    {item.label}
+                  </span>
+                )}
+
+                {/* Active Glow */}
+                {active && (
+                  <div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{
+                      borderRadius: '999px',
+                      background: 'radial-gradient(circle at center, rgba(255,60,60,0.15) 0%, transparent 70%)',
+                      animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    }}
+                  />
+                )}
               </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* Animations */}
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+
+        @keyframes pulse {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.6;
+          }
+        }
+      `}</style>
+    </>
   )
 }
