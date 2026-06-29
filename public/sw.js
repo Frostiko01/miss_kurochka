@@ -6,7 +6,7 @@
  * API-запросы (/api/*) и аутентификация не кешируются.
  */
 
-const VERSION = 'v1.0.1'
+const VERSION = 'v1.0.2'
 const PRECACHE = `mk-precache-${VERSION}`
 const RUNTIME = `mk-runtime-${VERSION}`
 const OFFLINE_URL = '/offline'

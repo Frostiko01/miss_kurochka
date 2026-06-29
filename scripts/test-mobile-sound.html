@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Тест звука на мобильных устройствах</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 20px;
+      padding: 40px 30px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    
+    h1 {
+      color: #333;
+      font-size: 24px;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    
+    p {
+      color: #666;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+    
+    button {
+      width: 100%;
+      padding: 18px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 15px;
+      color: white;
+    }
+    
+    .btn-unlock {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .btn-unlock:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+    }
+    
+    .btn-play {
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    }
+    
+    .btn-play:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px rgba(245, 87, 108, 0.4);
+    }
+    
+    .btn-play:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .status {
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      text-align: center;
+      font-weight: 500;
+    }
+    
+    .status.info {
+      background: #e3f2fd;
+      color: #1976d2;
+      border: 2px solid #bbdefb;
+    }
+    
+    .status.success {
+      background: #e8f5e9;
+      color: #388e3c;
+      border: 2px solid #c8e6c9;
+    }
+    
+    .status.error {
+      background: #ffebee;
+      color: #d32f2f;
+      border: 2px solid #ffcdd2;
+    }
+    
+    .log {
+      background: #f5f5f5;
+      padding: 15px;
+      border-radius: 10px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      margin-top: 20px;
+      border: 2px solid #e0e0e0;
+    }
+    
+    .log-entry {
+      padding: 5px 0;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+    
+    .emoji {
+      font-size: 40px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="emoji">🔊</div>
+    <h1>Тест Звуковых Уведомлений</h1>
+    <p>Этот тест проверяет работу звука на мобильных устройствах (iOS Safari, Android Chrome)</p>
+    
+    <div id="status" class="status info">
+      Нажмите кнопку для инициализации аудио
+    </div>
+    
+    <button id="unlockBtn" class="btn-unlock">
+      🎵 Инициализировать Аудио (Первый Клик)
+    </button>
+    
+    <button id="playBtn" class="btn-play" disabled>
+      ▶️ Воспроизвести Звук Уведомления
+    </button>
+    
+    <div class="log" id="log"></div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const logEl = document.getElementById('log');
+    const unlockBtn = document.getElementById('unlockBtn');
+    const playBtn = document.getElementById('playBtn');
+    
+    let audioUnlocked = false;
+    let audio = null;
+    
+    function log(message, type = 'info') {
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      const timestamp = new Date().toLocaleTimeString();
+      entry.textContent = `[${timestamp}] ${message}`;
+      logEl.insertBefore(entry, logEl.firstChild);
+    }
+    
+    function setStatus(message, type = 'info') {
+      statusEl.textContent = message;
+      statusEl.className = `status ${type}`;
+    }
+    
+    // Информация об устройстве
+    log(`User Agent: ${navigator.userAgent}`);
+    log(`Platform: ${navigator.platform}`);
+    log(`Mobile: ${/iPhone|iPad|Android/i.test(navigator.userAgent) ? 'Yes' : 'No'}`);
+    
+    // Кнопка инициализации
+    unlockBtn.addEventListener('click', async () => {
+      try {
+        log('🔄 Начинаем инициализацию аудио...');
+        setStatus('Инициализация аудио...', 'info');
+        
+        // Шаг 1: Инициализация AudioContext
+        log('📱 Шаг 1: Создаём AudioContext...');
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        
+        if (!AudioContext) {
+          throw new Error('AudioContext не поддерживается браузером');
+        }
+        
+        const audioContext = new AudioContext();
+        log(`✅ AudioContext создан (state: ${audioContext.state})`);
+        
+        // Шаг 2: Создание пустого буфера
+        log('🎼 Шаг 2: Создаём пустой аудио-буфер...');
+        const buffer = audioContext.createBuffer(1, 1, 22050);
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioContext.destination);
+        source.start(0);
+        log('✅ Буфер создан и подключен');
+        
+        // Шаг 3: Resume AudioContext
+        log('▶️ Шаг 3: Возобновляем AudioContext...');
+        await audioContext.resume();
+        log(`✅ AudioContext resumed (state: ${audioContext.state})`);
+        
+        // Шаг 4: Создание реального аудио элемента
+        log('🎵 Шаг 4: Создаём Audio элемент...');
+        audio = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+        audio.volume = 1.0;
+        audio.preload = 'auto';
+        audio.setAttribute('playsinline', 'true');
+        audio.setAttribute('webkit-playsinline', 'true');
+        log('✅ Audio элемент создан');
+        
+        // Шаг 5: Предзагрузка (беззвучно)
+        log('⏳ Шаг 5: Предзагружаем звук (беззвучно)...');
+        audio.load();
+        audio.volume = 0;
+        try {
+          await audio.play();
+          audio.pause();
+          audio.currentTime = 0;
+          log('✅ Предзагрузка выполнена');
+        } catch (e) {
+          log(`⚠️ Предзагрузка не удалась: ${e.message}`);
+        }
+        audio.volume = 1.0;
+        
+        // Готово!
+        audioUnlocked = true;
+        setStatus('✅ Аудио успешно инициализировано!', 'success');
+        log('🎉 УСПЕХ: Аудио разблокировано для автоматического воспроизведения');
+        
+        unlockBtn.disabled = true;
+        unlockBtn.textContent = '✅ Аудио Разблокировано';
+        playBtn.disabled = false;
+        
+      } catch (error) {
+        log(`❌ ОШИБКА: ${error.message}`, 'error');
+        setStatus(`Ошибка: ${error.message}`, 'error');
+        console.error('Audio unlock error:', error);
+      }
+    });
+    
+    // Кнопка воспроизведения
+    playBtn.addEventListener('click', async () => {
+      if (!audioUnlocked || !audio) {
+        log('⚠️ Аудио ещё не инициализировано');
+        return;
+      }
+      
+      try {
+        log('▶️ Попытка воспроизведения звука...');
+        setStatus('Воспроизведение...', 'info');
+        
+        audio.currentTime = 0;
+        await audio.play();
+        
+        log('✅ Звук успешно воспроизводится!');
+        setStatus('✅ Звук воспроизводится!', 'success');
+        
+        audio.onended = () => {
+          log('⏹️ Воспроизведение завершено');
+          setStatus('Готов к следующему воспроизведению', 'info');
+        };
+        
+      } catch (error) {
+        log(`❌ Ошибка воспроизведения: ${error.message}`);
+        setStatus(`Ошибка: ${error.message}`, 'error');
+        console.error('Play error:', error);
+      }
+    });
+    
+    log('💡 Нажмите кнопку "Инициализировать Аудио" для начала теста');
+  </script>
+</body>
+</html>

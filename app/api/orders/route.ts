@@ -209,8 +209,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Генерируем номер заказа
-    const orderNumber = `ORD-${Date.now()}`
+    // Генерируем короткий номер заказа в формате: ORD - 123456 (ровно 6 цифр)
+    const random6digits = Math.floor(100000 + Math.random() * 900000); // Генерирует от 100000 до 999999
+    const orderNumber = `ORD - ${random6digits}`;
 
     // Рассчитываем общую сумму из корзины
     let totalAmount = 0

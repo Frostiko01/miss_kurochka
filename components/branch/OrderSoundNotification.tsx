@@ -30,21 +30,73 @@ export default function OrderSoundNotification() {
     if (typeof window !== "undefined") {
       const audio = new Audio("/uvedomlenie.mp3");
       audio.loop = true; // Зацикливаем звук
+      audio.preload = "auto"; // Предзагрузка для мобильных
+      audio.volume = 1.0; // Максимальная громкость
+      
+      // Важно для мобильных: добавляем атрибуты
+      audio.setAttribute("playsinline", "true");
+      audio.setAttribute("webkit-playsinline", "true");
+      
       audioRef.current = audio;
 
       // Обработчики событий для отслеживания состояния
       const handlePlay = () => setIsPlaying(true);
       const handlePause = () => setIsPlaying(false);
       const handleEnded = () => setIsPlaying(false);
+      const handleError = (e: Event) => {
+        console.error("Ошибка загрузки звука:", e);
+      };
       
       audio.addEventListener("play", handlePlay);
       audio.addEventListener("pause", handlePause);
       audio.addEventListener("ended", handleEnded);
+      audio.addEventListener("error", handleError);
+      
+      // 🔊 ИСПРАВЛЕНИЕ: Разблокировка аудио на мобильных устройствах
+      // При первом действии пользователя инициализируем AudioContext и воспроизводим пустой звук
+      const unlockAudio = async () => {
+        try {
+          // Инициализация AudioContext (обязательно для iOS/Android)
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContext) {
+            const audioContext = new AudioContext();
+            const buffer = audioContext.createBuffer(1, 1, 22050);
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+            await audioContext.resume();
+          }
+          
+          // Загружаем и пробуем воспроизвести реальный звук (с mute)
+          if (audioRef.current) {
+            audioRef.current.load();
+            const originalVolume = audioRef.current.volume;
+            audioRef.current.volume = 0; // Беззвучно
+            try {
+              await audioRef.current.play();
+              audioRef.current.pause();
+              audioRef.current.currentTime = 0;
+            } catch {}
+            audioRef.current.volume = originalVolume; // Восстанавливаем громкость
+          }
+          
+          console.log("✅ Аудио разблокировано на мобильном устройстве");
+        } catch (error) {
+          console.warn("⚠️ Не удалось разблокировать аудио:", error);
+        }
+      };
+      
+      // Слушаем любое взаимодействие пользователя
+      document.addEventListener("touchstart", unlockAudio, { once: true });
+      document.addEventListener("click", unlockAudio, { once: true });
+      document.addEventListener("keydown", unlockAudio, { once: true });
 
       return () => {
         audio.removeEventListener("play", handlePlay);
         audio.removeEventListener("pause", handlePause);
         audio.removeEventListener("ended", handleEnded);
+        audio.removeEventListener("error", handleError);
         audio.pause();
         audio.currentTime = 0;
       };
@@ -77,11 +129,17 @@ export default function OrderSoundNotification() {
 
       if (hasNewOrders && count > 0 && isSoundEnabled && audioRef.current) {
         // Запускаем звук
-        audioRef.current.play().catch((error) => {
+        try {
+          // Убеждаемся что звук загружен
+          if (audioRef.current.readyState < 2) {
+            await audioRef.current.load();
+          }
+          await audioRef.current.play();
+        } catch (error) {
           console.warn("Не удалось воспроизвести звук уведомления:", error);
-          // Если автовоспроизведение заблокировано - отключаем звук
-          setIsSoundEnabled(false);
-        });
+          // Если автовоспроизведение заблокировано - НЕ отключаем звук
+          // Пользователь включил его сознательно
+        }
       }
       
       // Если pending заказов больше нет - останавливаем звук
@@ -116,16 +174,23 @@ export default function OrderSoundNotification() {
   }, [status, isSoundEnabled]);
 
   // Обработчик включения/выключения звука
-  const toggleSound = () => {
+  const toggleSound = async () => {
     if (!isSoundEnabled) {
       // Включаем звук - это User Gesture, теперь autoplay будет работать
       setIsSoundEnabled(true);
       
       // Пробуем сразу воспроизвести если есть pending заказы
       if (pendingOrdersCount > 0 && audioRef.current) {
-        audioRef.current.play().catch((error) => {
+        try {
+          // Сначала загружаем
+          await audioRef.current.load();
+          // Потом воспроизводим
+          await audioRef.current.play();
+        } catch (error) {
           console.warn("Не удалось воспроизвести звук:", error);
-        });
+          // Показываем пользователю что нужно дать разрешение
+          alert("Для воспроизведения звука необходимо разрешение браузера. Пожалуйста, включите звук в настройках сайта.");
+        }
       }
     } else {
       // Выключаем звук
