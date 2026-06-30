@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter, useParams } from 'next/navigation'
-import { Truck, Store, CreditCard, Clock, CheckCircle, ChefHat, ArrowLeft, Phone, PackageCheck } from 'lucide-react'
+import { Truck, Store, CreditCard, Clock, CheckCircle, ChefHat, ArrowLeft, Phone, PackageCheck, MessageCircle } from 'lucide-react'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Ожидает',
@@ -300,31 +300,60 @@ export default function OrderDetailPage() {
 
         {/* Actions */}
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          className="grid grid-cols-1 gap-3"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 100px)' }}
         >
           {/* Кнопка "Я забрал заказ" — только для самовывоза в статусе ready */}
           {order.orderType === 'pickup' && order.status === 'ready' && (
-            <div className="sm:col-span-2">
-              <button
-                onClick={handlePickupComplete}
-                disabled={completing}
-                className="btn btn-primary w-full"
-                style={{ background: 'var(--success)' }}
-              >
-                <PackageCheck className="w-4 h-4" />
-                {completing ? 'Завершаем...' : 'Я забрал заказ'}
-              </button>
-              <p className="text-xs text-center text-[var(--fg-muted)] mt-2">
-                Нажмите когда заберёте заказ из филиала
-              </p>
-            </div>
+            <button
+              onClick={handlePickupComplete}
+              disabled={completing}
+              className="btn btn-primary w-full"
+              style={{ background: 'var(--success)' }}
+            >
+              <PackageCheck className="w-4 h-4" />
+              {completing ? 'Завершаем...' : 'Я забрал заказ'}
+            </button>
           )}
-          <button onClick={() => router.push('/home')} className="btn btn-secondary">
+          
+          <button onClick={() => router.push('/home')} className="btn btn-secondary w-full">
             На главную
           </button>
+          
+          {/* Кнопка WhatsApp */}
+          {order.branch.whatsappNumber && (
+            <a
+              href={getWhatsAppLink()}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn w-full transition-all active:scale-[0.98]"
+              style={{
+                background: '#25D366',
+                color: 'white',
+                height: '56px',
+                borderRadius: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                fontWeight: '600',
+                fontSize: '15px',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(37, 211, 102, 0.25)',
+              }}
+            >
+              <MessageCircle className="w-5 h-5" />
+              💬 Написать в WhatsApp
+            </a>
+          )}
+          
+          {/* Кнопка позвонить */}
           {order.branch.phone && (
-            <a href={`tel:${order.branch.phone}`} className="btn btn-primary">
+            <a
+              href={`tel:${order.branch.phone}`}
+              className="btn btn-primary w-full"
+              style={{ height: '56px', borderRadius: '16px' }}
+            >
               <Phone className="w-4 h-4" />
               Позвонить в филиал
             </a>
@@ -333,6 +362,35 @@ export default function OrderDetailPage() {
       </div>
     </div>
   )
+
+  // Функция для генерации ссылки WhatsApp
+  function getWhatsAppLink() {
+    if (!order?.branch.whatsappNumber) return '#'
+    
+    // Очищаем номер от всех символов кроме цифр
+    const cleanNumber = order.branch.whatsappNumber.replace(/\D/g, '')
+    
+    // Формируем текст сообщения
+    let message = `Здравствуйте.\n\nУ меня вопрос по заказу №${order.orderNumber}.`
+    
+    // Добавляем адрес доставки если есть
+    if (order.orderType === 'delivery' && order.deliveryAddress) {
+      message += `\n\nАдрес доставки: ${order.deliveryAddress.addressLine}`
+      if (order.deliveryAddress.apartment) {
+        message += `, кв. ${order.deliveryAddress.apartment}`
+      }
+    }
+    
+    // Добавляем филиал
+    message += `\n\nФилиал: ${order.branch.name}`
+    message += `\n\nСпасибо.`
+    
+    // Кодируем сообщение для URL
+    const encodedMessage = encodeURIComponent(message)
+    
+    // Возвращаем ссылку
+    return `https://wa.me/${cleanNumber}?text=${encodedMessage}`
+  }
 }
 
 function InfoBlock({ title, children }: { title: string; children: React.ReactNode }) {

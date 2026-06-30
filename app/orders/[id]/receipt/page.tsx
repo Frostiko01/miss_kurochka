@@ -12,6 +12,7 @@ import {
   Phone,
   ArrowRight,
   Banknote,
+  MessageCircle,
 } from 'lucide-react'
 import PanLoader from '@/components/PanLoader'
 
@@ -365,6 +366,34 @@ export default function OrderReceiptPage() {
         >
           На главную
         </button>
+        
+        {/* Кнопка WhatsApp */}
+        {order.branch?.whatsappNumber && (
+          <a
+            href={getWhatsAppLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn w-full transition-all active:scale-[0.98]"
+            style={{
+              background: '#25D366',
+              color: 'white',
+              height: '48px',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              fontWeight: '600',
+              fontSize: '14px',
+              border: 'none',
+              boxShadow: '0 2px 8px rgba(37, 211, 102, 0.25)',
+            }}
+          >
+            <MessageCircle className="w-4 h-4" />
+            💬 Написать в WhatsApp
+          </a>
+        )}
+        
         {order.branch?.phone && (
           <a
             href={`tel:${order.branch.phone}`}
@@ -407,4 +436,33 @@ export default function OrderReceiptPage() {
       `}</style>
     </div>
   )
+  
+  // Функция для генерации ссылки WhatsApp
+  function getWhatsAppLink() {
+    if (!order?.branch?.whatsappNumber) return '#'
+    
+    // Очищаем номер от всех символов кроме цифр
+    const cleanNumber = order.branch.whatsappNumber.replace(/\D/g, '')
+    
+    // Формируем текст сообщения
+    let message = `Здравствуйте.\n\nУ меня вопрос по заказу №${order.orderNumber}.`
+    
+    // Добавляем адрес доставки если есть
+    if (order.orderType === 'delivery' && order.deliveryAddress) {
+      message += `\n\nАдрес доставки: ${order.deliveryAddress.addressLine}`
+      if (order.deliveryAddress.apartment) {
+        message += `, кв. ${order.deliveryAddress.apartment}`
+      }
+    }
+    
+    // Добавляем филиал
+    message += `\n\nФилиал: ${order.branch.name}`
+    message += `\n\nСпасибо.`
+    
+    // Кодируем сообщение для URL
+    const encodedMessage = encodeURIComponent(message)
+    
+    // Возвращаем ссылку
+    return `https://wa.me/${cleanNumber}?text=${encodedMessage}`
+  }
 }
