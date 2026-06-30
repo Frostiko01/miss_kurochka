@@ -367,8 +367,8 @@ export default function OrderReceiptPage() {
           На главную
         </button>
         
-        {/* Кнопка WhatsApp */}
-        {order.branch?.whatsappNumber && (
+        {/* Кнопка WhatsApp - использует номер телефона филиала */}
+        {order.branch?.phone && (
           <a
             href={getWhatsAppLink()}
             target="_blank"
@@ -437,12 +437,12 @@ export default function OrderReceiptPage() {
     </div>
   )
   
-  // Функция для генерации ссылки WhatsApp
+  // Функция для генерации ссылки WhatsApp (использует номер телефона филиала)
   function getWhatsAppLink() {
-    if (!order?.branch?.whatsappNumber) return '#'
+    if (!order?.branch?.phone) return '#'
     
     // Очищаем номер от всех символов кроме цифр
-    const cleanNumber = order.branch.whatsappNumber.replace(/\D/g, '')
+    const cleanNumber = order.branch.phone.replace(/\D/g, '')
     
     // Формируем текст сообщения
     let message = `Здравствуйте.\n\nУ меня вопрос по заказу №${order.orderNumber}.`

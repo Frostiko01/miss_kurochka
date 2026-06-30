@@ -38,7 +38,6 @@ model Branch {
   name                   String              @db.VarChar(200)
   address                String
   phone                  String              @db.VarChar(20)
-  whatsappNumber         String?             @map("whatsapp_number") @db.VarChar(20)
   email                  String?             @db.VarChar(255)
   description            String?
   logoUrl                String?             @map("logo_url") @db.VarChar(500)
