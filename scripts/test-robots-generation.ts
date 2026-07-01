@@ -18,12 +18,20 @@ const robotsConfig = robots()
 console.log('\n📄 Сгенерированный robots.txt:\n')
 
 console.log('User-agent: *')
-robotsConfig.rules.forEach(rule => {
-  console.log(`Allow: ${rule.allow}`)
-  rule.disallow?.forEach(path => {
-    console.log(`Disallow: ${path}`)
-  })
+
+// Исправление: правильная обработка rules
+const rules = Array.isArray(robotsConfig.rules) ? robotsConfig.rules : [robotsConfig.rules]
+rules.forEach((rule: any) => {
+  if (rule.allow) {
+    const allows = Array.isArray(rule.allow) ? rule.allow : [rule.allow]
+    allows.forEach((path: string) => console.log(`Allow: ${path}`))
+  }
+  if (rule.disallow) {
+    const disallows = Array.isArray(rule.disallow) ? rule.disallow : [rule.disallow]
+    disallows.forEach((path: string) => console.log(`Disallow: ${path}`))
+  }
 })
+
 console.log(`\nSitemap: ${robotsConfig.sitemap}`)
 
 console.log('\n' + '='.repeat(60))
